@@ -236,14 +236,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const dinasLogs = filteredTaskLogs.filter((l) => l.status === 'Dinas Luar').length;
   const pendingLogs = Math.max(0, totalLogs - completedLogs - lateLogs - dinasLogs);
 
-  // Average coordinator score across all staff
+  // Average coordinator score across all staff (1 - 4 scale)
   const avgKordScore =
     weeklyScores.length > 0
       ? (
           weeklyScores.reduce((sum, item) => sum + item.score, 0) /
           weeklyScores.length
         ).toFixed(1)
-      : '8.8';
+      : '3.8';
 
   // Chart Data: Task Status Breakdown
   const statusPieData = [
@@ -266,7 +266,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     };
   });
 
-  // Chart Data: Coordinator Evaluation Scores per User
+  // Chart Data: Coordinator Evaluation Scores per User (Scale 1 - 4)
   const userScoresData = allUsers
     .filter((u) => u.role === 'user')
     .map((u) => {
@@ -279,7 +279,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 userScores.length
               ).toFixed(1)
             )
-          : 8.5;
+          : 3.8;
       return {
         name: u.name.replace(/\(.*\)/, '').trim(),
         unit: u.unit,
@@ -931,7 +931,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="flex items-baseline justify-between mt-1">
                 <span className="text-2xl font-black text-indigo-600">⭐ {avgKordScore}</span>
                 <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">
-                  Skala 1-10
+                  Skala 1-4
                 </span>
               </div>
             </div>
@@ -1026,10 +1026,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div>
                   <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
                     <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                    Rata-rata Nilai Evaluasi Kordinator per Staff OB/OG (1 - 10)
+                    Rata-rata Nilai Evaluasi Kordinator per Staff OB/OG (Skala 1 - 4)
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Berdasarkan kriteria kebersihan, kecepatan pre-readiness, dan kepatuhan SOP Lazuardi GCS.
+                    Berdasarkan 15 kriteria kebersihan, kecepatan pre-readiness, dan kepatuhan SOP Lazuardi GCS (1 = Kurang, 2 = Cukup, 3 = Baik, 4 = Sangat Baik).
                   </p>
                 </div>
               </div>
@@ -1038,7 +1038,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={userScoresData}>
                     <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                    <YAxis domain={[0, 10]} ticks={[0, 2, 4, 6, 8, 10]} tick={{ fontSize: 11 }} />
+                    <YAxis domain={[0, 4]} ticks={[0, 1, 2, 3, 4]} tick={{ fontSize: 11 }} />
                     <Tooltip />
                     <Bar dataKey="Nilai" fill="#6366F1" radius={[6, 6, 0, 0]} />
                   </BarChart>

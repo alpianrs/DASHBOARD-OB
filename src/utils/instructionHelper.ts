@@ -1,7 +1,7 @@
 /**
  * Instruction Steps Parser Helper for Lazuardi GCS SOP
  * Parses SOP instructions containing dashes ('-'), newlines ('\n'), or pipes ('|')
- * into clean, individually formatted line-by-line steps.
+ * into clean, individually formatted line-by-line steps with numbers.
  */
 
 export function parseInstructionSteps(
@@ -15,7 +15,7 @@ export function parseInstructionSteps(
   for (const raw of rawList) {
     if (!raw || typeof raw !== 'string') continue;
 
-    // Split by newlines first
+    // Split by newlines or carriage returns first
     const lines = raw.split(/\r?\n/);
     for (const line of lines) {
       const trimmedLine = line.trim();
@@ -31,7 +31,7 @@ export function parseInstructionSteps(
         continue;
       }
 
-      // Check if line contains dash / bullet separators (e.g. "- Step 1 - Step 2" or "Step 1 - Step 2")
+      // Check if line contains dash / bullet / hyphen separators (e.g. "- Step 1 - Step 2", "Step 1 - Step 2", or "• Step 1 • Step 2")
       // Handles "-", "–", "—", "•", "*"
       const hasDashSeparators =
         trimmedLine.includes(' - ') ||
@@ -42,7 +42,6 @@ export function parseInstructionSteps(
 
       if (hasDashSeparators) {
         // Split by dash or bullet separators: " - ", " • ", or leading dash patterns
-        // We match: space then dash then space, or newline-like dash, or bullet
         const parts = trimmedLine
           .split(/(?:\s+[-–—•*]\s+|\s*[-–—•*]\s+)/)
           .map((p) => p.trim())

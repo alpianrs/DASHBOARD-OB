@@ -376,7 +376,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                           onClick={() =>
                             onVerifyTaskLog(
                               log.id,
-                              9,
+                              4,
                               'Pekerjaan terverifikasi rapi dan sesuai SOP Lazuardi.'
                             )
                           }
