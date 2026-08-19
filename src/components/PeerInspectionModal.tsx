@@ -8,15 +8,18 @@ import {
   Building2,
   Users,
   CheckSquare,
+  Plane,
 } from 'lucide-react';
-import { User, PeerInspection } from '../types';
+import { User, PeerInspection, DinasRequest } from '../types';
 import { canInspectPeer } from '../services/storage';
+import { getJakartaDateString } from '../utils/dateHelper';
 
 interface PeerInspectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   activeUser: User;
   allUsers: User[];
+  dinasRequests?: DinasRequest[];
   onSubmitInspection: (inspection: PeerInspection) => void;
 }
 
@@ -33,8 +36,19 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
   onClose,
   activeUser,
   allUsers,
+  dinasRequests = [],
   onSubmitInspection,
 }) => {
+  const today = getJakartaDateString();
+
+  // Check if active user is currently on Dinas Luar
+  const activeUserDinas = dinasRequests.find(
+    (d) =>
+      d.userId === activeUser.id &&
+      (d.date === today || d.date?.startsWith(today)) &&
+      (d.status === 'Disetujui' || d.status === 'Pending')
+  );
+
   // Filter eligible target users according to Lazuardi GCS peer cluster rule
   const eligibleUsers = allUsers.filter(
     (u) =>
@@ -59,6 +73,14 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
   if (!isOpen) return null;
 
   const targetUser = allUsers.find((u) => u.id === targetUserId);
+  const targetUserDinas = targetUser
+    ? dinasRequests.find(
+        (d) =>
+          d.userId === targetUser.id &&
+          (d.date === today || d.date?.startsWith(today)) &&
+          (d.status === 'Disetujui' || d.status === 'Pending')
+      )
+    : null;
 
   const toggleChecklistItem = (index: number) => {
     const next = [...checklist];
@@ -88,7 +110,7 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
     const newInspection: PeerInspection = {
       id: `pi-${Date.now()}`,
       timestamp: new Date().toISOString(),
-      date: new Date().toISOString().split('T')[0],
+      date: today,
       inspectorId: activeUser.id,
       inspectorName: activeUser.name,
       inspectorRole: activeUser.role,
@@ -134,6 +156,19 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
 
         {/* Form Container */}
         <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4 text-xs">
+          {/* Active User Dinas Luar Notice if applicable */}
+          {activeUserDinas && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-blue-950 flex items-start gap-2.5">
+              <Plane className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+              <div>
+                <strong className="block text-blue-900">Anda Sedang Mengajukan / Dinas Luar Hari Ini:</strong>
+                <p className="text-[11px] text-blue-800 mt-0.5">
+                  Sebagai catatan, petugas yang sedang bertugas dinas luar secara resmi dibebaskan dari kewajiban pengisian tugas harian &amp; inspeksi silang. Anda tetap dapat mengirimkan laporan ini bila diinginkan.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Info Banner */}
           <div className="bg-sky-50 border border-sky-200 rounded-xl p-3 text-sky-900 leading-relaxed">
             <div className="flex items-start gap-2">
@@ -154,20 +189,38 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
               Pilih Rekan yang Diinspeksi:
             </label>
             {eligibleUsers.length > 0 ? (
-              <select
-                value={targetUserId}
-                onChange={(e) => {
-                  setTargetUserId(e.target.value);
-                  setError(null);
-                }}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-              >
-                {eligibleUsers.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} — Unit: {u.unit} ({u.role})
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-1.5">
+                <select
+                  value={targetUserId}
+                  onChange={(e) => {
+                    setTargetUserId(e.target.value);
+                    setError(null);
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                >
+                  {eligibleUsers.map((u) => {
+                    const isUOnDinas = dinasRequests.some(
+                      (d) =>
+                        d.userId === u.id &&
+                        (d.date === today || d.date?.startsWith(today)) &&
+                        (d.status === 'Disetujui' || d.status === 'Pending')
+                    );
+                    return (
+                      <option key={u.id} value={u.id}>
+                        {u.name} — Unit: {u.unit} {isUOnDinas ? '✈️ [Sedang Dinas Luar]' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+                {targetUserDinas && (
+                  <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] flex items-center gap-1.5">
+                    <Plane className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>
+                      Rekan ini sedang dinas luar (<strong>{targetUserDinas.reason || 'Tugas Luar'}</strong>). Jobdesk hariannya sedang dinonaktifkan.
+                    </span>
+                  </div>
+                )}
+              </div>
             ) : (
               <p className="text-rose-600 p-2 bg-rose-50 rounded-xl border border-rose-200">
                 Tidak ada rekan aktif dalam klaster unit Anda saat ini.

@@ -73,6 +73,12 @@ import {
   extractGoogleDriveFileId,
 } from '../utils/driveHelper';
 import { parseInstructionSteps } from '../utils/instructionHelper';
+import {
+  getJakartaDateString,
+  getJakartaHour,
+  formatJakartaDisplayDate,
+  isMasterTaskActive,
+} from '../utils/dateHelper';
 
 interface AdminDashboardProps {
   activeUser: User;
@@ -119,8 +125,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     'analytics' | 'rekap_tugas' | 'job_bareng' | 'dinas_luar' | 'manajemen_user' | 'master_task' | 'hari_libur' | 'google_sync'
   >('analytics');
 
-  // Date filtering state
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Date filtering state using Jakarta (WIB) timezone
+  const todayStr = getJakartaDateString();
   const [dateFilterMode, setDateFilterMode] = useState<'today' | '7days' | 'month' | 'custom'>('today');
   const [startDate, setStartDate] = useState<string>(todayStr);
   const [endDate, setEndDate] = useState<string>(todayStr);
@@ -203,6 +209,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [taskInstructionsText, setTaskInstructionsText] = useState<string>('');
   const [taskPhotoRequired, setTaskPhotoRequired] = useState<boolean>(true);
   const [taskStandardPhotoUrl, setTaskStandardPhotoUrl] = useState<string>('');
+  const [taskIsActive, setTaskIsActive] = useState<boolean>(true);
 
   // Filter Task Logs according to Date & Filter controls
   const filteredTaskLogs = taskLogs.filter((log) => {
@@ -485,6 +492,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         instructions: instructionsArray,
         photoRequired: taskPhotoRequired,
         standardPhotoUrl: cleanStandardPhoto,
+        isActive: taskIsActive,
       };
       onUpdateMasterTask(updated);
       setEditingTask(null);
@@ -501,7 +509,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         instructions: instructionsArray,
         photoRequired: taskPhotoRequired,
         standardPhotoUrl: cleanStandardPhoto,
-        isActive: true,
+        isActive: taskIsActive,
       };
       onAddMasterTask(newTask);
       setIsAddingTask(false);
@@ -511,6 +519,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setTaskInstructionsText('');
     setTaskAssignee('Semua Petugas');
     setTaskStandardPhotoUrl('');
+    setTaskIsActive(true);
   };
 
   // Export CSV Helper
@@ -551,23 +560,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const missedTasksSummary = staffUsers.map((user) => {
     const userMasterDaily = masterTasks.filter(
-      (m) => m.category === 'Harian' && isTaskAssignedToUser(m, user)
+      (m) => m.category === 'Harian' && isMasterTaskActive(m) && isTaskAssignedToUser(m, user)
     );
+
+    // Check if user has an approved or submitted Dinas Luar on the selected date
+    const userDinasOnDate = dinasRequests.find(
+      (d) =>
+        d.userId === user.id &&
+        (d.date === startDate || d.date?.startsWith(startDate)) &&
+        (d.status === 'Disetujui' || d.status === 'Pending')
+    );
+    const isUserOnDinas = !!userDinasOnDate;
+
     const userSubmittedTaskIds = new Set(
       taskLogs
         .filter((l) => l.userId === user.id && l.date === startDate && l.status === 'Selesai')
         .map((l) => l.taskId)
     );
-    const missedList = userMasterDaily.filter((m) => !userSubmittedTaskIds.has(m.id));
+    const missedList = isUserOnDinas || isSelectedDateDayOff ? [] : userMasterDaily.filter((m) => !userSubmittedTaskIds.has(m.id));
 
     return {
       user,
       totalAssigned: userMasterDaily.length,
       completedCount: userSubmittedTaskIds.size,
-      missedCount: isSelectedDateDayOff ? 0 : Math.max(0, userMasterDaily.length - userSubmittedTaskIds.size),
-      missedTasks: isSelectedDateDayOff ? [] : missedList,
+      missedCount: isSelectedDateDayOff || isUserOnDinas ? 0 : Math.max(0, userMasterDaily.length - userSubmittedTaskIds.size),
+      missedTasks: missedList,
+      isDinas: isUserOnDinas,
+      dinasInfo: userDinasOnDate,
       complianceRate:
-        userMasterDaily.length > 0
+        isUserOnDinas || isSelectedDateDayOff
+          ? 100
+          : userMasterDaily.length > 0
           ? Math.round((userSubmittedTaskIds.size / userMasterDaily.length) * 100)
           : 100,
     };
@@ -2075,96 +2098,120 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 }
                 return true;
               })
-              .map((t) => (
-              <div
-                key={t.id}
-                className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-2 text-xs hover:border-emerald-300 transition"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 font-bold text-[10px]">
-                        {t.category} ({t.timingType})
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">
-                        Unit: {t.unit}
-                      </span>
-                      {t.assignee && t.assignee !== 'Semua Petugas' ? (
-                        <span className="px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-900 font-bold text-[10px] border border-sky-200 flex items-center gap-1">
-                          👤 Petugas: {t.assignee}
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium text-[10px] border border-slate-200">
-                          👥 Bersama: Semua Petugas {t.unit}
-                        </span>
-                      )}
-                      {t.photoRequired && (
-                        <span className="text-emerald-700 font-bold text-[10px]">
-                          📷 Foto Wajib
-                        </span>
-                      )}
-                      {t.standardPhotoUrl && (
-                        <a
-                          href={t.standardPhotoUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-bold text-[10px] hover:bg-amber-100 transition"
-                        >
-                          🖼️ Contoh SOP ↗
-                        </a>
-                      )}
-                    </div>
-                    <h4 className="font-bold text-sm text-slate-900 mt-1">{t.title}</h4>
-                    {t.area && <p className="text-slate-500">Area: {t.area}</p>}
-                  </div>
+              .map((t) => {
+                const isActive = isMasterTaskActive(t);
+                return (
+                  <div
+                    key={t.id}
+                    className={`bg-white border rounded-2xl p-4 shadow-xs space-y-2 text-xs transition ${
+                      isActive ? 'border-slate-200 hover:border-emerald-300' : 'border-rose-200 bg-rose-50/20 opacity-80'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Active / Nonaktif Status Pill */}
+                          <button
+                            onClick={() => {
+                              onUpdateMasterTask({ ...t, isActive: !isActive });
+                            }}
+                            title="Klik untuk mengubah status aktif/nonaktif"
+                            className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] cursor-pointer flex items-center gap-1 transition ${
+                              isActive
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200'
+                                : 'bg-rose-100 text-rose-800 border border-rose-300 hover:bg-rose-200'
+                            }`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-600' : 'bg-rose-600'}`}></span>
+                            <span>{isActive ? 'Aktif di Harian' : 'Nonaktif (Off)'}</span>
+                          </button>
 
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => {
-                        setEditingTask(t);
-                        setTaskTitle(t.title);
-                        setTaskCategory(t.category as any);
-                        setTaskTiming(t.timingType);
-                        setTaskUnit(t.unit);
-                        setTaskArea(t.area || '');
-                        setTaskAssignee(t.assignee || 'Semua Petugas');
-                        setTaskInstructionsText(t.instructions.join('\n'));
-                        setTaskPhotoRequired(t.photoRequired);
-                        setTaskStandardPhotoUrl(t.standardPhotoUrl || '');
-                        setIsEditingTaskModal(true);
-                      }}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => onDeleteMasterTask(t.id)}
-                      className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {t.instructions && t.instructions.length > 0 && (
-                  <div className="p-3 bg-slate-50 rounded-xl space-y-1.5 text-slate-700 text-xs border border-slate-200/70">
-                    <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider block">
-                      Langkah Instruksi SOP:
-                    </span>
-                    <div className="space-y-1">
-                      {parseInstructionSteps(t.instructions).map((ins, i) => (
-                        <div key={i} className="flex items-start gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200/60 shadow-2xs">
-                          <span className="w-4 h-4 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
-                            {i + 1}
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 font-bold text-[10px]">
+                            {t.category} ({t.timingType})
                           </span>
-                          <span className="leading-relaxed text-slate-800">{ins}</span>
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">
+                            Unit: {t.unit}
+                          </span>
+                          {t.assignee && t.assignee !== 'Semua Petugas' ? (
+                            <span className="px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-900 font-bold text-[10px] border border-sky-200 flex items-center gap-1">
+                              👤 Petugas: {t.assignee}
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium text-[10px] border border-slate-200">
+                              👥 Bersama: Semua Petugas {t.unit}
+                            </span>
+                          )}
+                          {t.photoRequired && (
+                            <span className="text-emerald-700 font-bold text-[10px]">
+                              📷 Foto Wajib
+                            </span>
+                          )}
+                          {t.standardPhotoUrl && (
+                            <a
+                              href={t.standardPhotoUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-bold text-[10px] hover:bg-amber-100 transition"
+                            >
+                              🖼️ Contoh SOP ↗
+                            </a>
+                          )}
                         </div>
-                      ))}
+                        <h4 className="font-bold text-sm text-slate-900 mt-1">{t.title}</h4>
+                        {t.area && <p className="text-slate-500">Area: {t.area}</p>}
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            setEditingTask(t);
+                            setTaskTitle(t.title);
+                            setTaskCategory(t.category as any);
+                            setTaskTiming(t.timingType);
+                            setTaskUnit(t.unit);
+                            setTaskArea(t.area || '');
+                            setTaskAssignee(t.assignee || 'Semua Petugas');
+                            setTaskInstructionsText(t.instructions.join('\n'));
+                            setTaskPhotoRequired(t.photoRequired);
+                            setTaskStandardPhotoUrl(t.standardPhotoUrl || '');
+                            setTaskIsActive(isMasterTaskActive(t));
+                            setIsEditingTaskModal(true);
+                          }}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
+                          title="Edit Task"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => onDeleteMasterTask(t.id)}
+                          className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 cursor-pointer"
+                          title="Hapus Task"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
+
+                    {t.instructions && t.instructions.length > 0 && (
+                      <div className="p-3 bg-slate-50 rounded-xl space-y-1.5 text-slate-700 text-xs border border-slate-200/70">
+                        <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider block">
+                          Langkah Instruksi SOP:
+                        </span>
+                        <div className="space-y-1">
+                          {parseInstructionSteps(t.instructions).map((ins, i) => (
+                            <div key={i} className="flex items-start gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200/60 shadow-2xs">
+                              <span className="w-4 h-4 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                {i + 1}
+                              </span>
+                              <span className="leading-relaxed text-slate-800">{ins}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            ))}
+                );
+              })}
           </div>
         </div>
       )}
@@ -2871,17 +2918,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="chkPhoto"
-                  checked={taskPhotoRequired}
-                  onChange={(e) => setTaskPhotoRequired(e.target.checked)}
-                  className="w-4 h-4 accent-sky-600 rounded"
-                />
-                <label htmlFor="chkPhoto" className="font-bold text-slate-700">
-                  Wajib Lampirkan Foto Bukti Live Kamera
-                </label>
+              <div className="space-y-2 pt-1 border-t border-slate-100">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="chkIsActive"
+                    checked={taskIsActive}
+                    onChange={(e) => setTaskIsActive(e.target.checked)}
+                    className="w-4 h-4 accent-emerald-600 rounded"
+                  />
+                  <label htmlFor="chkIsActive" className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <span>Status Task Aktif (Muncul di Checklist Harian Staff)</span>
+                    <span className={`px-2 py-0.2 rounded-md text-[10px] font-bold ${taskIsActive ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                      {taskIsActive ? 'Aktif' : 'Nonaktif'}
+                    </span>
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="chkPhoto"
+                    checked={taskPhotoRequired}
+                    onChange={(e) => setTaskPhotoRequired(e.target.checked)}
+                    className="w-4 h-4 accent-sky-600 rounded"
+                  />
+                  <label htmlFor="chkPhoto" className="font-bold text-slate-700">
+                    Wajib Lampirkan Foto Bukti Live Kamera
+                  </label>
+                </div>
               </div>
 
               <div className="flex gap-2 pt-2">
