@@ -1,0 +1,6 @@
+{
+  "name": "Facility Management Lazuardi GCS",
+  "description": "Aplikasi Work Order Mobile OB/OG Unit Facility Management Lazuardi GCS dengan integrasi Google Sheets 2 arah dan Google Drive.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
