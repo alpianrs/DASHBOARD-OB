@@ -41,7 +41,9 @@ export const SyncStatusModal: React.FC<SyncStatusModalProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [setupLoading, setSetupLoading] = useState<boolean>(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [webAppUrl, setWebAppUrl] = useState<string>(syncConfig.webAppUrl || '');
+  const [webAppUrl, setWebAppUrl] = useState<string>(
+    syncConfig.webAppUrl || StorageService.getSyncConfig().webAppUrl || ''
+  );
   const [showCode, setShowCode] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [savedUrlSuccess, setSavedUrlSuccess] = useState<boolean>(false);

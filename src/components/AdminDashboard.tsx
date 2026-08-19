@@ -137,7 +137,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Google Apps Script Copy Feedback & Web App URL
   const [copiedScript, setCopiedScript] = useState<boolean>(false);
-  const [webAppUrlInput, setWebAppUrlInput] = useState<string>(() => syncConfig.webAppUrl || '');
+  const [webAppUrlInput, setWebAppUrlInput] = useState<string>(
+    () => syncConfig.webAppUrl || StorageService.getSyncConfig().webAppUrl || ''
+  );
   const [webAppUrlSaved, setWebAppUrlSaved] = useState<boolean>(false);
 
   // Selected Photo Preview

@@ -32,6 +32,9 @@ export const DEFAULT_HOLIDAY_CONFIG: HolidayConfig = {
   disabledDates: [],
 };
 
+export const DEFAULT_WEB_APP_URL =
+  'https://script.google.com/macros/s/AKfycby5H4HMjXdu3y5SfxGKFtgtFRSWIeEKSJFNtOQl3x4rORVmpkpXpiFL_o1pPchAaZMG/exec';
+
 export const DEFAULT_SYNC_CONFIG: SyncConfig = {
   sheetId: '1McKt_ubKY3NmUivMTgep2C6tipg34rq51FZRVbVhtXU',
   driveFolderId: '1MURpjYWLXdg8mOtjO2ucl2tESHYVWfZO',
@@ -39,11 +42,11 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
     'https://docs.google.com/spreadsheets/d/1McKt_ubKY3NmUivMTgep2C6tipg34rq51FZRVbVhtXU/edit?usp=sharing',
   driveFolderUrl:
     'https://drive.google.com/drive/folders/1MURpjYWLXdg8mOtjO2ucl2tESHYVWfZO?usp=sharing',
-  webAppUrl: '',
+  webAppUrl: DEFAULT_WEB_APP_URL,
   lastSyncTime: null,
   isSyncing: false,
   syncError: null,
-  isGoogleConnected: false,
+  isGoogleConnected: true,
   autoSyncEnabled: true,
 };
 
@@ -892,7 +895,13 @@ export const StorageService = {
   },
 
   getSyncConfig: (): SyncConfig => {
-    return getStoredItem<SyncConfig>(STORAGE_KEYS.SYNC_CONFIG, DEFAULT_SYNC_CONFIG);
+    const config = getStoredItem<SyncConfig>(STORAGE_KEYS.SYNC_CONFIG, DEFAULT_SYNC_CONFIG);
+    if (!config.webAppUrl || config.webAppUrl.trim() === '') {
+      config.webAppUrl = DEFAULT_WEB_APP_URL;
+      config.isGoogleConnected = true;
+      StorageService.saveSyncConfig(config);
+    }
+    return config;
   },
   saveSyncConfig: (config: SyncConfig): void => {
     setStoredItem(STORAGE_KEYS.SYNC_CONFIG, config);
