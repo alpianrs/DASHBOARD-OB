@@ -259,9 +259,22 @@ export const SyncStatusModal: React.FC<SyncStatusModalProps> = ({
                 Simpan URL
               </button>
             </div>
-            <p className="text-[10px] text-sky-800">
-              *Diperoleh dari <strong>Deploy &gt; New deployment &gt; Web app (Anyone)</strong> pada Google Apps Script.
-            </p>
+            <div className="text-[11px] text-sky-900 bg-sky-100/70 p-2.5 rounded-lg space-y-1">
+              <p className="font-bold text-sky-950">Cara Deploy & Mengatasi "Akses ditolak: DriveApp":</p>
+              <ol className="list-decimal list-inside space-y-0.5 text-[10.5px]">
+                <li>Buka Google Sheet &gt; <strong>Ekstensi &gt; Apps Script</strong>.</li>
+                <li>Tempel seluruh kode <strong>Code.gs</strong> (salin dari tombol di bawah).</li>
+                <li>Klik tombol <strong>Deploy &gt; New deployment</strong> (atau Manage deployments &gt; Edit jika update).</li>
+                <li>Pilih <strong>Web app</strong>:
+                  <ul className="list-disc list-inside ml-2">
+                    <li>Execute as: <strong>Me (email Anda)</strong></li>
+                    <li>Who has access: <strong>Anyone</strong> (Siapa saja)</li>
+                  </ul>
+                </li>
+                <li>Klik <strong>Deploy</strong> &gt; <strong>Authorize Access</strong> &gt; Pilih Akun &gt; <strong>Advanced &gt; Go to (unsafe) &gt; Allow</strong> agar Apps Script diizinkan mengakses Google Drive & Spreadsheet.</li>
+                <li>Salin <strong>Web App URL</strong> yang berakhiran <code>/exec</code> ke kolom di atas.</li>
+              </ol>
+            </div>
           </div>
 
           {/* Action Box: Setup Database Otomatis & Script Code */}

@@ -84,8 +84,10 @@ export interface JobBareng {
   createdBy: string;
   createdByName: string;
   status: 'Aktif' | 'Selesai' | 'Dibatalkan';
-  participantIds: string[]; // List of user IDs who participated
-  completedUserIds: string[]; // List of user IDs who finished
+  participantIds: string[]; // List of user IDs
+  participantNames?: string[]; // List of staff names
+  completedUserIds: string[]; // List of user IDs
+  completedUserNames?: string[]; // List of staff names
   createdAt: string;
 }
 

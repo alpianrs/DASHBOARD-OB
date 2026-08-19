@@ -91,12 +91,22 @@ function saveBase64ImageToDrive(base64Str, filename) {
     return str;
   }
   try {
-    var folder;
+    var folder = null;
     try {
-      folder = DriveApp.getFolderById(DRIVE_FOLDER_ID);
-    } catch (e) {
-      var folders = DriveApp.getFoldersByName("Lazuardi FM - Foto Bukti Pekerjaan");
-      folder = folders.hasNext() ? folders.next() : DriveApp.createFolder("Lazuardi FM - Foto Bukti Pekerjaan");
+      if (DRIVE_FOLDER_ID && DRIVE_FOLDER_ID.length > 5) {
+        folder = DriveApp.getFolderById(DRIVE_FOLDER_ID);
+      }
+    } catch (eFolder) {
+      folder = null;
+    }
+
+    if (!folder) {
+      try {
+        var folders = DriveApp.getFoldersByName("Lazuardi FM - Foto Bukti Pekerjaan");
+        folder = folders.hasNext() ? folders.next() : DriveApp.createFolder("Lazuardi FM - Foto Bukti Pekerjaan");
+      } catch (eFolder2) {
+        folder = DriveApp.getRootFolder();
+      }
     }
     
     var cleanBase64 = str;
@@ -107,10 +117,17 @@ function saveBase64ImageToDrive(base64Str, filename) {
     var fn = filename || ("bukti_" + (new Date().getTime()) + ".jpg");
     var blob = Utilities.newBlob(decodedBytes, "image/jpeg", fn);
     var file = folder.createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    return file.getUrl();
+
+    try {
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (shareErr) {
+      // Ignore if workspace domain restrictions prevent public link sharing
+    }
+
+    return "https://drive.google.com/file/d/" + file.getId() + "/view?usp=sharing";
   } catch (err) {
-    return "Error Drive Upload: " + err.toString();
+    // If any error occurs, do not throw ugly error into sheet, fallback to placeholder
+    return "https://drive.google.com/file/d/upload_failed_" + (new Date().getTime());
   }
 }
 
@@ -671,18 +688,34 @@ export const GoogleSheetsService = {
     const jobs = StorageService.getJobBareng();
     const jobRows = [
       ['ID', 'Title', 'Description', 'Date', 'TargetUnit', 'TargetArea', 'Status', 'Participants', 'CompletedUsers', 'CreatedAt'],
-      ...jobs.map((j) => [
-        j.id,
-        j.title,
-        j.description,
-        j.date,
-        j.targetUnit,
-        j.targetArea,
-        j.status,
-        j.participantIds.join(', '),
-        j.completedUserIds.join(', '),
-        j.createdAt,
-      ]),
+      ...jobs.map((j) => {
+        const participantDisplay = (j.participantNames && j.participantNames.length > 0)
+          ? j.participantNames.join(', ')
+          : j.participantIds.map((id) => {
+              const u = users.find((user) => user.id === id || user.username === id);
+              return u ? u.name : id;
+            }).join(', ');
+
+        const completedDisplay = (j.completedUserNames && j.completedUserNames.length > 0)
+          ? j.completedUserNames.join(', ')
+          : j.completedUserIds.map((id) => {
+              const u = users.find((user) => user.id === id || user.username === id);
+              return u ? u.name : id;
+            }).join(', ');
+
+        return [
+          j.id,
+          j.title,
+          j.description,
+          j.date,
+          j.targetUnit,
+          j.targetArea,
+          j.status,
+          participantDisplay,
+          completedDisplay,
+          j.createdAt,
+        ];
+      }),
     ];
 
     // 5. Prepare Dinas Requests values
@@ -936,58 +969,74 @@ export const GoogleSheetsService = {
             }
           }
 
-          if (rLogs && rLogs.length > 0) {
-            const parsedLogs: TaskLog[] = rLogs
+          if (rLogs !== undefined) {
+            const masterTasks = StorageService.getMasterTasks();
+            const parsedLogs: TaskLog[] = (rLogs || [])
               .filter((row: any[]) => row && row.length > 0 && row[0])
-              .map((row: any[], i: number) => ({
-                id: row[0] || `tl-${i}`,
-                timestamp: row[1] || now,
-                date: row[2] || now.split('T')[0],
-                userId: row[3] || '',
-                userName: row[4] || '',
-                unit: row[5] || 'TK',
-                taskId: row[6] || '',
-                taskTitle: row[6] || '',
-                category: (row[7] || 'Harian') as any,
-                timingType: (row[8] || 'anytime') as any,
-                status: (row[9] || 'Selesai') as any,
-                isLate: String(row[10] || '').toUpperCase() === 'YA',
-                lateReason: row[11] || undefined,
-                photoUrl: row[12] || undefined,
-                notes: row[13] || undefined,
-                kordinatorScore: row[14] ? Number(row[14]) : undefined,
-                kordinatorNotes: row[15] || undefined,
-                peerInspectorName: row[16] || undefined,
-                peerScore: row[17] && !isNaN(Number(row[17])) ? Number(row[17]) : undefined,
-                peerNotes: row[18] || undefined,
-              }));
-            if (parsedLogs.length > 0) {
-              StorageService.saveTaskLogs(parsedLogs);
-            }
+              .map((row: any[], i: number) => {
+                const rawTaskVal = String(row[6] || '').trim();
+                let resolvedTaskId = rawTaskVal;
+                let resolvedTaskTitle = rawTaskVal;
+                const matchedTask = masterTasks.find(
+                  (t) => t.id === rawTaskVal || t.title.toLowerCase() === rawTaskVal.toLowerCase()
+                );
+                if (matchedTask) {
+                  resolvedTaskId = matchedTask.id;
+                  resolvedTaskTitle = matchedTask.title;
+                }
+
+                return {
+                  id: row[0] || `tl-${i}`,
+                  timestamp: row[1] || now,
+                  date: row[2] || now.split('T')[0],
+                  userId: row[3] || '',
+                  userName: row[4] || '',
+                  unit: row[5] || 'TK',
+                  taskId: resolvedTaskId,
+                  taskTitle: resolvedTaskTitle,
+                  category: (row[7] || 'Harian') as any,
+                  timingType: (row[8] || 'anytime') as any,
+                  status: (row[9] || 'Selesai') as any,
+                  isLate: String(row[10] || '').toUpperCase() === 'YA',
+                  lateReason: row[11] || undefined,
+                  photoUrl: row[12] || undefined,
+                  notes: row[13] || undefined,
+                  kordinatorScore: row[14] ? Number(row[14]) : undefined,
+                  kordinatorNotes: row[15] || undefined,
+                  peerInspectorName: row[16] || undefined,
+                  peerScore: row[17] && !isNaN(Number(row[17])) ? Number(row[17]) : undefined,
+                  peerNotes: row[18] || undefined,
+                };
+              });
+            StorageService.saveTaskLogs(parsedLogs);
           }
 
-          if (rJobs && rJobs.length > 0) {
-            const parsedJobs: JobBareng[] = rJobs
+          if (rJobs !== undefined) {
+            const parsedJobs: JobBareng[] = (rJobs || [])
               .filter((row: any[]) => row && row.length > 0 && row[0])
-              .map((row: any[], i: number) => ({
-                id: row[0] || `jb-${i}`,
-                title: row[1] || 'Job Bareng',
-                description: row[2] || '',
-                date: row[3] || now.split('T')[0],
-                targetUnit: row[4] || 'Semua Unit',
-                targetArea: row[5] || 'Area Terkait',
-                status: (row[6] || 'Aktif') as any,
-                participantIds: row[7] ? String(row[7]).split(',').map((s) => s.trim()).filter(Boolean) : [],
-                completedUserIds: row[8] ? String(row[8]).split(',').map((s) => s.trim()).filter(Boolean) : [],
-                createdAt: row[9] || now,
-              }));
-            if (parsedJobs.length > 0) {
-              StorageService.saveJobBareng(parsedJobs);
-            }
+              .map((row: any[], i: number) => {
+                const participantsRaw = row[7] ? String(row[7]).split(',').map((s) => s.trim()).filter(Boolean) : [];
+                const completedRaw = row[8] ? String(row[8]).split(',').map((s) => s.trim()).filter(Boolean) : [];
+                return {
+                  id: row[0] || `jb-${i}`,
+                  title: row[1] || 'Job Bareng',
+                  description: row[2] || '',
+                  date: row[3] || now.split('T')[0],
+                  targetUnit: row[4] || 'Semua Unit',
+                  targetArea: row[5] || 'Area Terkait',
+                  status: (row[6] || 'Aktif') as any,
+                  participantIds: participantsRaw,
+                  participantNames: participantsRaw,
+                  completedUserIds: completedRaw,
+                  completedUserNames: completedRaw,
+                  createdAt: row[9] || now,
+                };
+              });
+            StorageService.saveJobBareng(parsedJobs);
           }
 
-          if (rDinas && rDinas.length > 0) {
-            const parsedDinas: DinasRequest[] = rDinas
+          if (rDinas !== undefined) {
+            const parsedDinas: DinasRequest[] = (rDinas || [])
               .filter((row: any[]) => row && row.length > 0 && row[0])
               .map((row: any[], i: number) => ({
                 id: row[0] || `dr-${i}`,
@@ -1002,13 +1051,11 @@ export const GoogleSheetsService = {
                 approvedAt: row[9] || undefined,
                 createdAt: row[10] || now,
               }));
-            if (parsedDinas.length > 0) {
-              StorageService.saveDinasRequests(parsedDinas);
-            }
+            StorageService.saveDinasRequests(parsedDinas);
           }
 
-          if (rPeer && rPeer.length > 0) {
-            const parsedPeer: PeerInspection[] = rPeer
+          if (rPeer !== undefined) {
+            const parsedPeer: PeerInspection[] = (rPeer || [])
               .filter((row: any[]) => row && row.length > 0 && row[0])
               .map((row: any[], i: number) => ({
                 id: row[0] || `pi-${i}`,
@@ -1026,13 +1073,11 @@ export const GoogleSheetsService = {
                 checklistItems: [],
                 timestamp: row[11] || now,
               }));
-            if (parsedPeer.length > 0) {
-              StorageService.savePeerInspections(parsedPeer);
-            }
+            StorageService.savePeerInspections(parsedPeer);
           }
 
-          if (rWeekly && rWeekly.length > 0) {
-            const parsedWeekly: WeeklyScore[] = rWeekly
+          if (rWeekly !== undefined) {
+            const parsedWeekly: WeeklyScore[] = (rWeekly || [])
               .filter((row: any[]) => row && row.length > 0 && row[0])
               .map((row: any[], i: number) => ({
                 id: row[0] || `ws-${i}`,
@@ -1048,9 +1093,7 @@ export const GoogleSheetsService = {
                 notes: row[9] || '',
                 timestamp: row[10] || now,
               }));
-            if (parsedWeekly.length > 0) {
-              StorageService.saveWeeklyScores(parsedWeekly);
-            }
+            StorageService.saveWeeklyScores(parsedWeekly);
           }
 
           syncConfig.lastSyncTime = now;

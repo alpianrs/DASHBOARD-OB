@@ -180,6 +180,9 @@ export default function App() {
         completedUserIds: Array.from(
           new Set([...activeJobBarengTarget.completedUserIds, activeUser.id])
         ),
+        completedUserNames: Array.from(
+          new Set([...(activeJobBarengTarget.completedUserNames || []), activeUser.name])
+        ),
       };
       StorageService.updateJobBareng(updatedJob);
       setJobBarengList(StorageService.getJobBareng());
@@ -265,10 +268,12 @@ export default function App() {
     const updated: JobBareng = {
       ...target,
       participantIds: Array.from(new Set([...target.participantIds, activeUser.id])),
+      participantNames: Array.from(new Set([...(target.participantNames || []), activeUser.name])),
     };
     StorageService.updateJobBareng(updated);
     setJobBarengList(StorageService.getJobBareng());
     showToast('Anda telah bergabung dalam Job Bareng!');
+    GoogleSheetsService.pushAllToSheets().catch(console.warn);
   };
 
   // Complete Job Bareng Trigger

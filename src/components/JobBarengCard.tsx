@@ -54,10 +54,33 @@ export const JobBarengCard: React.FC<JobBarengCardProps> = ({
           <div className="flex items-center gap-1.5 bg-slate-800/80 px-2 py-1 rounded-lg border border-slate-700/60">
             <Users className="w-3.5 h-3.5 text-emerald-400" />
             <span>
-              <strong className="text-white">{job.participantIds.length}</strong> Rekan Ikut
+              <strong className="text-white">
+                {Math.max(job.participantIds.length, job.participantNames?.length || 0)}
+              </strong>{' '}
+              Rekan Ikut
             </span>
           </div>
         </div>
+
+        {/* List of participant names */}
+        {((job.participantNames && job.participantNames.length > 0) || (job.participantIds && job.participantIds.length > 0)) && (
+          <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl p-2.5 text-[11px] text-slate-300">
+            <span className="font-semibold text-slate-400 block mb-1">Partisipan Bergabung:</span>
+            <div className="flex flex-wrap gap-1.5">
+              {(job.participantNames && job.participantNames.length > 0
+                ? job.participantNames
+                : job.participantIds
+              ).map((nameOrId, idx) => (
+                <span
+                  key={idx}
+                  className="px-2 py-0.5 rounded-md bg-slate-700/80 text-white font-medium text-[11px] border border-slate-600/50"
+                >
+                  {nameOrId}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="pt-2 flex items-center gap-2">

@@ -118,10 +118,19 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
   const userMasterTasks =
     taskFilterMode === 'assigned_to_me' ? myAssignedTasks : unitMasterTasks;
 
-  // Today's logs for this active user
-  const userTodayLogs = taskLogs.filter(
-    (l) => l.userId === activeUser.id && l.date === today
-  );
+  // Today's logs for this active user (matching by userId or userName, and date or timestamp)
+  const userTodayLogs = taskLogs.filter((l) => {
+    const isUserMatch =
+      l.userId === activeUser.id ||
+      (l.userName && activeUser.name && l.userName.trim().toLowerCase() === activeUser.name.trim().toLowerCase()) ||
+      (activeUser.username && l.userId === activeUser.username);
+    const isDateMatch =
+      !l.date ||
+      l.date === today ||
+      (l.timestamp && l.timestamp.startsWith(today)) ||
+      (l.date && l.date.includes(today));
+    return isUserMatch && isDateMatch;
+  });
 
   // Check if user is approved for Dinas Luar today
   const activeDinasToday = dinasRequests.find(
@@ -176,7 +185,12 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
   };
 
   const renderTaskItem = (task: MasterTask, isPreReadinessSection = false) => {
-    const existingLog = userTodayLogs.find((l) => l.taskId === task.id);
+    const existingLog = userTodayLogs.find(
+      (l) =>
+        l.taskId === task.id ||
+        (l.taskTitle && task.title && l.taskTitle.trim().toLowerCase() === task.title.trim().toLowerCase()) ||
+        (l.taskId && task.title && l.taskId.trim().toLowerCase() === task.title.trim().toLowerCase())
+    );
     const isCompleted = existingLog?.status === 'Selesai' || existingLog?.status === 'Terlambat';
     const isLate = existingLog?.isLate || (isPreReadinessSection && isPastPreReadiness && !isCompleted);
 
