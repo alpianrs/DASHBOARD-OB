@@ -144,7 +144,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           )}
 
           {/* Form Login Username & Password */}
-          <form onSubmit={handleManualLogin} className="space-y-3">
+          <form onSubmit={handleManualLogin} className="space-y-3.5">
             <div>
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Username:
@@ -152,24 +152,27 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               <input
                 type="text"
                 required
-                placeholder="Masukkan username (contoh: admin, kordinator, budi_tk)"
+                autoComplete="username"
+                placeholder="Masukkan username (contoh: alpian, ratih_sd, rizky_kord)"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium bg-slate-50/50 focus:bg-white"
               />
             </div>
 
             <div>
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Password:
+                Password Rahasia:
               </label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  required
+                  autoComplete="current-password"
                   placeholder="Masukkan password akun Anda"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"
+                  className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium bg-slate-50/50 focus:bg-white"
                 />
                 <button
                   type="button"
@@ -180,13 +183,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 </button>
               </div>
               <p className="text-[10px] text-slate-400 mt-1">
-                *Default: <code>password123</code> (atau sesuai kolom Password di Google Sheet).
+                *Akun tersimpan otomatis di perangkat ini. Anda tidak perlu login berulang kali.
               </p>
             </div>
 
             <button
               type="submit"
-              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
+              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer active:scale-98"
             >
               <LogIn className="w-4 h-4" />
               <span>Masuk Aplikasi</span>
@@ -194,8 +197,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </form>
 
           {/* Sync Button from Google Sheet */}
-          <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-200">
-            <span className="text-[10px] text-slate-500 font-medium">Ada staf baru di Google Sheet?</span>
+          <div className="pt-3 flex items-center justify-between gap-2 border-t border-slate-200">
+            <span className="text-[10px] text-slate-500 font-medium">Data user belum terupdate?</span>
             <button
               type="button"
               onClick={handleSyncUsersFromSheet}
@@ -203,65 +206,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-[11px] flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-sky-600' : 'text-slate-500'}`} />
-              <span>{isSyncing ? 'Menyinkronkan...' : 'Tarik Data User'}</span>
+              <span>{isSyncing ? 'Menyinkronkan...' : 'Tarik Data User dari Sheet'}</span>
             </button>
-          </div>
-
-          {/* Quick Select Profile Section */}
-          <div className="space-y-1.5 pt-2 border-t border-slate-200">
-            <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-              Atau Pilih Cepat Akun Terdaftar:
-            </span>
-            <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
-              {allUsers.map((u) => (
-                <button
-                  key={u.id}
-                  onClick={() => {
-                    onSelectUser(u);
-                    onClose();
-                  }}
-                  className="w-full flex items-center justify-between p-2 rounded-xl border border-slate-200 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer text-left group"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs text-white ${
-                        u.role === 'admin'
-                          ? 'bg-slate-900'
-                          : u.role === 'kordinator'
-                          ? 'bg-amber-600'
-                          : 'bg-emerald-600'
-                      }`}
-                    >
-                      {u.name.charAt(0)}
-                    </div>
-                    <div>
-                      <div className="font-bold text-slate-900 leading-tight group-hover:text-slate-800">
-                        {u.name}
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        @{u.username} • Unit: {u.unit}
-                      </div>
-                    </div>
-                  </div>
-
-                  <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                      u.role === 'admin'
-                        ? 'bg-slate-100 text-slate-800 border-slate-300'
-                        : u.role === 'kordinator'
-                        ? 'bg-amber-50 text-amber-800 border-amber-200'
-                        : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                    }`}
-                  >
-                    {u.role === 'admin'
-                      ? 'Admin'
-                      : u.role === 'kordinator'
-                      ? 'Kordinator'
-                      : 'OB/OG'}
-                  </span>
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       </div>

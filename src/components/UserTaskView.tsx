@@ -92,8 +92,7 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
   const isGeneralUnit =
     !activeUser.unit ||
     activeUser.unit === 'Semua Unit' ||
-    activeUser.role === 'admin' ||
-    activeUser.role === 'kordinator';
+    activeUser.role === 'admin';
 
   const unitMasterTasks = masterTasks.filter((t) => {
     const tUnit = (t.unit || 'Semua Unit').trim().toLowerCase();

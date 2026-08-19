@@ -74,9 +74,46 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Initial state check on mount
+  // Initial state check on mount & Background 2-Way Sync
   useEffect(() => {
     refreshAllStateFromStorage();
+
+    // Auto pull from Google Sheets on initial load
+    GoogleSheetsService.pullFromSheets()
+      .then((res) => {
+        if (res.success) {
+          refreshAllStateFromStorage();
+        }
+      })
+      .catch(console.warn);
+
+    // Auto pull on window focus (so edits in Google Sheet reflect immediately when returning to tab)
+    const handleWindowFocus = () => {
+      GoogleSheetsService.pullFromSheets()
+        .then((res) => {
+          if (res.success) {
+            refreshAllStateFromStorage();
+          }
+        })
+        .catch(console.warn);
+    };
+    window.addEventListener('focus', handleWindowFocus);
+
+    // Periodic interval 2-way pull (every 60 seconds)
+    const syncInterval = setInterval(() => {
+      GoogleSheetsService.pullFromSheets()
+        .then((res) => {
+          if (res.success) {
+            refreshAllStateFromStorage();
+          }
+        })
+        .catch(console.warn);
+    }, 60000);
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+      clearInterval(syncInterval);
+    };
   }, []);
 
   // Sync state helpers
@@ -96,7 +133,13 @@ export default function App() {
   const handleSelectUser = (user: User) => {
     setActiveUser(user);
     StorageService.setActiveUser(user);
-    showToast(`Beralih ke akun ${user.name} (${user.role.toUpperCase()})`);
+    showToast(`Berhasil login sebagai ${user.name} (${user.role.toUpperCase()})`);
+  };
+
+  // Logout handler
+  const handleLogout = () => {
+    setIsLoginModalOpen(true);
+    showToast('Silakan login dengan akun Anda', 'info');
   };
 
   // Start Task Handler
@@ -415,6 +458,7 @@ export default function App() {
       <Navbar
         activeUser={activeUser}
         onSwitchUser={() => setIsLoginModalOpen(true)}
+        onLogout={handleLogout}
         syncConfig={syncConfig}
         onOpenSyncModal={() => setIsSyncModalOpen(true)}
         onOpenDinasModal={() => setIsDinasModalOpen(true)}

@@ -950,44 +950,64 @@ export const StorageService = {
 // - TK with TK
 // - SD with SD
 // - SMP with SMP
-// - Pelangi Direktorat, Ar Razi, Khaldun can inspect each other
+// - Pelangi Direktorat, Ar Razi, Khaldun (Ibnu Khaldun, Ar Razi, Pelangi, Direktorat) can inspect each other
+// Peer inspection is only for findings/checklist, without numeric scoring
 export const canInspectPeer = (
   inspectorRole: string,
-  inspectorUnit: UnitType,
-  targetUnit: UnitType
+  inspectorUnit: UnitType | string,
+  targetUnit: UnitType | string
 ): boolean => {
   if (inspectorRole === 'admin' || inspectorRole === 'kordinator') {
     return true; // Admin & Kordinator can inspect ALL units
   }
-  if (inspectorUnit === targetUnit) {
+  
+  const normInsp = String(inspectorUnit || '').trim().toLowerCase();
+  const normTarget = String(targetUnit || '').trim().toLowerCase();
+
+  // 1. Same unit inspection: TK with TK, SD with SD, SMP with SMP
+  if (normInsp === normTarget && normInsp !== '') {
     return true;
   }
-  const clusterGroup = ['Pelangi Direktorat', 'Ar Razi', 'Khaldun'];
-  if (clusterGroup.includes(inspectorUnit) && clusterGroup.includes(targetUnit)) {
+
+  // 2. Cluster group: Khaldun, Pelangi, Direktorat, and Ar Razi can inspect each other
+  const clusterKeywords = ['pelangi', 'direktorat', 'ar razi', 'arrazi', 'khaldun', 'ibnu khaldun'];
+  const inspInCluster = clusterKeywords.some((k) => normInsp.includes(k));
+  const targetInCluster = clusterKeywords.some((k) => normTarget.includes(k));
+
+  if (inspInCluster && targetInCluster) {
     return true;
   }
+
   return false;
 };
 
-// Check if a MasterTask is assigned to a specific user
+// Check if a MasterTask is assigned to a specific user or kordinator unit
 export const isTaskAssignedToUser = (task: MasterTask, user: User): boolean => {
   if (!user || !task) return false;
-  if (user.role === 'admin' || user.role === 'kordinator') return true;
+  if (user.role === 'admin') return true;
 
   // 1. Check unit compatibility
   const tUnit = (task.unit || 'Semua Unit').trim().toLowerCase();
   const uUnit = (user.unit || 'Semua Unit').trim().toLowerCase();
+  
+  const userHasAllUnits = uUnit === 'semua unit' || uUnit === 'semua' || uUnit === 'all';
+  const taskIsForAllUnits = tUnit === 'semua unit' || tUnit === 'semua' || tUnit === 'all';
+
   const matchesUnit =
-    tUnit === 'semua unit' ||
-    tUnit === 'semua' ||
-    tUnit === 'all' ||
+    userHasAllUnits ||
+    taskIsForAllUnits ||
     tUnit === uUnit ||
     uUnit.includes(tUnit) ||
     tUnit.includes(uUnit);
 
   if (!matchesUnit) return false;
 
-  // 2. If no assignee specified or set to "Semua Petugas" / "Semua" / empty -> matches anyone in unit
+  // 2. Kordinator manages all tasks in their assigned unit/building
+  if (user.role === 'kordinator') {
+    return true;
+  }
+
+  // 3. If no assignee specified or set to "Semua Petugas" / "Semua" / empty -> matches anyone in unit
   const assignee = (task.assignee || '').trim().toLowerCase();
   if (
     !assignee ||
@@ -1003,7 +1023,7 @@ export const isTaskAssignedToUser = (task: MasterTask, user: User): boolean => {
     return true;
   }
 
-  // 3. Match against user's specific details
+  // 4. Match against user's specific details
   const uUsername = (user.username || '').toLowerCase();
   const uId = (user.id || '').toLowerCase();
   const uName = (user.name || '').toLowerCase();

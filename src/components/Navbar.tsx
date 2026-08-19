@@ -17,6 +17,7 @@ import { User, SyncConfig } from '../types';
 interface NavbarProps {
   activeUser: User;
   onSwitchUser: () => void;
+  onLogout?: () => void;
   syncConfig: SyncConfig;
   onOpenSyncModal: () => void;
   onOpenDinasModal: () => void;
@@ -26,6 +27,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   activeUser,
   onSwitchUser,
+  onLogout,
   syncConfig,
   onOpenSyncModal,
   onOpenDinasModal,
@@ -137,9 +139,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           {/* User Profile & Switcher */}
-          <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+          <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200">
             <button
               onClick={onSwitchUser}
+              title="Ganti Akun / Info Akun"
               className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1.5 rounded-xl hover:bg-slate-100 transition-all text-left cursor-pointer border border-transparent hover:border-slate-200 group"
             >
               <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-xs shadow-xs">
@@ -155,6 +158,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
               <RefreshCw className="w-3.5 h-3.5 text-slate-400 group-hover:rotate-180 transition-transform duration-300 hidden sm:inline-block" />
             </button>
+
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                title="Keluar / Logout"
+                className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>
