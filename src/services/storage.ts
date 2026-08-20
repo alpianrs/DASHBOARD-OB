@@ -408,16 +408,146 @@ const SEED_MASTER_TASKS: MasterTask[] = [
 // Initial Task Logs (recent history)
 const getTodayStr = () => {
   const d = new Date();
-  return d.toISOString().split('T')[0];
+  const local = new Date(d.getTime() + 7 * 60 * 60 * 1000);
+  return local.toISOString().split('T')[0];
 };
 
-const getYesterdayStr = () => {
+const getDaysAgoStr = (days: number) => {
   const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().split('T')[0];
+  d.setDate(d.getDate() - days);
+  const local = new Date(d.getTime() + 7 * 60 * 60 * 1000);
+  return local.toISOString().split('T')[0];
 };
+
+const getYesterdayStr = () => getDaysAgoStr(1);
 
 const SEED_TASK_LOGS: TaskLog[] = [
+  // HARI INI (TODAY) LOGS
+  {
+    id: 'tl-today-001',
+    timestamp: `${getTodayStr()}T06:45:00Z`,
+    date: getTodayStr(),
+    userId: 'u-tk-01',
+    userName: 'Budi Santoso (OB)',
+    userRole: 'user',
+    unit: 'TK',
+    taskId: 'mt-pr-01',
+    taskTitle: 'Sanitasi & Pembersihan Toilet Pagi (Wastafel, Kloset, Lantai Kering)',
+    category: 'Harian',
+    timingType: 'pre_readiness',
+    status: 'Selesai',
+    isLate: false,
+    photoUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&q=80',
+    notes: 'Toilet TK bersih dan wangi, wastafel disinfektan.',
+    verifiedByKordinator: true,
+    kordinatorId: 'u-kord-01',
+    kordinatorName: 'Rizky Pratama',
+    kordinatorScore: 4,
+    kordinatorNotes: 'Pekerjaan sangat baik dan rapi.',
+  },
+  {
+    id: 'tl-today-002',
+    timestamp: `${getTodayStr()}T07:15:00Z`,
+    date: getTodayStr(),
+    userId: 'u-sd-01',
+    userName: 'Agus Setiawan (OB)',
+    userRole: 'user',
+    unit: 'SD',
+    taskId: 'mt-pr-03',
+    taskTitle: 'Penyediaan Air Minum Galon & Perlengkapan Sanitasi Unit',
+    category: 'Harian',
+    timingType: 'pre_readiness',
+    status: 'Selesai',
+    isLate: false,
+    photoUrl: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=400&q=80',
+    notes: 'Galon terisi penuh di semua lantai SD.',
+    verifiedByKordinator: true,
+    kordinatorId: 'u-kord-01',
+    kordinatorName: 'Rizky Pratama',
+    kordinatorScore: 4,
+  },
+  {
+    id: 'tl-today-003',
+    timestamp: `${getTodayStr()}T09:20:00Z`,
+    date: getTodayStr(),
+    userId: 'u-smp-01',
+    userName: 'Dodi Firmansyah (OB)',
+    userRole: 'user',
+    unit: 'SMP',
+    taskId: 'mt-co-01',
+    taskTitle: 'Pengosongan & Pembuangan Semua Tempat Sampah ke TPS Akhir',
+    category: 'Harian',
+    timingType: 'pre_readiness',
+    status: 'Terlambat',
+    isLate: true,
+    lateReason: 'Membantu persiapan sound system acara terlebih dahulu di aula SMP.',
+    photoUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&q=80',
+    notes: 'Sampah TPS sudah diangkut semua.',
+    verifiedByKordinator: true,
+    kordinatorId: 'u-kord-01',
+    kordinatorName: 'Rizky Pratama',
+    kordinatorScore: 3,
+    kordinatorNotes: 'Alasan terverifikasi terlambat karena tugas mendadak.',
+  },
+  {
+    id: 'tl-today-004',
+    timestamp: `${getTodayStr()}T07:30:00Z`,
+    date: getTodayStr(),
+    userId: 'u-pelangi-01',
+    userName: 'Hendra Wijaya (OB)',
+    userRole: 'user',
+    unit: 'Pelangi Direktorat',
+    taskId: 'mt-pr-01',
+    taskTitle: 'Sanitasi & Pembersihan Toilet Pagi (Wastafel, Kloset, Lantai Kering)',
+    category: 'Harian',
+    timingType: 'pre_readiness',
+    status: 'Selesai',
+    isLate: false,
+    photoUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&q=80',
+    notes: 'Toilet direktorat wangi dan bersih.',
+    inspectedByPeer: true,
+    peerInspectorId: 'u-arrazi-01',
+    peerInspectorName: 'Fajar Ramadhan (OB)',
+    peerInspectorUnit: 'Ar Razi',
+    peerScore: 4,
+    peerNotes: 'Mantap bang Hendra, sangat kinclong.',
+  },
+  {
+    id: 'tl-today-005',
+    timestamp: `${getTodayStr()}T08:10:00Z`,
+    date: getTodayStr(),
+    userId: 'u-arrazi-01',
+    userName: 'Fajar Ramadhan (OB)',
+    userRole: 'user',
+    unit: 'Ar Razi',
+    taskId: 'mt-pr-04',
+    taskTitle: 'Penyapuan Koridor, Lobby Utama, & Tangga Area Unit',
+    category: 'Harian',
+    timingType: 'pre_readiness',
+    status: 'Selesai',
+    isLate: false,
+    photoUrl: 'https://images.unsplash.com/photo-1517502884422-41eaead166d4?auto=format&fit=crop&w=400&q=80',
+    notes: 'Lobby Ar Razi bersih dan keset rapi.',
+  },
+  {
+    id: 'tl-today-006',
+    timestamp: `${getTodayStr()}T07:50:00Z`,
+    date: getTodayStr(),
+    userId: 'u-kord-01',
+    userName: 'Rizky Pratama',
+    userRole: 'kordinator',
+    unit: 'Semua Unit',
+    taskId: 'mt-pr-01',
+    taskTitle: 'Inspeksi & Quality Control Kesiapan Fasilitas Pagi Seluruh Unit',
+    category: 'Harian',
+    timingType: 'pre_readiness',
+    status: 'Selesai',
+    isLate: false,
+    photoUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&q=80',
+    notes: 'QC unit TK, SD, SMP selesai sebelum pukul 08:00 WIB.',
+  },
+
+  // KEMARIN (YESTERDAY) LOGS
   {
     id: 'tl-001',
     timestamp: `${getYesterdayStr()}T07:30:00Z`,
@@ -437,7 +567,7 @@ const SEED_TASK_LOGS: TaskLog[] = [
     verifiedByKordinator: true,
     kordinatorId: 'u-kord-01',
     kordinatorName: 'Rizky Pratama',
-    kordinatorScore: 9,
+    kordinatorScore: 4,
     kordinatorNotes: 'Pekerjaan sangat bersih dan rapi.',
   },
   {
@@ -459,7 +589,7 @@ const SEED_TASK_LOGS: TaskLog[] = [
     verifiedByKordinator: true,
     kordinatorId: 'u-kord-01',
     kordinatorName: 'Rizky Pratama',
-    kordinatorScore: 8,
+    kordinatorScore: 4,
   },
   {
     id: 'tl-003',
@@ -481,13 +611,13 @@ const SEED_TASK_LOGS: TaskLog[] = [
     verifiedByKordinator: true,
     kordinatorId: 'u-kord-01',
     kordinatorName: 'Rizky Pratama',
-    kordinatorScore: 7,
+    kordinatorScore: 3,
     kordinatorNotes: 'Alasan terverifikasi, tapi ke depan usahakan delegasikan.',
   },
   {
     id: 'tl-004',
-    timestamp: `${getTodayStr()}T07:15:00Z`,
-    date: getTodayStr(),
+    timestamp: `${getDaysAgoStr(2)}T07:15:00Z`,
+    date: getDaysAgoStr(2),
     userId: 'u-pelangi-01',
     userName: 'Hendra Wijaya (OB)',
     userRole: 'user',
@@ -504,8 +634,43 @@ const SEED_TASK_LOGS: TaskLog[] = [
     peerInspectorId: 'u-arrazi-01',
     peerInspectorName: 'Fajar Ramadhan (OB)',
     peerInspectorUnit: 'Ar Razi',
-    peerScore: 9,
+    peerScore: 4,
     peerNotes: 'Mantap bang Hendra, sangat kinclong.',
+  },
+  {
+    id: 'tl-005',
+    timestamp: `${getDaysAgoStr(3)}T08:00:00Z`,
+    date: getDaysAgoStr(3),
+    userId: 'u-sd-02',
+    userName: 'Ratih Purwasih (OG)',
+    userRole: 'user',
+    unit: 'SD',
+    taskId: 'mt-pr-04',
+    taskTitle: 'Penyapuan Koridor, Lobby Utama, & Tangga Area Unit',
+    category: 'Harian',
+    timingType: 'pre_readiness',
+    status: 'Selesai',
+    isLate: false,
+    photoUrl: 'https://images.unsplash.com/photo-1517502884422-41eaead166d4?auto=format&fit=crop&w=400&q=80',
+    notes: 'Koridor lantai 1 & 2 bersih.',
+  },
+  {
+    id: 'tl-006',
+    timestamp: `${getDaysAgoStr(4)}T09:30:00Z`,
+    date: getDaysAgoStr(4),
+    userId: 'u-tk-02',
+    userName: 'Siti Aminah (OG)',
+    userRole: 'user',
+    unit: 'TK',
+    taskId: 'mt-pr-02',
+    taskTitle: 'Pembersihan & Penataan Ruang Kelas / Kantor Guru Sebelum Jam Masuk',
+    category: 'Harian',
+    timingType: 'pre_readiness',
+    status: 'Terlambat',
+    isLate: true,
+    lateReason: 'Menunggu perbaikan kran air wastafel TK dari teknisi.',
+    photoUrl: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=400&q=80',
+    notes: 'Ruang kelas TK A & B siap digunakan.',
   },
 ];
 
@@ -811,7 +976,12 @@ export const StorageService = {
   },
 
   getTaskLogs: (): TaskLog[] => {
-    return getStoredItem<TaskLog[]>(STORAGE_KEYS.TASK_LOGS, SEED_TASK_LOGS);
+    const logs = getStoredItem<TaskLog[]>(STORAGE_KEYS.TASK_LOGS, SEED_TASK_LOGS);
+    if (!logs || logs.length === 0) {
+      setStoredItem(STORAGE_KEYS.TASK_LOGS, SEED_TASK_LOGS);
+      return SEED_TASK_LOGS;
+    }
+    return logs;
   },
   saveTaskLogs: (logs: TaskLog[]): void => {
     setStoredItem(STORAGE_KEYS.TASK_LOGS, logs);

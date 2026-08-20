@@ -210,18 +210,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [taskPhotoRequired, setTaskPhotoRequired] = useState<boolean>(true);
   const [taskStandardPhotoUrl, setTaskStandardPhotoUrl] = useState<string>('');
   const [taskIsActive, setTaskIsActive] = useState<boolean>(true);
+  const [selectedUserFilter, setSelectedUserFilter] = useState<string>('Semua');
 
-  // Filter Task Logs according to Date & Filter controls
+  // Filter Task Logs according to Date, Unit, User, and Status controls
   const filteredTaskLogs = taskLogs.filter((log) => {
-    // Date filter
+    // Date filter: if dateFilterMode is today, match todayStr; if custom, match between startDate and endDate
+    const logDate = log.date || (log.timestamp ? log.timestamp.split('T')[0] : '');
     if (dateFilterMode === 'today') {
-      if (log.date !== todayStr) return false;
+      if (logDate !== todayStr && !log.timestamp?.startsWith(todayStr)) return false;
     } else if (dateFilterMode === 'custom') {
-      if (log.date < startDate || log.date > endDate) return false;
+      if (logDate < startDate || logDate > endDate) return false;
     }
     // Unit filter
     if (selectedUnitFilter !== 'Semua' && log.unit !== selectedUnitFilter) {
       return false;
+    }
+    // User filter
+    if (selectedUserFilter !== 'Semua') {
+      const matchUser =
+        log.userId === selectedUserFilter ||
+        (log.userName && log.userName.toLowerCase().includes(selectedUserFilter.toLowerCase())) ||
+        (log.userName && selectedUserFilter.toLowerCase().includes(log.userName.toLowerCase()));
+      if (!matchUser) return false;
     }
     // Status filter
     if (selectedStatusFilter !== 'Semua' && log.status !== selectedStatusFilter) {
@@ -230,9 +240,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     // Search query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const matchName = log.userName.toLowerCase().includes(q);
-      const matchTitle = log.taskTitle.toLowerCase().includes(q);
-      const matchUnit = log.unit.toLowerCase().includes(q);
+      const matchName = log.userName?.toLowerCase().includes(q);
+      const matchTitle = log.taskTitle?.toLowerCase().includes(q);
+      const matchUnit = log.unit?.toLowerCase().includes(q);
       if (!matchName && !matchTitle && !matchUnit) return false;
     }
     return true;
@@ -240,10 +250,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Calculate Metrics
   const totalLogs = filteredTaskLogs.length;
-  const completedLogs = filteredTaskLogs.filter((l) => l.status === 'Selesai').length;
+  const completedLogs = filteredTaskLogs.filter((l) => l.status === 'Selesai' && !l.isLate).length;
   const lateLogs = filteredTaskLogs.filter((l) => l.isLate || l.status === 'Terlambat').length;
-  const dinasLogs = filteredTaskLogs.filter((l) => l.status === 'Dinas Luar').length;
-  const pendingLogs = Math.max(0, totalLogs - completedLogs - lateLogs - dinasLogs);
+  const totalCompleted = completedLogs + lateLogs;
+
+  // Calculate target daily master tasks for filtered scope
+  const targetStaffUsers = allUsers.filter((u) => {
+    if (u.status !== 'Aktif') return false;
+    if (u.role !== 'user' && u.role !== 'kordinator') return false;
+    if (selectedUnitFilter !== 'Semua' && u.unit !== selectedUnitFilter && u.unit !== 'Semua Unit') return false;
+    if (selectedUserFilter !== 'Semua') {
+      if (u.id !== selectedUserFilter && !u.name.toLowerCase().includes(selectedUserFilter.toLowerCase())) return false;
+    }
+    return true;
+  });
+
+  const dailyTasksAssignedCount = targetStaffUsers.reduce((sum, user) => {
+    const userMaster = masterTasks.filter(
+      (m) => m.category === 'Harian' && isMasterTaskActive(m) && isTaskAssignedToUser(m, user)
+    );
+    return sum + userMaster.length;
+  }, 0);
+
+  const daySpan = Math.max(
+    1,
+    Math.round(
+      (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)
+    ) + 1
+  );
+  const expectedTargetTasks =
+    dateFilterMode === 'today'
+      ? Math.max(dailyTasksAssignedCount, 1)
+      : Math.max(dailyTasksAssignedCount * Math.min(daySpan, 31), 1);
 
   // Average coordinator score across all staff (1 - 4 scale)
   const avgKordScore =
@@ -254,30 +292,72 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         ).toFixed(1)
       : '3.8';
 
-  // Chart Data: Task Status Breakdown
+  // Chart Data: Task Status Breakdown (Only Tepat Waktu & Terlambat)
   const statusPieData = [
     { name: 'Selesai Tepat Waktu', value: completedLogs, color: '#10B981' },
     { name: 'Terlambat Pre-Readiness', value: lateLogs, color: '#F59E0B' },
-    { name: 'Dinas Luar', value: dinasLogs, color: '#3B82F6' },
-    { name: 'Pending / Belum Selesai', value: pendingLogs, color: '#94A3B8' },
   ].filter((d) => d.value > 0);
 
-  // Chart Data: Completion per Unit
-  const unitsList: UnitType[] = ['TK', 'SD', 'SMP', 'Pelangi Direktorat', 'Ar Razi', 'Khaldun'];
-  const unitPerformanceData = unitsList.map((unit) => {
-    const logsInUnit = taskLogs.filter((l) => l.unit === unit);
-    const completedInUnit = logsInUnit.filter((l) => l.status === 'Selesai').length;
-    const lateInUnit = logsInUnit.filter((l) => l.isLate).length;
-    return {
-      unit: unit === 'Pelangi Direktorat' ? 'Pelangi' : unit,
-      Selesai: completedInUnit,
-      Terlambat: lateInUnit,
-    };
-  });
+  // Fallback if no tasks completed yet
+  if (statusPieData.length === 0 && totalLogs > 0) {
+    statusPieData.push({ name: 'Selesai Tepat Waktu', value: totalLogs, color: '#10B981' });
+  }
 
-  // Chart Data: Coordinator Evaluation Scores per User (Scale 1 - 4)
+  // Chart Data: Completion per Unit / User
+  const unitsList: UnitType[] = ['TK', 'SD', 'SMP', 'Pelangi Direktorat', 'Ar Razi', 'Khaldun'];
+  
+  let unitPerformanceData: { unit: string; Selesai: number; Terlambat: number }[] = [];
+
+  if (selectedUserFilter !== 'Semua') {
+    // Breakdown per timing / category for the selected user
+    const userLogs = filteredTaskLogs;
+    const timingCategories = [
+      { key: 'Pre-Readiness', fn: (l: TaskLog) => l.timingType === 'pre_readiness' },
+      { key: 'Clock Out', fn: (l: TaskLog) => l.timingType === 'clock_out' },
+      { key: 'Rutin Harian', fn: (l: TaskLog) => l.timingType === 'anytime' && l.category === 'Harian' },
+      { key: 'Job Bareng', fn: (l: TaskLog) => l.category === 'Job Bareng' },
+      { key: 'Mingguan/Bulan', fn: (l: TaskLog) => l.category === 'Mingguan' || l.category === 'Bulanan' },
+    ];
+    unitPerformanceData = timingCategories.map((cat) => ({
+      unit: cat.key,
+      Selesai: userLogs.filter((l) => cat.fn(l) && (l.status === 'Selesai' && !l.isLate)).length,
+      Terlambat: userLogs.filter((l) => cat.fn(l) && (l.isLate || l.status === 'Terlambat')).length,
+    }));
+  } else if (selectedUnitFilter !== 'Semua') {
+    // Breakdown for each staff & coordinator in the selected unit
+    const unitStaff = allUsers.filter(
+      (u) =>
+        (u.role === 'user' || u.role === 'kordinator') &&
+        u.status === 'Aktif' &&
+        (u.unit === selectedUnitFilter || u.unit === 'Semua Unit')
+    );
+    unitPerformanceData = unitStaff.map((staff) => {
+      const staffLogs = filteredTaskLogs.filter(
+        (l) => l.userId === staff.id || l.userName.toLowerCase().includes(staff.name.toLowerCase())
+      );
+      return {
+        unit: staff.name.replace(/\(.*\)/, '').trim(),
+        Selesai: staffLogs.filter((l) => l.status === 'Selesai' && !l.isLate).length,
+        Terlambat: staffLogs.filter((l) => l.isLate || l.status === 'Terlambat').length,
+      };
+    });
+  } else {
+    // Breakdown across all 6 Units
+    unitPerformanceData = unitsList.map((unit) => {
+      const logsInUnit = filteredTaskLogs.filter((l) => l.unit === unit);
+      const completedInUnit = logsInUnit.filter((l) => l.status === 'Selesai' && !l.isLate).length;
+      const lateInUnit = logsInUnit.filter((l) => l.isLate || l.status === 'Terlambat').length;
+      return {
+        unit: unit === 'Pelangi Direktorat' ? 'Pelangi' : unit,
+        Selesai: completedInUnit,
+        Terlambat: lateInUnit,
+      };
+    });
+  }
+
+  // Chart Data: Coordinator & Staff Evaluation Scores (Scale 1 - 4)
   const userScoresData = allUsers
-    .filter((u) => u.role === 'user')
+    .filter((u) => (u.role === 'user' || u.role === 'kordinator') && u.status === 'Aktif')
     .map((u) => {
       const userScores = weeklyScores.filter((w) => w.userId === u.id);
       const avg =
@@ -296,9 +376,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       };
     });
 
-  // Active Staff List (role = 'user' and status = 'Aktif')
+  // Active Staff & Coordinator List
   const activeStaffList = allUsers.filter(
-    (u) => u.role === 'user' && u.status === 'Aktif'
+    (u) => (u.role === 'user' || u.role === 'kordinator') && u.status === 'Aktif'
   );
 
   // Job Bareng Detailed Statistics & Participation Breakdown
@@ -554,8 +634,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     document.body.removeChild(link);
   };
 
-  // Calculate Missed Tasks (Pekerjaan Yang Tidak Dikerjakan) for active users
-  const staffUsers = allUsers.filter((u) => u.role === 'user' && u.status === 'Aktif');
+  // Calculate Missed Tasks (Pekerjaan Yang Tidak Dikerjakan) for active staff and coordinators
+  const staffUsers = allUsers.filter(
+    (u) => (u.role === 'user' || u.role === 'kordinator') && u.status === 'Aktif'
+  );
   const isSelectedDateDayOff = StorageService.isDayOffToday(startDate);
 
   const missedTasksSummary = staffUsers.map((user) => {
@@ -566,7 +648,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     // Check if user has an approved or submitted Dinas Luar on the selected date
     const userDinasOnDate = dinasRequests.find(
       (d) =>
-        d.userId === user.id &&
+        (d.userId === user.id || d.userName === user.name) &&
         (d.date === startDate || d.date?.startsWith(startDate)) &&
         (d.status === 'Disetujui' || d.status === 'Pending')
     );
@@ -574,25 +656,44 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     const userSubmittedTaskIds = new Set(
       taskLogs
-        .filter((l) => l.userId === user.id && l.date === startDate && l.status === 'Selesai')
+        .filter(
+          (l) =>
+            (l.userId === user.id || (l.userName && l.userName.toLowerCase() === user.name.toLowerCase())) &&
+            (l.date === startDate || l.timestamp?.startsWith(startDate)) &&
+            (l.status === 'Selesai' || l.status === 'Terlambat')
+        )
         .map((l) => l.taskId)
     );
-    const missedList = isUserOnDinas || isSelectedDateDayOff ? [] : userMasterDaily.filter((m) => !userSubmittedTaskIds.has(m.id));
+    const missedList =
+      isUserOnDinas || isSelectedDateDayOff
+        ? []
+        : userMasterDaily.filter((m) => !userSubmittedTaskIds.has(m.id));
+
+    const totalAssigned = userMasterDaily.length;
+    const completedCount = userSubmittedTaskIds.size;
+    const missedCount =
+      isSelectedDateDayOff || isUserOnDinas
+        ? 0
+        : Math.max(0, totalAssigned - completedCount);
+
+    let complianceRate = 100;
+    if (isUserOnDinas || isSelectedDateDayOff) {
+      complianceRate = 100;
+    } else if (totalAssigned > 0) {
+      complianceRate = Math.min(100, Math.round((completedCount / totalAssigned) * 100));
+    } else {
+      complianceRate = completedCount > 0 ? 100 : 0;
+    }
 
     return {
       user,
-      totalAssigned: userMasterDaily.length,
-      completedCount: userSubmittedTaskIds.size,
-      missedCount: isSelectedDateDayOff || isUserOnDinas ? 0 : Math.max(0, userMasterDaily.length - userSubmittedTaskIds.size),
+      totalAssigned,
+      completedCount,
+      missedCount,
       missedTasks: missedList,
       isDinas: isUserOnDinas,
       dinasInfo: userDinasOnDate,
-      complianceRate:
-        isUserOnDinas || isSelectedDateDayOff
-          ? 100
-          : userMasterDaily.length > 0
-          ? Math.round((userSubmittedTaskIds.size / userMasterDaily.length) * 100)
-          : 100,
+      complianceRate,
     };
   });
 
@@ -813,11 +914,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </button>
       </div>
 
-      {/* FILTER BAR: Date & Unit (Used across Analytics & Rekap) */}
+      {/* FILTER BAR: Date, Unit & User (Used across Analytics & Rekap) */}
       {(adminTab === 'analytics' || adminTab === 'rekap_tugas') && (
         <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
           {/* Date Presets */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className="font-bold text-slate-700 flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5 text-slate-500" /> Rentang:
             </span>
@@ -829,7 +930,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               }}
               className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
                 dateFilterMode === 'today'
-                  ? 'bg-slate-900 text-white'
+                  ? 'bg-slate-900 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
@@ -840,12 +941,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 setDateFilterMode('custom');
                 const d = new Date();
                 d.setDate(d.getDate() - 7);
-                setStartDate(d.toISOString().split('T')[0]);
+                const local = new Date(d.getTime() + 7 * 60 * 60 * 1000);
+                setStartDate(local.toISOString().split('T')[0]);
                 setEndDate(todayStr);
               }}
               className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
                 dateFilterMode === 'custom' && startDate !== todayStr
-                  ? 'bg-slate-900 text-white'
+                  ? 'bg-slate-900 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
@@ -856,7 +958,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 setDateFilterMode('custom');
                 const d = new Date();
                 d.setDate(1); // 1st of month
-                setStartDate(d.toISOString().split('T')[0]);
+                const local = new Date(d.getTime() + 7 * 60 * 60 * 1000);
+                setStartDate(local.toISOString().split('T')[0]);
                 setEndDate(todayStr);
               }}
               className="px-2.5 py-1 rounded-lg font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition cursor-pointer"
@@ -888,22 +991,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             />
           </div>
 
-          {/* Unit Selector */}
-          <div className="flex items-center gap-1.5">
-            <span className="font-bold text-slate-700">Unit:</span>
-            <select
-              value={selectedUnitFilter}
-              onChange={(e) => setSelectedUnitFilter(e.target.value)}
-              className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium focus:ring-2 focus:ring-sky-500"
-            >
-              <option value="Semua">Semua Unit</option>
-              <option value="TK">TK</option>
-              <option value="SD">SD</option>
-              <option value="SMP">SMP</option>
-              <option value="Pelangi Direktorat">Pelangi Direktorat</option>
-              <option value="Ar Razi">Ar Razi</option>
-              <option value="Khaldun">Khaldun</option>
-            </select>
+          {/* Unit & User Selectors */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-slate-700">Unit:</span>
+              <select
+                value={selectedUnitFilter}
+                onChange={(e) => setSelectedUnitFilter(e.target.value)}
+                className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium focus:ring-2 focus:ring-sky-500"
+              >
+                <option value="Semua">Semua Unit</option>
+                <option value="TK">TK</option>
+                <option value="SD">SD</option>
+                <option value="SMP">SMP</option>
+                <option value="Pelangi Direktorat">Pelangi Direktorat</option>
+                <option value="Ar Razi">Ar Razi</option>
+                <option value="Khaldun">Khaldun</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-slate-700 flex items-center gap-1">
+                <Users className="w-3.5 h-3.5 text-slate-500" /> Petugas:
+              </span>
+              <select
+                value={selectedUserFilter}
+                onChange={(e) => setSelectedUserFilter(e.target.value)}
+                className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium focus:ring-2 focus:ring-sky-500 max-w-[180px] truncate"
+              >
+                <option value="Semua">Semua Petugas & Kordinator</option>
+                {allUsers
+                  .filter((u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator'))
+                  .filter(
+                    (u) =>
+                      selectedUnitFilter === 'Semua' ||
+                      u.unit === selectedUnitFilter ||
+                      u.unit === 'Semua Unit'
+                  )
+                  .map((u) => (
+                    <option key={u.id} value={u.name}>
+                      {u.name} ({u.role === 'kordinator' ? 'Kordinator' : u.unit})
+                    </option>
+                  ))}
+              </select>
+            </div>
           </div>
         </div>
       )}
@@ -920,7 +1051,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="flex items-baseline justify-between mt-1">
                 <span className="text-2xl font-black text-slate-900">{totalLogs}</span>
                 <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                  {completedLogs} Selesai
+                  {completedLogs} Tepat Waktu
+                </span>
+              </div>
+              <div className="mt-1.5 text-[11px] text-slate-500 flex items-center justify-between">
+                <span>Target: <strong>{expectedTargetTasks}</strong> tugas</span>
+                <span className="font-semibold text-slate-700">
+                  {totalLogs > 0 ? Math.round((totalLogs / expectedTargetTasks) * 100) : 0}% terinput
                 </span>
               </div>
             </div>
@@ -935,6 +1072,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   Wajib Alasan
                 </span>
               </div>
+              <div className="mt-1.5 text-[11px] text-slate-500">
+                <span>Total selesai: <strong>{totalCompleted}</strong> tugas</span>
+              </div>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
@@ -946,6 +1086,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
                   +{totalJobPointsEarned} Poin
                 </span>
+              </div>
+              <div className="mt-1.5 text-[11px] text-slate-500">
+                <span>{jobBarengList.length} Job Bareng Terjadwal</span>
               </div>
             </div>
 
@@ -959,26 +1102,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   Skala 1-4
                 </span>
               </div>
+              <div className="mt-1.5 text-[11px] text-slate-500">
+                <span>Evaluasi 15 Standar SOP</span>
+              </div>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                Staff Aktif & Dinas
+                Staff & Kordinator Aktif
               </span>
               <div className="flex items-baseline justify-between mt-1">
                 <span className="text-2xl font-black text-slate-900">
-                  {allUsers.filter((u) => u.role === 'user' && u.status === 'Aktif').length}
+                  {allUsers.filter((u) => (u.role === 'user' || u.role === 'kordinator') && u.status === 'Aktif').length}
                 </span>
                 <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                  {dinasLogs} Dinas Luar
+                  {dinasRequests.filter((d) => d.status === 'Disetujui' && d.date === startDate).length} Dinas Luar
                 </span>
+              </div>
+              <div className="mt-1.5 text-[11px] text-slate-500">
+                <span>6 Unit Fasilitas Terpadu</span>
               </div>
             </div>
           </div>
 
           {/* Interactive Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* Chart 1: Task Completion Breakdown (Donut Chart) */}
+            {/* Chart 1: Task Completion Breakdown (Donut Chart - Only Tepat Waktu & Terlambat) */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
               <div>
                 <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
@@ -986,7 +1135,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   Distribusi Status Pekerjaan
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Perbandingan tugas selesai tepat waktu, terlambat, dan dinas luar.
+                  Perbandingan tugas selesai tepat waktu vs terlambat pre-readiness (wajib alasan).
                 </p>
               </div>
 
@@ -1013,22 +1162,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </ResponsiveContainer>
                 ) : (
                   <div className="flex items-center justify-center h-full text-xs text-slate-400">
-                    Tidak ada data untuk filter ini.
+                    Tidak ada data tugas untuk filter ini.
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Chart 2: Performa Unit Comparison (Bar Chart) */}
+            {/* Chart 2: Performa Unit & User Comparison (Bar Chart) */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
-              <div>
-                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                  <BarChartIcon className="w-4 h-4 text-rose-600" />
-                  Performa Selesai vs Telat per Unit
-                </h3>
-                <p className="text-xs text-slate-500">
-                  TK, SD, SMP, Pelangi Direktorat, Ar Razi, Khaldun
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                    <BarChartIcon className="w-4 h-4 text-rose-600" />
+                    Performa Selesai vs Telat
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {selectedUserFilter !== 'Semua'
+                      ? `Filter Petugas: ${selectedUserFilter}`
+                      : selectedUnitFilter !== 'Semua'
+                      ? `Filter Unit: ${selectedUnitFilter}`
+                      : 'Performa Komparasi Antar Unit (TK, SD, SMP, Pelangi, Ar Razi, Khaldun)'}
+                  </p>
+                </div>
+
+                {/* Inline Quick Filters for Chart */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select
+                    value={selectedUnitFilter}
+                    onChange={(e) => setSelectedUnitFilter(e.target.value)}
+                    className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium text-slate-700 focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                  >
+                    <option value="Semua">Semua Unit</option>
+                    {unitsList.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={selectedUserFilter}
+                    onChange={(e) => setSelectedUserFilter(e.target.value)}
+                    className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium text-slate-700 focus:ring-1 focus:ring-sky-500 max-w-[130px] truncate cursor-pointer"
+                  >
+                    <option value="Semua">Semua Petugas</option>
+                    {allUsers
+                      .filter((u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator'))
+                      .filter(
+                        (u) =>
+                          selectedUnitFilter === 'Semua' ||
+                          u.unit === selectedUnitFilter ||
+                          u.unit === 'Semua Unit'
+                      )
+                      .map((u) => (
+                        <option key={u.id} value={u.name}>
+                          {u.name.replace(/\(.*\)/, '').trim()}
+                        </option>
+                      ))}
+                  </select>
+                </div>
               </div>
 
               <div className="h-64 w-full my-3">
@@ -1604,7 +1796,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm">{user.name}</h4>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="font-bold text-slate-900 text-xs sm:text-sm">{user.name}</h4>
+                        {user.role === 'kordinator' && (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                            Kordinator
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[11px] text-slate-500 font-semibold">Unit {user.unit}</span>
                     </div>
                     <div className="text-right">
