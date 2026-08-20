@@ -64,6 +64,7 @@ import {
   HolidayConfig,
   UnitType,
   UserRole,
+  EVALUATION_CATEGORIES,
 } from '../types';
 import { StorageService, isTaskAssignedToUser } from '../services/storage';
 import { GOOGLE_APPS_SCRIPT_CODE } from '../services/googleSheets';
@@ -79,6 +80,11 @@ import {
   formatJakartaDisplayDate,
   isMasterTaskActive,
 } from '../utils/dateHelper';
+import {
+  getSaturdayOptionsList,
+  formatSaturdayDate,
+  toISODateString,
+} from '../utils/saturdayHelper';
 
 interface AdminDashboardProps {
   activeUser: User;
@@ -178,13 +184,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   };
 
-  // Job Bareng Modal State
+  // Job Bareng / Tugas Insidental Modal State
   const [isCreatingJob, setIsCreatingJob] = useState<boolean>(false);
   const [jbTitle, setJbTitle] = useState<string>('');
   const [jbDescription, setJbDescription] = useState<string>('');
   const [jbUnit, setJbUnit] = useState<UnitType>('Semua Unit');
   const [jbArea, setJbArea] = useState<string>('Area Sekolah');
   const [jbTime, setJbTime] = useState<string>('13:00 - 15:30 WIB');
+  const [jbAssignmentType, setJbAssignmentType] = useState<'all' | 'specific'>('all');
+  const [jbSelectedUserIds, setJbSelectedUserIds] = useState<string[]>([]);
+
+  // 15 SOP Breakdown Filter State
+  const [sopSelectedUnit, setSopSelectedUnit] = useState<string>('Semua');
+  const [sopSelectedUser, setSopSelectedUser] = useState<string>('Semua');
+  const [sopDateMode, setSopDateMode] = useState<'all' | 'week' | 'range' | 'month'>('all');
+  const [sopSelectedSaturday, setSopSelectedSaturday] = useState<string>('Semua');
+  const [sopStartDate, setSopStartDate] = useState<string>('');
+  const [sopEndDate, setSopEndDate] = useState<string>('');
+
+  // Incidental Task Participation Chart Filter State
+  const [selectedIncidentalUser, setSelectedIncidentalUser] = useState<string>('Semua');
+  const [selectedIncidentalPeriod, setSelectedIncidentalPeriod] = useState<'month' | '30days' | 'all'>('month');
 
   // User Management State
   const [isEditingUserModal, setIsEditingUserModal] = useState<boolean>(false);
@@ -211,6 +231,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [taskStandardPhotoUrl, setTaskStandardPhotoUrl] = useState<string>('');
   const [taskIsActive, setTaskIsActive] = useState<boolean>(true);
   const [selectedUserFilter, setSelectedUserFilter] = useState<string>('Semua');
+
+  // Chart 1: Pre-Readiness Specific Filters
+  const [prUnitFilter, setPrUnitFilter] = useState<string>('Semua');
+  const [prUserFilter, setPrUserFilter] = useState<string>('Semua');
 
   // Filter Task Logs according to Date, Unit, User, and Status controls
   const filteredTaskLogs = taskLogs.filter((log) => {
@@ -254,6 +278,64 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const lateLogs = filteredTaskLogs.filter((l) => l.isLate || l.status === 'Terlambat').length;
   const totalCompleted = completedLogs + lateLogs;
 
+  // Chart 1 Specific: PRE-READINESS Dedicated Task Logs & Status Breakdown
+  const preReadinessFilteredLogs = taskLogs.filter((log) => {
+    // Filter khusus tugas Pre-Readiness
+    const isPreReadiness =
+      log.timingType === 'pre_readiness' ||
+      (log.taskTitle && log.taskTitle.toLowerCase().includes('pagi')) ||
+      (log.taskTitle && log.taskTitle.toLowerCase().includes('sebelum jam masuk')) ||
+      (log.taskTitle && log.taskTitle.toLowerCase().includes('toilet pagi'));
+    if (!isPreReadiness) return false;
+
+    // Date filter
+    const logDate = log.date || (log.timestamp ? log.timestamp.split('T')[0] : '');
+    if (dateFilterMode === 'today') {
+      if (logDate !== todayStr && !log.timestamp?.startsWith(todayStr)) return false;
+    } else if (dateFilterMode === 'custom') {
+      if (logDate < startDate || logDate > endDate) return false;
+    }
+
+    // Chart-specific Unit filter (or inherited from main filter)
+    const effectiveUnit = prUnitFilter !== 'Semua' ? prUnitFilter : selectedUnitFilter;
+    if (effectiveUnit !== 'Semua' && log.unit !== effectiveUnit) {
+      return false;
+    }
+
+    // Chart-specific User filter (or inherited from main filter)
+    const effectiveUser = prUserFilter !== 'Semua' ? prUserFilter : selectedUserFilter;
+    if (effectiveUser !== 'Semua') {
+      const matchUser =
+        log.userId === effectiveUser ||
+        (log.userName && log.userName.toLowerCase().includes(effectiveUser.toLowerCase())) ||
+        (log.userName && effectiveUser.toLowerCase().includes(log.userName.toLowerCase()));
+      if (!matchUser) return false;
+    }
+
+    return true;
+  });
+
+  const prTepatWaktuCount = preReadinessFilteredLogs.filter(
+    (l) => (l.status === 'Selesai' && !l.isLate)
+  ).length;
+
+  const prTerlambatCount = preReadinessFilteredLogs.filter(
+    (l) => l.isLate || l.status === 'Terlambat'
+  ).length;
+
+  const prTotalCount = prTepatWaktuCount + prTerlambatCount;
+
+  // Chart Data: Pre-Readiness Pagi Tepat Waktu vs Terlambat
+  const statusPieData = [
+    { name: 'Tepat Waktu (Sebelum 09:00 WIB)', value: prTepatWaktuCount, color: '#10B981' },
+    { name: 'Terlambat Pre-Readiness (Lewat 09:00 WIB)', value: prTerlambatCount, color: '#F59E0B' },
+  ].filter((d) => d.value > 0);
+
+  // Fallback if no pre-readiness logged yet in filter
+  if (statusPieData.length === 0 && prTotalCount > 0) {
+    statusPieData.push({ name: 'Tepat Waktu (Sebelum 09:00 WIB)', value: prTotalCount, color: '#10B981' });
+  }
+
   // Calculate target daily master tasks for filtered scope
   const targetStaffUsers = allUsers.filter((u) => {
     if (u.status !== 'Aktif') return false;
@@ -292,104 +374,219 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         ).toFixed(1)
       : '3.8';
 
-  // Chart Data: Task Status Breakdown (Only Tepat Waktu & Terlambat)
-  const statusPieData = [
-    { name: 'Selesai Tepat Waktu', value: completedLogs, color: '#10B981' },
-    { name: 'Terlambat Pre-Readiness', value: lateLogs, color: '#F59E0B' },
-  ].filter((d) => d.value > 0);
-
-  // Fallback if no tasks completed yet
-  if (statusPieData.length === 0 && totalLogs > 0) {
-    statusPieData.push({ name: 'Selesai Tepat Waktu', value: totalLogs, color: '#10B981' });
-  }
-
   // Chart Data: Completion per Unit / User
   const unitsList: UnitType[] = ['TK', 'SD', 'SMP', 'Pelangi Direktorat', 'Ar Razi', 'Khaldun'];
   
-  let unitPerformanceData: { unit: string; Selesai: number; Terlambat: number }[] = [];
+  // Chart Data 2: Selesai vs Tidak Selesai (Donut / Pie Chart)
+  const totalCompletedInFilter = filteredTaskLogs.filter(
+    (l) => l.status === 'Selesai'
+  ).length;
 
+  let targetTasksScope = expectedTargetTasks;
   if (selectedUserFilter !== 'Semua') {
-    // Breakdown per timing / category for the selected user
-    const userLogs = filteredTaskLogs;
-    const timingCategories = [
-      { key: 'Pre-Readiness', fn: (l: TaskLog) => l.timingType === 'pre_readiness' },
-      { key: 'Clock Out', fn: (l: TaskLog) => l.timingType === 'clock_out' },
-      { key: 'Rutin Harian', fn: (l: TaskLog) => l.timingType === 'anytime' && l.category === 'Harian' },
-      { key: 'Job Bareng', fn: (l: TaskLog) => l.category === 'Job Bareng' },
-      { key: 'Mingguan/Bulan', fn: (l: TaskLog) => l.category === 'Mingguan' || l.category === 'Bulanan' },
-    ];
-    unitPerformanceData = timingCategories.map((cat) => ({
-      unit: cat.key,
-      Selesai: userLogs.filter((l) => cat.fn(l) && (l.status === 'Selesai' && !l.isLate)).length,
-      Terlambat: userLogs.filter((l) => cat.fn(l) && (l.isLate || l.status === 'Terlambat')).length,
-    }));
-  } else if (selectedUnitFilter !== 'Semua') {
-    // Breakdown for each staff & coordinator in the selected unit
-    const unitStaff = allUsers.filter(
-      (u) =>
-        (u.role === 'user' || u.role === 'kordinator') &&
-        u.status === 'Aktif' &&
-        (u.unit === selectedUnitFilter || u.unit === 'Semua Unit')
+    const userObj = allUsers.find(
+      (u) => u.id === selectedUserFilter || u.name.toLowerCase() === selectedUserFilter.toLowerCase()
     );
-    unitPerformanceData = unitStaff.map((staff) => {
-      const staffLogs = filteredTaskLogs.filter(
-        (l) => l.userId === staff.id || l.userName.toLowerCase().includes(staff.name.toLowerCase())
-      );
-      return {
-        unit: staff.name.replace(/\(.*\)/, '').trim(),
-        Selesai: staffLogs.filter((l) => l.status === 'Selesai' && !l.isLate).length,
-        Terlambat: staffLogs.filter((l) => l.isLate || l.status === 'Terlambat').length,
-      };
-    });
-  } else {
-    // Breakdown across all 6 Units
-    unitPerformanceData = unitsList.map((unit) => {
-      const logsInUnit = filteredTaskLogs.filter((l) => l.unit === unit);
-      const completedInUnit = logsInUnit.filter((l) => l.status === 'Selesai' && !l.isLate).length;
-      const lateInUnit = logsInUnit.filter((l) => l.isLate || l.status === 'Terlambat').length;
-      return {
-        unit: unit === 'Pelangi Direktorat' ? 'Pelangi' : unit,
-        Selesai: completedInUnit,
-        Terlambat: lateInUnit,
-      };
-    });
+    const assignedToUser = userObj
+      ? masterTasks.filter((t) => isMasterTaskActive(t) && isTaskAssignedToUser(t, userObj)).length
+      : 5;
+    const factor = dateFilterMode === 'today' ? 1 : Math.min(daySpan, 31);
+    targetTasksScope = Math.max(assignedToUser * factor, totalCompletedInFilter, 1);
+  } else if (selectedUnitFilter !== 'Semua') {
+    const unitStaffCount = allUsers.filter(
+      (u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator') && (u.unit === selectedUnitFilter || u.unit === 'Semua Unit')
+    ).length;
+    const factor = dateFilterMode === 'today' ? 1 : Math.min(daySpan, 31);
+    targetTasksScope = Math.max(dailyTasksAssignedCount * factor, totalCompletedInFilter, unitStaffCount * 5);
   }
 
-  // Chart Data: Coordinator & Staff Evaluation Scores (Scale 1 - 4)
-  const userScoresData = allUsers
-    .filter((u) => (u.role === 'user' || u.role === 'kordinator') && u.status === 'Aktif')
-    .map((u) => {
-      const userScores = weeklyScores.filter((w) => w.userId === u.id);
-      const avg =
-        userScores.length > 0
-          ? Number(
-              (
-                userScores.reduce((s, curr) => s + curr.score, 0) /
-                userScores.length
-              ).toFixed(1)
-            )
-          : 3.8;
-      return {
-        name: u.name.replace(/\(.*\)/, '').trim(),
-        unit: u.unit,
-        Nilai: avg,
-      };
-    });
+  const incompleteTasksCount = Math.max(0, targetTasksScope - totalCompletedInFilter);
+
+  const completionPieData = [
+    { name: 'Selesai', value: totalCompletedInFilter, color: '#10B981' },
+    { name: 'Tidak Selesai / Belum', value: incompleteTasksCount, color: '#EF4444' },
+  ].filter((d) => d.value > 0);
+
+  if (completionPieData.length === 0) {
+    completionPieData.push({ name: 'Selesai', value: Math.max(totalLogs, 1), color: '#10B981' });
+  }
+
+  // Saturday options list for 15 SOP Evaluation filter
+  const saturdayOptions = getSaturdayOptionsList(12, 1);
+  const existingSaturdayOptions = Array.from(
+    new Set(
+      weeklyScores
+        .map((w) => w.saturdayDate || w.dateRange)
+        .filter((d): d is string => Boolean(d && d.trim().length > 0))
+    )
+  );
+
+  // Chart Data 3: 15 SOP Criteria Breakdown Calculations (Evaluasi Kordinator)
+  const filteredWeeklyScores = weeklyScores.filter((w) => {
+    const userObj = allUsers.find((u) => u.id === w.userId || u.name.toLowerCase() === w.userName.toLowerCase());
+    
+    // Filter Unit
+    if (sopSelectedUnit !== 'Semua') {
+      if (!userObj || (userObj.unit !== sopSelectedUnit && userObj.unit !== 'Semua Unit')) {
+        return false;
+      }
+    }
+    
+    // Filter Petugas
+    if (sopSelectedUser !== 'Semua') {
+      if (w.userName.toLowerCase() !== sopSelectedUser.toLowerCase() && (!userObj || userObj.name.toLowerCase() !== sopSelectedUser.toLowerCase())) {
+        return false;
+      }
+    }
+
+    // Filter Tanggal / Pekan / Rentang
+    if (sopDateMode === 'week' && sopSelectedSaturday !== 'Semua') {
+      const wDate = (w.saturdayDate || w.dateRange || '').toLowerCase();
+      const wTimestamp = (w.timestamp || '').split('T')[0];
+      const target = sopSelectedSaturday.toLowerCase();
+      const isMatch = wDate.includes(target) || target.includes(wDate) || wTimestamp === sopSelectedSaturday;
+      if (!isMatch) return false;
+    } else if (sopDateMode === 'range') {
+      const scoreDateStr = (w.timestamp || '').split('T')[0] || (w.saturdayDate || '').match(/\d{4}-\d{2}-\d{2}/)?.[0] || '';
+      if (sopStartDate && scoreDateStr && scoreDateStr < sopStartDate) return false;
+      if (sopEndDate && scoreDateStr && scoreDateStr > sopEndDate) return false;
+    } else if (sopDateMode === 'month') {
+      const nowStr = new Date();
+      const currentYM = `${nowStr.getFullYear()}-${String(nowStr.getMonth() + 1).padStart(2, '0')}`;
+      const scoreDateStr = (w.timestamp || '').split('T')[0];
+      if (scoreDateStr && !scoreDateStr.startsWith(currentYM)) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  const sop15ChartData = EVALUATION_CATEGORIES.map((cat, idx) => {
+    const scoresForCat = filteredWeeklyScores
+      .map((w) => w.categoryScores?.[cat])
+      .filter((s): s is number => typeof s === 'number' && !isNaN(s));
+
+    let avgScore = 3.8;
+    if (scoresForCat.length > 0) {
+      avgScore = Number((scoresForCat.reduce((sum, s) => sum + s, 0) / scoresForCat.length).toFixed(1));
+    } else if (filteredWeeklyScores.length > 0) {
+      avgScore = Number((filteredWeeklyScores.reduce((sum, w) => sum + w.score, 0) / filteredWeeklyScores.length).toFixed(1));
+    }
+
+    const shortName = cat.length > 20 ? `${cat.slice(0, 18)}...` : cat;
+    const statusColor = avgScore >= 3.5 ? '#10B981' : avgScore >= 2.5 ? '#F59E0B' : '#EF4444';
+    const statusText = avgScore >= 3.5 ? 'Sangat Baik' : avgScore >= 2.5 ? 'Cukup / Baik' : 'Perlu Evaluasi';
+
+    return {
+      id: idx + 1,
+      category: cat,
+      shortName: `${idx + 1}. ${shortName}`,
+      score: avgScore,
+      statusColor,
+      statusText,
+      evalCount: scoresForCat.length || (filteredWeeklyScores.length > 0 ? filteredWeeklyScores.length : 0),
+    };
+  });
+
+  const overallAvgSopScore = Number(
+    (sop15ChartData.reduce((sum, item) => sum + item.score, 0) / sop15ChartData.length).toFixed(2)
+  );
+  const sopMeetingTargetCount = sop15ChartData.filter((item) => item.score >= 3.0).length;
+  const sopNeedingAttentionCount = sop15ChartData.filter((item) => item.score < 3.0).length;
 
   // Active Staff & Coordinator List
   const activeStaffList = allUsers.filter(
     (u) => (u.role === 'user' || u.role === 'kordinator') && u.status === 'Aktif'
   );
 
+  // Incidental Tasks Filtered by Period
+  const nowLocal = new Date();
+  const currentYearMonth = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth() + 1).padStart(2, '0')}`;
+  
+  const filteredIncidentalJobs = jobBarengList.filter((job) => {
+    if (selectedIncidentalPeriod === 'month') {
+      return job.date?.startsWith(currentYearMonth) || true;
+    }
+    if (selectedIncidentalPeriod === '30days') {
+      const jobDate = new Date(job.date || job.createdAt);
+      const diffDays = (nowLocal.getTime() - jobDate.getTime()) / (1000 * 3600 * 24);
+      return diffDays <= 30;
+    }
+    return true;
+  });
+
+  // Incidental stats for selected user
+  const selectedIncidentalUserObj = allUsers.find(
+    (u) => u.name.toLowerCase() === selectedIncidentalUser.toLowerCase() || u.id === selectedIncidentalUser
+  );
+  
+  const userIncidentalTasksList = filteredIncidentalJobs
+    .filter((job) => {
+      if (selectedIncidentalUser === 'Semua') return true;
+      if (!selectedIncidentalUserObj) return true;
+      if (job.assignmentType === 'specific') {
+        return (
+          job.assignedUserIds?.includes(selectedIncidentalUserObj.id) ||
+          job.assignedUserNames?.some((n) => n.toLowerCase() === selectedIncidentalUserObj.name.toLowerCase()) ||
+          false
+        );
+      }
+      return (
+        job.targetUnit === 'Semua Unit' ||
+        job.targetUnit === 'Semua' ||
+        job.targetUnit === selectedIncidentalUserObj.unit ||
+        selectedIncidentalUserObj.unit === 'Semua Unit'
+      );
+    })
+    .map((job) => {
+      let isJoined = false;
+      let isCompleted = false;
+      if (selectedIncidentalUser === 'Semua') {
+        isJoined = job.participantIds.length > 0;
+        isCompleted = job.completedUserIds.length > 0;
+      } else if (selectedIncidentalUserObj) {
+        isJoined = job.participantIds.includes(selectedIncidentalUserObj.id);
+        isCompleted = job.completedUserIds.includes(selectedIncidentalUserObj.id);
+      }
+      return { job, isJoined, isCompleted };
+    });
+
+  const userIncidentalTotalAssigned = Math.max(userIncidentalTasksList.length, 1);
+  const userIncidentalJoinedCount = userIncidentalTasksList.filter((t) => t.isJoined || t.isCompleted).length;
+  const userIncidentalCompletedCount = userIncidentalTasksList.filter((t) => t.isCompleted).length;
+  const userIncidentalMissedCount = Math.max(0, userIncidentalTasksList.length - userIncidentalJoinedCount);
+  
+  const userIncidentalRate = userIncidentalTasksList.length > 0
+    ? Math.round((userIncidentalJoinedCount / userIncidentalTasksList.length) * 100)
+    : 0;
+
+  const userIncidentalPieData = [
+    { name: 'Ikut Serta / Selesai', value: userIncidentalJoinedCount, color: '#10B981' },
+    { name: 'Tidak Ikut / Lewat', value: userIncidentalMissedCount, color: '#EF4444' },
+  ].filter((d) => d.value > 0);
+
+  if (userIncidentalPieData.length === 0) {
+    userIncidentalPieData.push({ name: 'Belum Ada Tugas', value: 1, color: '#94A3B8' });
+  }
+
   // Job Bareng Detailed Statistics & Participation Breakdown
   const jobBarengStats = jobBarengList.map((job) => {
-    const eligibleStaff = activeStaffList.filter(
-      (u) =>
+    const eligibleStaff = activeStaffList.filter((u) => {
+      if (job.assignmentType === 'specific') {
+        return (
+          job.assignedUserIds?.includes(u.id) ||
+          job.assignedUserNames?.some((n) => n.toLowerCase() === u.name.toLowerCase()) ||
+          false
+        );
+      }
+      return (
         job.targetUnit === 'Semua Unit' ||
         job.targetUnit === 'Semua' ||
         u.unit === job.targetUnit ||
         u.unit === 'Semua Unit'
-    );
+      );
+    });
     const targetCount = Math.max(1, eligibleStaff.length);
     const joinedCount = job.participantIds.length;
     const completedCount = job.completedUserIds.length;
@@ -401,7 +598,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       100,
       Math.round((completedCount / targetCount) * 100)
     );
-    // Point system: 5 pts for joining + 10 pts for completing
     const totalPointsAwarded = joinedCount * 5 + completedCount * 10;
 
     const joinedUsers = activeStaffList.filter((u) =>
@@ -409,11 +605,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     );
     const completedUsers = activeStaffList.filter((u) =>
       job.completedUserIds.includes(u.id)
-    );
-    const pendingUsers = activeStaffList.filter(
-      (u) =>
-        job.participantIds.includes(u.id) &&
-        !job.completedUserIds.includes(u.id)
     );
     const notJoinedUsers = eligibleStaff.filter(
       (u) => !job.participantIds.includes(u.id)
@@ -430,85 +621,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       totalPointsAwarded,
       joinedUsers,
       completedUsers,
-      pendingUsers,
       notJoinedUsers,
     };
   });
 
-  // Overall Job Bareng KPIs
-  const avgJobParticipationRate =
-    jobBarengStats.length > 0
-      ? Math.round(
-          jobBarengStats.reduce((sum, s) => sum + s.participationRate, 0) /
-            jobBarengStats.length
-        )
-      : 80;
-
-  const totalJobPointsEarned = jobBarengStats.reduce(
-    (sum, s) => sum + s.totalPointsAwarded,
-    0
-  );
-
-  const totalJobJoins = jobBarengStats.reduce(
-    (sum, s) => sum + s.joinedCount,
-    0
-  );
-
-  // Job Bareng Chart Data for Recharts BarChart
-  const jobBarengChartData = jobBarengStats.map((s) => ({
-    name: s.job.title.length > 18 ? `${s.job.title.slice(0, 16)}...` : s.job.title,
-    fullTitle: s.job.title,
-    unit: s.job.targetUnit,
-    date: s.job.date,
-    'Partisipasi (%)': s.participationRate,
-    'Selesai (%)': s.completionRate,
-    pesertaLabel: `${s.joinedCount}/${s.targetCount} Staff`,
-    points: s.totalPointsAwarded,
-  }));
-
-  // Employee Job Bareng Leaderboard & Point Aggregation
-  const staffJobPointsLeaderboard = activeStaffList
-    .map((staff) => {
-      const eligibleJobs = jobBarengList.filter(
-        (job) =>
-          job.targetUnit === 'Semua Unit' ||
-          job.targetUnit === 'Semua' ||
-          staff.unit === job.targetUnit ||
-          staff.unit === 'Semua Unit'
-      );
-      const joinedJobs = jobBarengList.filter((job) =>
-        job.participantIds.includes(staff.id)
-      );
-      const completedJobs = jobBarengList.filter((job) =>
-        job.completedUserIds.includes(staff.id)
-      );
-
-      const points = joinedJobs.length * 5 + completedJobs.length * 10;
-      const rate =
-        eligibleJobs.length > 0
-          ? Math.round((joinedJobs.length / eligibleJobs.length) * 100)
-          : 100;
-
-      return {
-        staff,
-        eligibleCount: eligibleJobs.length,
-        joinedCount: joinedJobs.length,
-        completedCount: completedJobs.length,
-        points,
-        participationRate: rate,
-      };
-    })
-    .sort((a, b) => b.points - a.points || b.participationRate - a.participationRate);
-
-  // Handle Create Job Bareng
+  // Handle Create Job Bareng / Tugas Insidental
   const handleSaveJobBareng = (e: React.FormEvent) => {
     e.preventDefault();
     if (!jbTitle.trim()) return;
 
+    const assignedStaffUsers = allUsers.filter((u) => jbSelectedUserIds.includes(u.id));
+
     const newJob: JobBareng = {
       id: `jb-${Date.now()}`,
       title: jbTitle.trim(),
-      description: jbDescription.trim() || 'Pekerjaan kebersihan mendadak bersama unit Facility Management.',
+      description: jbDescription.trim() || 'Pekerjaan insidental kebersihan bersama unit Facility Management.',
       date: todayStr,
       timeTarget: jbTime,
       targetUnit: jbUnit,
@@ -516,6 +643,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       createdBy: activeUser.id,
       createdByName: activeUser.name,
       status: 'Aktif',
+      assignmentType: jbAssignmentType,
+      assignedUserIds: jbAssignmentType === 'specific' ? jbSelectedUserIds : undefined,
+      assignedUserNames: jbAssignmentType === 'specific' ? assignedStaffUsers.map((u) => u.name) : undefined,
       participantIds: [],
       completedUserIds: [],
       createdAt: new Date().toISOString(),
@@ -525,6 +655,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setIsCreatingJob(false);
     setJbTitle('');
     setJbDescription('');
+    setJbAssignmentType('all');
+    setJbSelectedUserIds([]);
   };
 
   // Handle Add New User
@@ -1079,16 +1211,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                Partisipasi Job Bareng
+                Partisipasi Insidental
               </span>
               <div className="flex items-baseline justify-between mt-1">
-                <span className="text-2xl font-black text-amber-600">{avgJobParticipationRate}%</span>
+                <span className="text-2xl font-black text-amber-600">{userIncidentalRate}%</span>
                 <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
-                  +{totalJobPointsEarned} Poin
+                  {userIncidentalJoinedCount}/{userIncidentalTotalAssigned} Ikut
                 </span>
               </div>
               <div className="mt-1.5 text-[11px] text-slate-500">
-                <span>{jobBarengList.length} Job Bareng Terjadwal</span>
+                <span>{filteredIncidentalJobs.length} Tugas Insidental Terjadwal</span>
               </div>
             </div>
 
@@ -1127,16 +1259,58 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           {/* Interactive Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* Chart 1: Task Completion Breakdown (Donut Chart - Only Tepat Waktu & Terlambat) */}
+            {/* Chart 1: Pre-Readiness On-Time vs Late Breakdown (Donut Chart) */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
-              <div>
-                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                  <PieChartIcon className="w-4 h-4 text-emerald-600" />
-                  Distribusi Status Pekerjaan
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Perbandingan tugas selesai tepat waktu vs terlambat pre-readiness (wajib alasan).
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                    <PieChartIcon className="w-4 h-4 text-emerald-600" />
+                    Distribusi Pre-Readiness: Tepat Waktu vs Terlambat
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Khusus monitoring tugas Pre-Readiness (Pagi sebelum 09:00 WIB).
+                  </p>
+                </div>
+
+                {/* Inline Quick Filter for Pre-Readiness */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <select
+                    value={prUnitFilter}
+                    onChange={(e) => {
+                      setPrUnitFilter(e.target.value);
+                      setPrUserFilter('Semua');
+                    }}
+                    className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium text-slate-700 focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                  >
+                    <option value="Semua">Semua Unit</option>
+                    {unitsList.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={prUserFilter}
+                    onChange={(e) => setPrUserFilter(e.target.value)}
+                    className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium text-slate-700 focus:ring-1 focus:ring-emerald-500 max-w-[130px] truncate cursor-pointer"
+                  >
+                    <option value="Semua">Semua Petugas</option>
+                    {allUsers
+                      .filter((u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator'))
+                      .filter(
+                        (u) =>
+                          prUnitFilter === 'Semua' ||
+                          u.unit === prUnitFilter ||
+                          u.unit === 'Semua Unit'
+                      )
+                      .map((u) => (
+                        <option key={u.id} value={u.name}>
+                          {u.name.replace(/\(.*\)/, '').trim()}
+                        </option>
+                      ))}
+                  </select>
+                </div>
               </div>
 
               <div className="h-64 w-full my-3">
@@ -1162,26 +1336,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </ResponsiveContainer>
                 ) : (
                   <div className="flex items-center justify-center h-full text-xs text-slate-400">
-                    Tidak ada data tugas untuk filter ini.
+                    Tidak ada data tugas pre-readiness untuk filter ini.
                   </div>
                 )}
               </div>
+
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
+                <span className="flex items-center gap-1.5 font-semibold text-emerald-700">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  Tepat Waktu: {prTepatWaktuCount} ({prTotalCount > 0 ? Math.round((prTepatWaktuCount / prTotalCount) * 100) : 0}%)
+                </span>
+                <span className="flex items-center gap-1.5 font-semibold text-amber-700">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                  Terlambat: {prTerlambatCount} ({prTotalCount > 0 ? Math.round((prTerlambatCount / prTotalCount) * 100) : 0}%)
+                </span>
+              </div>
             </div>
 
-            {/* Chart 2: Performa Unit & User Comparison (Bar Chart) */}
+            {/* Chart 2: Performa Selesai vs Tidak Selesai (Diagram Bulat / Donut Chart) */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                    <BarChartIcon className="w-4 h-4 text-rose-600" />
-                    Performa Selesai vs Telat
+                    <PieChartIcon className="w-4 h-4 text-sky-600" />
+                    Performa Selesai vs Tidak Selesai
                   </h3>
                   <p className="text-xs text-slate-500">
                     {selectedUserFilter !== 'Semua'
                       ? `Filter Petugas: ${selectedUserFilter}`
                       : selectedUnitFilter !== 'Semua'
                       ? `Filter Unit: ${selectedUnitFilter}`
-                      : 'Performa Komparasi Antar Unit (TK, SD, SMP, Pelangi, Ar Razi, Khaldun)'}
+                      : 'Akumulasi seluruh target tugas unit Lazuardi GCS'}
                   </p>
                 </div>
 
@@ -1225,47 +1410,292 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               <div className="h-64 w-full my-3">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={unitPerformanceData}>
-                    <XAxis dataKey="unit" tick={{ fontSize: 11 }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <PieChart>
+                    <Pie
+                      data={completionPieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={85}
+                      paddingAngle={4}
+                      dataKey="value"
+                    >
+                      {completionPieData.map((entry, index) => (
+                        <Cell key={`comp-cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
                     <Tooltip />
                     <Legend verticalAlign="bottom" height={36} />
-                    <Bar dataKey="Selesai" fill="#10B981" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="Terlambat" fill="#F59E0B" radius={[4, 4, 0, 0]} />
-                  </BarChart>
+                  </PieChart>
                 </ResponsiveContainer>
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
+                <span className="flex items-center gap-1.5 font-semibold text-emerald-700">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  Selesai: {totalCompletedInFilter} ({expectedTargetTasks > 0 ? Math.round((totalCompletedInFilter / targetTasksScope) * 100) : 0}%)
+                </span>
+                <span className="flex items-center gap-1.5 font-semibold text-rose-700">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                  Tidak Selesai: {incompleteTasksCount}
+                </span>
               </div>
             </div>
 
-            {/* Chart 3: Rata-Rata Nilai Kordinator per User */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs lg:col-span-2">
-              <div className="flex items-center justify-between mb-2">
+            {/* Section 3: Penjabaran Nilai 15 Standar SOP Kebersihan (Evaluasi Kordinator) */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs lg:col-span-2 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div>
-                  <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                    <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                    Rata-rata Nilai Evaluasi Kordinator per Staff OB/OG (Skala 1 - 4)
+                  <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                    <ClipboardCheck className="w-5 h-5 text-indigo-600" />
+                    Penjabaran Nilai 15 Standar SOP Kebersihan (Evaluasi Kordinator)
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Berdasarkan 15 kriteria kebersihan, kecepatan pre-readiness, dan kepatuhan SOP Lazuardi GCS (1 = Kurang, 2 = Cukup, 3 = Baik, 4 = Sangat Baik).
+                    Rekapitulasi nilai rata-rata 15 standar SOP kebersihan (Skala 1.0 - 4.0: 1=Kurang, 2=Cukup, 3=Baik, 4=Sangat Baik).
                   </p>
+                </div>
+
+                {/* Filter Periode Mode Buttons */}
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSopDateMode('all');
+                      setSopSelectedSaturday('Semua');
+                      setSopStartDate('');
+                      setSopEndDate('');
+                    }}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+                      sopDateMode === 'all'
+                        ? 'bg-white text-indigo-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Semua
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSopDateMode('week')}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+                      sopDateMode === 'week'
+                        ? 'bg-white text-indigo-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Pekan / Sabtu
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSopDateMode('range')}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+                      sopDateMode === 'range'
+                        ? 'bg-white text-indigo-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Rentang Tanggal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSopDateMode('month');
+                      setSopSelectedSaturday('Semua');
+                      setSopStartDate('');
+                      setSopEndDate('');
+                    }}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+                      sopDateMode === 'month'
+                        ? 'bg-white text-indigo-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Bulan Ini
+                  </button>
                 </div>
               </div>
 
-              <div className="h-60 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={userScoresData}>
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                    <YAxis domain={[0, 4]} ticks={[0, 1, 2, 3, 4]} tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Bar dataKey="Nilai" fill="#6366F1" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              {/* Dynamic Filter Controls Bar */}
+              <div className="flex items-center gap-2.5 flex-wrap bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs">
+                {/* Specific Saturday/Week Dropdown */}
+                {sopDateMode === 'week' && (
+                  <div className="flex items-center gap-1.5 animate-in fade-in">
+                    <span className="font-bold text-slate-700">Pekan / Sabtu:</span>
+                    <select
+                      value={sopSelectedSaturday}
+                      onChange={(e) => setSopSelectedSaturday(e.target.value)}
+                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs"
+                    >
+                      <option value="Semua">Semua Pekan / Sabtu</option>
+                      {saturdayOptions.map((opt) => (
+                        <option key={opt.isoDate} value={opt.isoDate}>
+                          {opt.label}
+                        </option>
+                      ))}
+                      {existingSaturdayOptions.map((dateStr) => {
+                        const alreadyInList = saturdayOptions.some((o) => o.label === dateStr || o.isoDate === dateStr);
+                        if (alreadyInList) return null;
+                        return (
+                          <option key={dateStr} value={dateStr}>
+                            {dateStr}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                )}
+
+                {/* Custom Date Range Inputs */}
+                {sopDateMode === 'range' && (
+                  <div className="flex items-center gap-2 flex-wrap animate-in fade-in">
+                    <div className="flex items-center gap-1">
+                      <span className="font-bold text-slate-700">Dari:</span>
+                      <input
+                        type="date"
+                        value={sopStartDate}
+                        onChange={(e) => setSopStartDate(e.target.value)}
+                        className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="font-bold text-slate-700">Sampai:</span>
+                      <input
+                        type="date"
+                        value={sopEndDate}
+                        onChange={(e) => setSopEndDate(e.target.value)}
+                        className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    {(sopStartDate || sopEndDate) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSopStartDate('');
+                          setSopEndDate('');
+                        }}
+                        className="text-rose-600 font-bold hover:underline"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Unit Filter */}
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-slate-700">Unit:</span>
+                  <select
+                    value={sopSelectedUnit}
+                    onChange={(e) => {
+                      setSopSelectedUnit(e.target.value);
+                      setSopSelectedUser('Semua');
+                    }}
+                    className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs"
+                  >
+                    <option value="Semua">Semua Unit</option>
+                    {unitsList.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Staff Filter */}
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-slate-700">Petugas:</span>
+                  <select
+                    value={sopSelectedUser}
+                    onChange={(e) => setSopSelectedUser(e.target.value)}
+                    className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 max-w-[200px] truncate cursor-pointer text-xs"
+                  >
+                    <option value="Semua">Semua Petugas & Kordinator</option>
+                    {allUsers
+                      .filter((u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator'))
+                      .filter(
+                        (u) =>
+                          sopSelectedUnit === 'Semua' ||
+                          u.unit === sopSelectedUnit ||
+                          u.unit === 'Semua Unit'
+                      )
+                      .map((u) => (
+                        <option key={u.id} value={u.name}>
+                          {u.name} ({u.role === 'kordinator' ? 'Kordinator' : u.unit})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                {/* KPI Badges */}
+                <div className="ml-auto flex items-center gap-2 flex-wrap text-xs">
+                  <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg font-black">
+                    ⭐ Rata-rata: {overallAvgSopScore} / 4.0
+                  </span>
+                  <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg font-bold">
+                    ✓ {sopMeetingTargetCount}/15 Sesuai Target (≥3.0)
+                  </span>
+                  {sopNeedingAttentionCount > 0 && (
+                    <span className="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-lg font-bold">
+                      ⚠ {sopNeedingAttentionCount} Perlu Perbaikan
+                    </span>
+                  )}
+                  <span className="text-slate-400 font-semibold">
+                    ({filteredWeeklyScores.length} Evaluasi)
+                  </span>
+                </div>
+              </div>
+
+              {/* 15 SOP Grid Cards Summary */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 pt-1">
+                {sop15ChartData.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 rounded-xl border border-slate-200/90 bg-white hover:border-indigo-300 hover:shadow-sm transition space-y-2 text-xs"
+                  >
+                    <div className="flex items-start justify-between gap-1">
+                      <span className="font-bold text-slate-800 line-clamp-1" title={item.category}>
+                        {idx + 1}. {item.category}
+                      </span>
+                      <span
+                        className="px-1.5 py-0.5 rounded font-black text-[10px] shrink-0"
+                        style={{
+                          backgroundColor: `${item.statusColor}18`,
+                          color: item.statusColor,
+                        }}
+                      >
+                        ⭐ {item.score}
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200/60">
+                      <div
+                        className="h-2 rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min(100, Math.max(5, (item.score / 4) * 100))}%`,
+                          backgroundColor: item.statusColor,
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span
+                        className="font-bold px-1.5 py-0.5 rounded"
+                        style={{
+                          backgroundColor: `${item.statusColor}15`,
+                          color: item.statusColor,
+                        }}
+                      >
+                        {item.statusText}
+                      </span>
+                      <span className="text-slate-400 font-medium">
+                        {item.evalCount} evaluasi
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
 
           {/* ==================================================================================== */}
-          {/* SECTION: LAPORAN & DIAGRAM TINGKAT KEIKUTSERTAAN JOB BARENG & POIN KEAKTIFAN         */}
+          {/* SECTION: LAPORAN & DIAGRAM PARTISIPASI TUGAS INSIDENTAL PER PETUGAS                 */}
           {/* ==================================================================================== */}
           <div className="bg-gradient-to-br from-amber-500/5 via-white to-orange-500/5 border border-amber-200/80 rounded-2xl p-5 sm:p-6 shadow-xs space-y-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-amber-200/60 pb-4">
@@ -1275,350 +1705,232 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
                 <div>
                   <h3 className="font-bold text-base sm:text-lg text-slate-900 flex items-center gap-2">
-                    <span>Laporan & Diagram Tingkat Keikutsertaan Job Bareng</span>
+                    <span>Laporan & Diagram Keikutsertaan Tugas Insidental</span>
                     <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-black border border-amber-200">
-                      Poin Keaktifan
+                      Insidental FM
                     </span>
                   </h3>
                   <p className="text-xs text-slate-600">
-                    Statistik kehadiran staff pada pekerjaan mendadak yang baru diinfokan Admin. Tingkat partisipasi dihitung otomatis sebagai indikator poin kinerja karyawan.
+                    Statistik kehadiran dan kepatuhan penyelesaian tugas insidental per petugas atau seluruh unit.
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2 self-stretch sm:self-auto justify-between sm:justify-end">
-                <div className="px-3 py-1.5 bg-amber-100/80 border border-amber-300/80 rounded-xl text-amber-950 font-bold text-xs flex items-center gap-1.5">
-                  <Trophy className="w-4 h-4 text-amber-600" />
-                  <span>Total Poin: +{totalJobPointsEarned} Pts</span>
-                </div>
                 <button
-                  onClick={() => setAdminTab('job_bareng')}
-                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold text-xs shadow-xs transition flex items-center gap-1 cursor-pointer"
+                  onClick={() => {
+                    setIsCreatingJob(true);
+                  }}
+                  className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Buat Job Baru</span>
+                  <Plus className="w-4 h-4" />
+                  <span>+ Buat Tugas Insidental Baru</span>
                 </button>
               </div>
             </div>
 
-            {/* Quick Metrics Strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3.5 rounded-xl bg-white border border-amber-200/80 shadow-2xs">
-                <span className="text-[11px] font-bold text-slate-500 block uppercase">Rata-rata Ikut Serta</span>
-                <div className="flex items-baseline justify-between mt-1">
-                  <span className="text-2xl font-black text-amber-600">{avgJobParticipationRate}%</span>
-                  <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded">
-                    {avgJobParticipationRate >= 80 ? 'Sangat Aktif' : 'Cukup'}
+            {/* Filter Bar for Incidental Participation */}
+            <div className="bg-white border border-amber-200 rounded-2xl p-4 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-slate-700 flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5 text-amber-600" /> Pilih Petugas:
                   </span>
+                  <select
+                    value={selectedIncidentalUser}
+                    onChange={(e) => setSelectedIncidentalUser(e.target.value)}
+                    className="px-3 py-1.5 bg-amber-50/50 border border-amber-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 cursor-pointer max-w-[220px]"
+                  >
+                    <option value="Semua">Semua Petugas (Agregat)</option>
+                    {activeStaffList.map((u) => (
+                      <option key={u.id} value={u.name}>
+                        {u.name} (Unit {u.unit})
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
-                  <div
-                    className="bg-amber-500 h-1.5 rounded-full transition-all duration-500"
-                    style={{ width: `${avgJobParticipationRate}%` }}
-                  />
+
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-slate-700 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-amber-600" /> Periode:
+                  </span>
+                  <select
+                    value={selectedIncidentalPeriod}
+                    onChange={(e) => setSelectedIncidentalPeriod(e.target.value as any)}
+                    className="px-3 py-1.5 bg-amber-50/50 border border-amber-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                  >
+                    <option value="month">1 Bulan Terakhir / Bulan Ini</option>
+                    <option value="30days">30 Hari Terakhir</option>
+                    <option value="all">Semua Waktu</option>
+                  </select>
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-white border border-amber-200/80 shadow-2xs">
-                <span className="text-[11px] font-bold text-slate-500 block uppercase">Total Job Bareng</span>
-                <div className="flex items-baseline justify-between mt-1">
-                  <span className="text-2xl font-black text-slate-900">{jobBarengList.length}</span>
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                    {jobBarengList.filter((j) => j.status === 'Aktif').length} Aktif
-                  </span>
-                </div>
-                <span className="text-[11px] text-slate-500 mt-1 block">Tugas bersama terdistribusi</span>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-white border border-amber-200/80 shadow-2xs">
-                <span className="text-[11px] font-bold text-slate-500 block uppercase">Total Partisipasi Staff</span>
-                <div className="flex items-baseline justify-between mt-1">
-                  <span className="text-2xl font-black text-sky-600">{totalJobJoins}</span>
-                  <span className="text-[10px] font-bold text-sky-800 bg-sky-50 px-1.5 py-0.5 rounded">
-                    Kehadiran
-                  </span>
-                </div>
-                <span className="text-[11px] text-slate-500 mt-1 block">Akumulasi gabung tugas</span>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-white border border-amber-200/80 shadow-2xs">
-                <span className="text-[11px] font-bold text-slate-500 block uppercase">Aturan Poin Kinerja</span>
-                <div className="mt-1 space-y-0.5 text-[11px] font-semibold text-slate-700">
-                  <div className="flex items-center justify-between text-sky-700">
-                    <span>• Ikut Serta:</span>
-                    <span className="font-bold">+5 Poin</span>
-                  </div>
-                  <div className="flex items-center justify-between text-emerald-700">
-                    <span>• Selesai Tugas:</span>
-                    <span className="font-bold">+10 Poin</span>
-                  </div>
-                </div>
-              </div>
+              <span className="text-[11px] font-semibold text-slate-500">
+                Menampilkan data {filteredIncidentalJobs.length} tugas insidental
+              </span>
             </div>
 
-            {/* Visual Charts & Leaderboard Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-              {/* Chart: Tingkat Partisipasi (%) per Job Bareng */}
-              <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
-                      <BarChartIcon className="w-4 h-4 text-amber-500" />
-                      Diagram Tingkat Partisipasi (%) per Job Bareng
-                    </h4>
-                    <p className="text-[11px] text-slate-500">
-                      Persentase keikutsertaan staff dibanding kuota target unit terkait.
-                    </p>
-                  </div>
-                  <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
-                    Target Standar: 80%
-                  </span>
-                </div>
-
-                {jobBarengChartData.length > 0 ? (
-                  <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={jobBarengChartData}>
-                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                        <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} unit="%" tick={{ fontSize: 10 }} />
-                        <Tooltip
-                          formatter={(value: any) => [`${value}%`, '']}
-                          labelFormatter={(label, payload) => {
-                            if (payload && payload[0]) {
-                              return `${payload[0].payload.fullTitle} (${payload[0].payload.date})`;
-                            }
-                            return label;
-                          }}
-                        />
-                        <Legend verticalAlign="bottom" height={36} />
-                        <ReferenceLine y={80} stroke="#10B981" strokeDasharray="3 3" label={{ value: 'Target 80%', fill: '#10B981', fontSize: 10, position: 'insideTopRight' }} />
-                        <Bar dataKey="Partisipasi (%)" fill="#F59E0B" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="Selesai (%)" fill="#10B981" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <div className="h-64 flex flex-col items-center justify-center text-slate-400 text-xs">
-                    <Sparkles className="w-8 h-8 mb-2 text-slate-300" />
-                    <span>Belum ada data Job Bareng.</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Leaderboard Poin Keaktifan Karyawan */}
-              <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+            {/* Visual Donut Chart & Participation Stats Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+              {/* Diagram Bulat (Donut Chart) Keikutsertaan Tugas Insidental */}
+              <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-1">
                     <h4 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
-                      <Trophy className="w-4 h-4 text-amber-500" />
-                      Papan Peringkat Poin Job Bareng Staff
+                      <PieChartIcon className="w-4 h-4 text-amber-500" />
+                      Rasio Partisipasi Insidental
                     </h4>
-                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
-                      Top Keaktifan
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                        userIncidentalRate >= 80
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : userIncidentalRate >= 50
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-rose-100 text-rose-800'
+                      }`}
+                    >
+                      {userIncidentalRate}% Keikutsertaan
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500 mb-3">
-                    Akumulasi poin karyawan yang paling rajin ikut serta dan menyelesaikan pekerjaan bersama.
+                  <p className="text-[11px] text-slate-500">
+                    {selectedIncidentalUser !== 'Semua'
+                      ? `Tingkat keaktifan ${selectedIncidentalUser} pada tugas insidental yang ditugaskan kepadanya.`
+                      : 'Rata-rata keikutsertaan seluruh petugas pada tugas insidental.'}
                   </p>
-
-                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                    {staffJobPointsLeaderboard.map((item, idx) => {
-                      const isTop1 = idx === 0 && item.points > 0;
-                      const isTop2 = idx === 1 && item.points > 0;
-                      const isTop3 = idx === 2 && item.points > 0;
-
-                      return (
-                        <div
-                          key={item.staff.id}
-                          className={`p-2.5 rounded-xl border flex items-center justify-between text-xs transition ${
-                            isTop1
-                              ? 'bg-amber-50/80 border-amber-300 shadow-2xs'
-                              : isTop2
-                              ? 'bg-slate-50 border-slate-300'
-                              : isTop3
-                              ? 'bg-orange-50/50 border-orange-200'
-                              : 'bg-white border-slate-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <span
-                              className={`w-6 h-6 rounded-full flex items-center justify-center font-black text-[11px] shrink-0 ${
-                                isTop1
-                                  ? 'bg-amber-500 text-white shadow-xs'
-                                  : isTop2
-                                  ? 'bg-slate-400 text-white'
-                                  : isTop3
-                                  ? 'bg-amber-700 text-white'
-                                  : 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              {idx + 1}
-                            </span>
-                            <div className="truncate">
-                              <span className="font-bold text-slate-900 block truncate">
-                                {item.staff.name}
-                              </span>
-                              <span className="text-[10px] text-slate-500">
-                                Unit {item.staff.unit} • {item.joinedCount}x Ikut ({item.completedCount}x Selesai)
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="text-right shrink-0">
-                            <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-black text-xs block">
-                              +{item.points} Pts
-                            </span>
-                            <span className="text-[9px] font-bold text-slate-500">
-                              {item.participationRate}% Partisipasi
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
                 </div>
 
-                <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                  <span>Sistem evaluasi otomatis Facility Management</span>
-                  <span className="font-bold text-amber-700">Lazuardi GCS</span>
+                <div className="h-56 w-full my-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={userIncidentalPieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={80}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {userIncidentalPieData.map((entry, index) => (
+                          <Cell key={`inc-pie-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend verticalAlign="bottom" height={36} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <span className="font-bold text-emerald-700">
+                    ✓ Ikut Serta: {userIncidentalJoinedCount}
+                  </span>
+                  <span className="font-bold text-rose-600">
+                    ✗ Tidak Ikut: {userIncidentalMissedCount}
+                  </span>
                 </div>
               </div>
-            </div>
 
-            {/* Individual Job Bareng Cards with Live Status & Percentage Breakdown */}
-            <div className="space-y-3 pt-2">
-              <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                Rincian Keikutsertaan per Job Bareng Terkini ({jobBarengStats.length} Tugas)
-              </h4>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {jobBarengStats.map(({ job, targetCount, joinedCount, completedCount, participationRate, completionRate, totalPointsAwarded, joinedUsers, completedUsers, notJoinedUsers }) => (
-                  <div
-                    key={job.id}
-                    className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-xs transition space-y-3"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-bold text-[10px]">
-                            {job.targetUnit}
-                          </span>
-                          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold text-[10px]">
-                            {job.date}
-                          </span>
-                          <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px]">
-                            {job.status}
-                          </span>
-                        </div>
-                        <h5 className="font-bold text-sm text-slate-900 mt-1.5">{job.title}</h5>
-                        <p className="text-xs text-slate-600 line-clamp-2 mt-0.5">{job.description}</p>
-                      </div>
-
-                      <div className="text-right shrink-0">
-                        <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-center">
-                          <span className="block text-xl font-black text-amber-600 leading-tight">
-                            {participationRate}%
-                          </span>
-                          <span className="text-[9px] font-bold text-amber-800 uppercase tracking-tight block">
-                            Partisipasi
-                          </span>
-                        </div>
-                        <span className="text-[10px] font-bold text-emerald-700 block mt-1">
-                          +{totalPointsAwarded} Poin
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Progress Bars */}
-                    <div className="space-y-1.5 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
-                      <div className="flex justify-between items-center text-[11px]">
-                        <span className="font-semibold text-slate-600">
-                          Kehadiran: <strong>{joinedCount}</strong> dari {targetCount} Staff Terkait
-                        </span>
-                        <span className="font-bold text-amber-600">{participationRate}%</span>
-                      </div>
-                      <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                        <div
-                          className={`h-2 rounded-full transition-all duration-500 ${
-                            participationRate >= 80
-                              ? 'bg-emerald-500'
-                              : participationRate >= 50
-                              ? 'bg-amber-500'
-                              : 'bg-rose-500'
-                          }`}
-                          style={{ width: `${participationRate}%` }}
-                        />
-                      </div>
-
-                      <div className="flex justify-between items-center text-[11px] pt-1">
-                        <span className="font-semibold text-slate-600">
-                          Selesai Dikerjakan: <strong>{completedCount}</strong> Staff
-                        </span>
-                        <span className="font-bold text-emerald-600">{completionRate}%</span>
-                      </div>
-                      <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500"
-                          style={{ width: `${completionRate}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Attendees categorization badges */}
-                    <div className="space-y-1 text-xs">
-                      {completedUsers.length > 0 && (
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[10px] font-bold text-emerald-800">Selesai (+10 Pts):</span>
-                          {completedUsers.map((u) => (
-                            <span
-                              key={u.id}
-                              className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold flex items-center gap-1"
-                            >
-                              <Check className="w-2.5 h-2.5" />
-                              {u.name}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      {joinedUsers.filter((u) => !job.completedUserIds.includes(u.id)).length > 0 && (
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[10px] font-bold text-sky-800">Sedang Ikut (+5 Pts):</span>
-                          {joinedUsers
-                            .filter((u) => !job.completedUserIds.includes(u.id))
-                            .map((u) => (
-                              <span
-                                key={u.id}
-                                className="px-2 py-0.5 rounded-md bg-sky-50 text-sky-800 border border-sky-200 text-[10px] font-semibold"
-                              >
-                                {u.name}
-                              </span>
-                            ))}
-                        </div>
-                      )}
-
-                      {notJoinedUsers.length > 0 && (
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[10px] font-bold text-slate-400">Belum Bergabung:</span>
-                          {notJoinedUsers.slice(0, 4).map((u) => (
-                            <span
-                              key={u.id}
-                              className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px]"
-                            >
-                              {u.name}
-                            </span>
-                          ))}
-                          {notJoinedUsers.length > 4 && (
-                            <span className="text-[10px] text-slate-400 font-semibold">
-                              +{notJoinedUsers.length - 4} lainnya
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
+              {/* Stat Cards & Task List */}
+              <div className="lg:col-span-7 space-y-4">
+                {/* Metric Strip */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Total Ditugaskan</span>
+                    <span className="text-2xl font-black text-slate-900 block mt-1">
+                      {userIncidentalTotalAssigned}
+                    </span>
+                    <span className="text-[10px] text-slate-500">Tugas Terjadwal</span>
                   </div>
-                ))}
+
+                  <div className="p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                    <span className="text-[10px] font-bold text-emerald-600 uppercase block">Ikut Serta</span>
+                    <span className="text-2xl font-black text-emerald-600 block mt-1">
+                      {userIncidentalJoinedCount}
+                    </span>
+                    <span className="text-[10px] text-emerald-700 font-semibold">Telah Bergabung</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                    <span className="text-[10px] font-bold text-rose-500 uppercase block">Tidak Ikut / Lewat</span>
+                    <span className="text-2xl font-black text-rose-600 block mt-1">
+                      {userIncidentalMissedCount}
+                    </span>
+                    <span className="text-[10px] text-rose-700 font-semibold">Belum Ikut</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                    <span className="text-[10px] font-bold text-amber-500 uppercase block">Partisipasi</span>
+                    <span className="text-2xl font-black text-amber-600 block mt-1">
+                      {userIncidentalRate}%
+                    </span>
+                    <span className="text-[10px] text-amber-800 font-bold">
+                      {userIncidentalRate >= 80 ? 'Target Tercapai ✓' : 'Di Bawah 80%'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* List of Incidental Tasks for this user */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-2.5 text-xs">
+                  <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide flex items-center justify-between">
+                    <span>Daftar Tugas Insidental Terkait ({userIncidentalTasksList.length} Tugas):</span>
+                    <span className="text-[11px] text-slate-400 font-normal">Periode Terpilih</span>
+                  </h4>
+
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {userIncidentalTasksList.length > 0 ? (
+                      userIncidentalTasksList.map(({ job, isJoined, isCompleted }) => (
+                        <div
+                          key={job.id}
+                          className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/70 flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[9px]">
+                                {job.targetUnit}
+                              </span>
+                              <span className="text-[10px] text-slate-500">{job.date}</span>
+                              <span className="font-bold text-slate-900 truncate text-[11px]">{job.title}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-500 block truncate">{job.targetArea || 'Area Sekolah'}</span>
+                          </div>
+
+                          <span
+                            className={`px-2 py-1 rounded-lg text-[10px] font-bold shrink-0 flex items-center gap-1 ${
+                              isCompleted
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : isJoined
+                                ? 'bg-sky-100 text-sky-800 border border-sky-300'
+                                : 'bg-rose-100 text-rose-800 border border-rose-200'
+                            }`}
+                          >
+                            {isCompleted ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-600" />
+                                Selesai
+                              </>
+                            ) : isJoined ? (
+                              <>
+                                <Clock className="w-3 h-3 text-sky-600" />
+                                Ikut Serta
+                              </>
+                            ) : (
+                              <>
+                                <X className="w-3 h-3 text-rose-600" />
+                                Belum Ikut
+                              </>
+                            )}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-slate-400 italic text-center py-4">
+                        Tidak ada tugas insidental untuk periode dan filter ini.
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -2917,6 +3229,107 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   placeholder="Lapangan Utama / Gedung Ar Razi..."
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500"
                 />
+              </div>
+
+              {/* Target Penugasan: Semua User vs Pilih Beberapa User */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <label className="block font-bold text-slate-800">Target Petugas Pelaksana:</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setJbAssignmentType('all');
+                      setJbSelectedUserIds([]);
+                    }}
+                    className={`py-2 px-3 rounded-xl border font-bold text-center transition cursor-pointer text-xs ${
+                      jbAssignmentType === 'all'
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    Semua Petugas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setJbAssignmentType('specific')}
+                    className={`py-2 px-3 rounded-xl border font-bold text-center transition cursor-pointer text-xs ${
+                      jbAssignmentType === 'specific'
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    Pilih Petugas Khusus
+                  </button>
+                </div>
+
+                {jbAssignmentType === 'specific' && (
+                  <div className="space-y-2 pt-2 border-t border-slate-200 animate-in fade-in">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-semibold text-slate-600">
+                        Pilih staff ({jbSelectedUserIds.length} dipilih):
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const staffList = allUsers
+                              .filter((u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator'))
+                              .filter((u) => jbUnit === 'Semua Unit' || u.unit === jbUnit || u.unit === 'Semua Unit')
+                              .map((u) => u.id);
+                            setJbSelectedUserIds(staffList);
+                          }}
+                          className="text-sky-600 hover:underline font-bold"
+                        >
+                          Pilih Semua
+                        </button>
+                        <span>•</span>
+                        <button
+                          type="button"
+                          onClick={() => setJbSelectedUserIds([])}
+                          className="text-rose-600 hover:underline font-bold"
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="max-h-36 overflow-y-auto space-y-1 bg-white p-2 rounded-xl border border-slate-200">
+                      {allUsers
+                        .filter((u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator'))
+                        .filter((u) => jbUnit === 'Semua Unit' || u.unit === jbUnit || u.unit === 'Semua Unit')
+                        .map((u) => {
+                          const isChecked = jbSelectedUserIds.includes(u.id);
+                          return (
+                            <label
+                              key={u.id}
+                              className={`flex items-center gap-2 p-1.5 rounded-lg border text-xs cursor-pointer transition ${
+                                isChecked
+                                  ? 'bg-sky-50 border-sky-300 font-bold text-sky-900'
+                                  : 'bg-white border-transparent hover:bg-slate-50 text-slate-700'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setJbSelectedUserIds([...jbSelectedUserIds, u.id]);
+                                  } else {
+                                    setJbSelectedUserIds(jbSelectedUserIds.filter((id) => id !== u.id));
+                                  }
+                                }}
+                                className="rounded text-sky-600 focus:ring-sky-500"
+                              />
+                              <span className="truncate">{u.name}</span>
+                              <span className="text-[10px] text-slate-400 font-normal ml-auto">
+                                Unit {u.unit}
+                              </span>
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-2 pt-2">

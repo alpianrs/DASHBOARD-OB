@@ -140,12 +140,23 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
     return isUserMatch && isDateMatch;
   });
 
-  // Active Job Bareng for this user (including all collective unit jobs)
-  const activeJobs = jobBarengList.filter(
-    (j) =>
-      j.status === 'Aktif' &&
-      (isGeneralUnit || j.targetUnit === 'Semua Unit' || j.targetUnit.trim().toLowerCase() === activeUser.unit.trim().toLowerCase())
-  );
+  // Active Insidental / Job Bareng for this user
+  const activeJobs = jobBarengList.filter((j) => {
+    if (j.status !== 'Aktif') return false;
+    // If specific users are assigned
+    if (j.assignmentType === 'specific' && j.assignedUserIds && j.assignedUserIds.length > 0) {
+      return (
+        j.assignedUserIds.includes(activeUser.id) ||
+        (activeUser.name && j.assignedUserNames?.some((n) => n.toLowerCase() === activeUser.name.toLowerCase()))
+      );
+    }
+    // Otherwise check unit
+    return (
+      isGeneralUnit ||
+      j.targetUnit === 'Semua Unit' ||
+      j.targetUnit.trim().toLowerCase() === activeUser.unit.trim().toLowerCase()
+    );
+  });
 
   // Categorized tasks with fallback normalization
   const preReadinessTasks = userMasterTasks.filter(

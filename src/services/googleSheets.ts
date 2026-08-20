@@ -193,10 +193,10 @@ function setupDatabase() {
   ];
   createOrSetupSheet(ss, "TaskLogs", taskLogsHeader, [], "#065f46");
 
-  // 4. Setup Sheet: JobBareng
-  var jobBarengHeader = ["ID", "Title", "Description", "Date", "TargetUnit", "TargetArea", "Status", "Participants", "CompletedUsers", "CreatedAt"];
+  // 4. Setup Sheet: JobBareng (Tugas Insidental)
+  var jobBarengHeader = ["ID", "Title", "Description", "Date", "TargetUnit", "TargetArea", "Status", "Participants", "CompletedUsers", "CreatedAt", "AssignmentType", "AssignedUsers"];
   var initialJobBareng = [
-    ["jb-001", "Kerja Bakti Lapangan & Area Parkir Utama", "Pembersihan massal menyambut acara sekolah. Seluruh OB/OG bergabung.", Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd"), "Semua Unit", "Lapangan Utama", "Aktif", "u-ob-1, u-ob-2, u-ob-3", "", new Date().toISOString()]
+    ["jb-001", "Kerja Bakti Lapangan & Area Parkir Utama", "Pembersihan massal menyambut acara sekolah. Seluruh OB/OG bergabung.", Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd"), "Semua Unit", "Lapangan Utama", "Aktif", "u-ob-1, u-ob-2, u-ob-3", "", new Date().toISOString(), "all", "Semua Petugas"]
   ];
   createOrSetupSheet(ss, "JobBareng", jobBarengHeader, initialJobBareng, "#3730a3");
 
@@ -687,7 +687,7 @@ export const GoogleSheetsService = {
     // 4. Prepare JobBareng values
     const jobs = StorageService.getJobBareng();
     const jobRows = [
-      ['ID', 'Title', 'Description', 'Date', 'TargetUnit', 'TargetArea', 'Status', 'Participants', 'CompletedUsers', 'CreatedAt'],
+      ['ID', 'Title', 'Description', 'Date', 'TargetUnit', 'TargetArea', 'Status', 'Participants', 'CompletedUsers', 'CreatedAt', 'AssignmentType', 'AssignedUsers'],
       ...jobs.map((j) => {
         const participantDisplay = (j.participantNames && j.participantNames.length > 0)
           ? j.participantNames.join(', ')
@@ -703,6 +703,13 @@ export const GoogleSheetsService = {
               return u ? u.name : id;
             }).join(', ');
 
+        const assignedDisplay = (j.assignedUserNames && j.assignedUserNames.length > 0)
+          ? j.assignedUserNames.join(', ')
+          : (j.assignedUserIds || []).map((id) => {
+              const u = users.find((user) => user.id === id || user.username === id);
+              return u ? u.name : id;
+            }).join(', ');
+
         return [
           j.id,
           j.title,
@@ -714,6 +721,8 @@ export const GoogleSheetsService = {
           participantDisplay,
           completedDisplay,
           j.createdAt,
+          j.assignmentType || 'all',
+          assignedDisplay || 'Semua Petugas',
         ];
       }),
     ];
@@ -1017,6 +1026,8 @@ export const GoogleSheetsService = {
               .map((row: any[], i: number) => {
                 const participantsRaw = row[7] ? String(row[7]).split(',').map((s) => s.trim()).filter(Boolean) : [];
                 const completedRaw = row[8] ? String(row[8]).split(',').map((s) => s.trim()).filter(Boolean) : [];
+                const assignmentType = (row[10] && String(row[10]).toLowerCase() === 'specific') ? 'specific' : 'all';
+                const assignedRaw = row[11] ? String(row[11]).split(',').map((s) => s.trim()).filter(Boolean) : undefined;
                 return {
                   id: row[0] || `jb-${i}`,
                   title: row[1] || 'Job Bareng',
@@ -1025,6 +1036,9 @@ export const GoogleSheetsService = {
                   targetUnit: row[4] || 'Semua Unit',
                   targetArea: row[5] || 'Area Terkait',
                   status: (row[6] || 'Aktif') as any,
+                  assignmentType,
+                  assignedUserIds: assignedRaw,
+                  assignedUserNames: assignedRaw,
                   participantIds: participantsRaw,
                   participantNames: participantsRaw,
                   completedUserIds: completedRaw,

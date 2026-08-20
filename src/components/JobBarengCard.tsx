@@ -28,10 +28,12 @@ export const JobBarengCard: React.FC<JobBarengCardProps> = ({
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 rounded-lg text-[11px] font-bold tracking-wide text-amber-400">
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>JOB BARENG (FM)</span>
+            <span>TUGAS INSIDENTAL</span>
           </div>
           <span className="text-[11px] font-semibold bg-slate-800 border border-slate-700 text-slate-300 px-2.5 py-0.5 rounded-md">
-            Unit: {job.targetUnit}
+            {job.assignmentType === 'specific'
+              ? `Khusus (${job.assignedUserIds?.length || 0} Petugas)`
+              : `Unit: ${job.targetUnit}`}
           </span>
         </div>
 
@@ -90,12 +92,12 @@ export const JobBarengCard: React.FC<JobBarengCardProps> = ({
               className="w-full py-2.5 px-4 bg-sky-500 hover:bg-sky-400 text-white rounded-xl font-bold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer active:scale-98"
             >
               <Users className="w-4 h-4" />
-              <span>Ikut Serta Job Bareng Ini</span>
+              <span>Ikut Serta Tugas Insidental Ini</span>
             </button>
           ) : hasCompleted ? (
             <div className="w-full py-2.5 px-4 bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 rounded-xl font-bold text-xs flex items-center justify-center gap-2">
               <CheckCircle className="w-4 h-4 text-emerald-400" />
-              <span>Anda Telah Menyelesaikan Job Bareng Ini</span>
+              <span>Anda Telah Menyelesaikan Tugas Insidental Ini</span>
             </div>
           ) : (
             <div className="flex items-center gap-2 w-full">
