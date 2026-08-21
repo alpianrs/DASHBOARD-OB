@@ -205,11 +205,11 @@ function setupDatabase() {
   createOrSetupSheet(ss, "DinasRequests", dinasHeader, [], "#92400e");
 
   // 6. Setup Sheet: PeerInspections (Inspeksi Silang Tim / Checklist Tanpa Nilai Angka)
-  var peerHeader = ["ID", "Date", "InspectorID", "InspectorName", "InspectorUnit", "InspectedUserID", "InspectedUserName", "InspectedUnit", "Area", "Status", "Notes", "Timestamp"];
+  var peerHeader = ["ID", "Date", "InspectorID", "InspectorName", "InspectorUnit", "InspectedUserID", "InspectedUserName", "InspectedUnit", "Area", "Status", "Notes", "PhotoURL", "ChecklistJSON", "Timestamp"];
   createOrSetupSheet(ss, "PeerInspections", peerHeader, [], "#831843");
 
   // 7. Setup Sheet: WeeklyScores (Penilaian Kordinator & Admin Skala 1 - 4 Berdasarkan Tanggal Hari Sabtu)
-  var weeklyHeader = ["ID", "UserID", "UserName", "Unit", "SaturdayDate", "Year", "DateRange", "Score", "KordinatorName", "Notes", "Timestamp"];
+  var weeklyHeader = ["ID", "UserID", "UserName", "Unit", "SaturdayDate", "Year", "DateRange", "Score", "KordinatorName", "CategoryScoresJSON", "Notes", "Timestamp"];
   createOrSetupSheet(ss, "WeeklyScores", weeklyHeader, [], "#1f2937");
 
   return { success: true, message: "Database Lazuardi FM berhasil disetup otomatis!" };
@@ -749,7 +749,7 @@ export const GoogleSheetsService = {
     // 6. Prepare Peer Inspections values
     const peerInspections = StorageService.getPeerInspections();
     const peerRows = [
-      ['ID', 'Date', 'InspectorID', 'InspectorName', 'InspectorUnit', 'InspectedUserID', 'InspectedUserName', 'InspectedUnit', 'Area', 'Status', 'Notes', 'Timestamp'],
+      ['ID', 'Date', 'InspectorID', 'InspectorName', 'InspectorUnit', 'InspectedUserID', 'InspectedUserName', 'InspectedUnit', 'Area', 'Status', 'Notes', 'PhotoURL', 'ChecklistJSON', 'Timestamp'],
       ...peerInspections.map((p) => [
         p.id,
         p.date,
@@ -760,8 +760,10 @@ export const GoogleSheetsService = {
         p.targetUserName,
         p.targetUnit,
         p.area || '',
-        p.status || 'Sesuai Standar SOP',
+        p.status || 'Sesuai Standar Kebersihan',
         p.notes || '',
+        p.photoUrl || '',
+        JSON.stringify(p.checklistItems || []),
         p.timestamp,
       ]),
     ];
@@ -769,7 +771,7 @@ export const GoogleSheetsService = {
     // 7. Prepare Weekly Scores values (1-4 scale)
     const weeklyScores = StorageService.getWeeklyScores();
     const weeklyRows = [
-      ['ID', 'UserID', 'UserName', 'Unit', 'SaturdayDate', 'Year', 'DateRange', 'Score', 'KordinatorName', 'Notes', 'Timestamp'],
+      ['ID', 'UserID', 'UserName', 'Unit', 'SaturdayDate', 'Year', 'DateRange', 'Score', 'KordinatorName', 'CategoryScoresJSON', 'Notes', 'Timestamp'],
       ...weeklyScores.map((w) => [
         w.id,
         w.userId,
@@ -780,6 +782,7 @@ export const GoogleSheetsService = {
         w.dateRange || `Minggu ${w.weekNumber}`,
         w.score,
         w.kordinatorName || '',
+        JSON.stringify(w.categoryScores || {}),
         w.notes || '',
         w.timestamp,
       ]),
@@ -1115,42 +1118,68 @@ export const GoogleSheetsService = {
           if (rPeer !== undefined) {
             const parsedPeer: PeerInspection[] = (rPeer || [])
               .filter((row: any[]) => row && row.length > 0 && row[0])
-              .map((row: any[], i: number) => ({
-                id: row[0] || `pi-${i}`,
-                date: row[1] || now.split('T')[0],
-                inspectorId: row[2] || '',
-                inspectorName: row[3] || '',
-                inspectorRole: 'user',
-                inspectorUnit: row[4] || 'TK',
-                targetUserId: row[5] || '',
-                targetUserName: row[6] || '',
-                targetUnit: row[7] || 'TK',
-                area: row[8] || '',
-                status: (row[9] || 'Sesuai Standar SOP') as any,
-                notes: row[10] || '',
-                checklistItems: [],
-                timestamp: row[11] || now,
-              }));
+              .map((row: any[], i: number) => {
+                let checklist: { label: string; passed: boolean }[] = [];
+                try {
+                  if (row[12] && typeof row[12] === 'string' && row[12].trim().startsWith('[')) {
+                    checklist = JSON.parse(row[12]);
+                  }
+                } catch (e) {
+                  checklist = [];
+                }
+                return {
+                  id: row[0] || `pi-${i}`,
+                  date: row[1] || now.split('T')[0],
+                  inspectorId: row[2] || '',
+                  inspectorName: row[3] || '',
+                  inspectorRole: 'user',
+                  inspectorUnit: row[4] || 'TK',
+                  targetUserId: row[5] || '',
+                  targetUserName: row[6] || '',
+                  targetUnit: row[7] || 'TK',
+                  area: row[8] || '',
+                  status: (row[9] || 'Sesuai Standar Kebersihan') as any,
+                  notes: row[10] || '',
+                  photoUrl: row[11] || undefined,
+                  checklistItems: checklist,
+                  timestamp: row[13] || row[11] || now,
+                };
+              });
             StorageService.savePeerInspections(parsedPeer);
           }
 
           if (rWeekly !== undefined) {
             const parsedWeekly: WeeklyScore[] = (rWeekly || [])
               .filter((row: any[]) => row && row.length > 0 && row[0])
-              .map((row: any[], i: number) => ({
-                id: row[0] || `ws-${i}`,
-                userId: row[1] || '',
-                userName: row[2] || '',
-                unit: row[3] || 'TK',
-                saturdayDate: row[4] || '',
-                weekNumber: isNaN(Number(row[4])) ? 1 : Number(row[4]),
-                year: isNaN(Number(row[5])) ? new Date().getFullYear() : Number(row[5]),
-                dateRange: row[6] || row[4] || '',
-                score: Number(row[7]) || 4,
-                kordinatorName: row[8] || '',
-                notes: row[9] || '',
-                timestamp: row[10] || now,
-              }));
+              .map((row: any[], i: number) => {
+                let categoryScores: Record<string, number> = {};
+                try {
+                  if (row[9] && typeof row[9] === 'string' && row[9].trim().startsWith('{')) {
+                    categoryScores = JSON.parse(row[9]);
+                  }
+                } catch (e) {
+                  categoryScores = {};
+                }
+                const hasCategoryJson = Object.keys(categoryScores).length > 0;
+                const notes = hasCategoryJson ? (row[10] || '') : (row[9] || '');
+                const timestamp = hasCategoryJson ? (row[11] || now) : (row[10] || now);
+
+                return {
+                  id: row[0] || `ws-${i}`,
+                  userId: row[1] || '',
+                  userName: row[2] || '',
+                  unit: row[3] || 'TK',
+                  saturdayDate: row[4] || '',
+                  weekNumber: isNaN(Number(row[4])) ? 1 : Number(row[4]),
+                  year: isNaN(Number(row[5])) ? new Date().getFullYear() : Number(row[5]),
+                  dateRange: row[6] || row[4] || '',
+                  score: Number(row[7]) || 4,
+                  kordinatorName: row[8] || '',
+                  categoryScores,
+                  notes,
+                  timestamp,
+                };
+              });
             StorageService.saveWeeklyScores(parsedWeekly);
           }
 

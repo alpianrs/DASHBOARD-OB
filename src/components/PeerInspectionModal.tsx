@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -9,10 +9,15 @@ import {
   Users,
   CheckSquare,
   Plane,
+  Camera,
+  Image as ImageIcon,
+  Trash2,
+  Eye,
 } from 'lucide-react';
 import { User, PeerInspection, DinasRequest } from '../types';
 import { canInspectPeer } from '../services/storage';
 import { getJakartaDateString } from '../utils/dateHelper';
+import { GoogleSheetsService } from '../services/googleSheets';
 
 interface PeerInspectionModalProps {
   isOpen: boolean;
@@ -24,11 +29,13 @@ interface PeerInspectionModalProps {
 }
 
 const DEFAULT_CHECKLIST = [
-  'Lantai bersih, kesat & bebas dari debu/pasir',
-  'Wastafel, cermin, & kloset mengkilap dan tidak berkerak',
-  'Tempat sampah kosong & terpasang plastik pelapis baru',
-  'Aroma ruangan segar & tidak berbau apek/tidak sedap',
-  'Peralatan kerja tersusun rapi pada tempatnya',
+  'Toilet: Kloset, urinal, wastafel & cermin bersih, disinfektan bebas noda/kerak',
+  'Toilet: Lantai kering, wangi, tidak licin & bebas genangan air',
+  'Toilet: Kran air berfungsi normal, tidak ada kebocoran, sabun & tisu terisi penuh',
+  'Ruangan / Kelas: Lantai bersih, kesat, disapu & dipel bebas debu kolong meja',
+  'Tempat Sampah: Seluruh tempat sampah kosong & terpasang plastik pelapis baru',
+  'Aroma Ruangan: Udara segar, bersih, & tidak berbau apek / tidak sedap',
+  'Kerapihan: Meja, kursi, kaca, dan perlengkapan kerja tertata rapi sesuai standar',
 ];
 
 export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
@@ -40,6 +47,7 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
   onSubmitInspection,
 }) => {
   const today = getJakartaDateString();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check if active user is currently on Dinas Luar
   const activeUserDinas = dinasRequests.find(
@@ -68,6 +76,8 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
   const [checklist, setChecklist] = useState<{ label: string; passed: boolean }[]>(
     DEFAULT_CHECKLIST.map((item) => ({ label: item, passed: true }))
   );
+  const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -96,7 +106,62 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Read and compress file to data URL
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1000;
+        const MAX_HEIGHT = 1000;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Add timestamp watermark
+          const timeStr = new Date().toLocaleString('id-ID', {
+            dateStyle: 'medium',
+            timeStyle: 'medium',
+          });
+          const watermarkText = `INSPEKSI SILANG: ${activeUser.name} -> ${targetUser?.name || 'Petugas'} | ${timeStr} WIB`;
+
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+          ctx.fillRect(0, height - 30, width, 30);
+          ctx.font = 'bold 12px sans-serif';
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(watermarkText, 10, height - 10);
+
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+          setPhotoDataUrl(compressedDataUrl);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetUser) {
       setError('Pilih rekan tim yang ingin diinspeksi.');
@@ -105,6 +170,21 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
     if (!area.trim()) {
       setError('Tentukan ruangan/area yang sedang diinspeksi.');
       return;
+    }
+
+    setIsUploadingPhoto(true);
+
+    let finalPhotoUrl = photoDataUrl || undefined;
+    if (photoDataUrl) {
+      try {
+        const filename = `INSPEKSI_${activeUser.unit}_${activeUser.name.replace(/\s+/g, '_')}_to_${targetUser.name.replace(/\s+/g, '_')}_${Date.now()}.jpg`;
+        const uploadResult = await GoogleSheetsService.uploadPhotoToDrive(photoDataUrl, filename);
+        if (uploadResult?.driveUrl) {
+          finalPhotoUrl = uploadResult.driveUrl;
+        }
+      } catch (uploadErr) {
+        console.warn('Photo upload fallback to local URL:', uploadErr);
+      }
     }
 
     const newInspection: PeerInspection = {
@@ -120,10 +200,16 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
       targetUnit: targetUser.unit,
       area: area.trim(),
       status: inspectionStatus,
-      notes: notes.trim() || (inspectionStatus === 'Sesuai Standar SOP' ? 'Kondisi area bersih dan sesuai SOP Lazuardi GCS.' : 'Terdapat catatan temuan kebersihan yang perlu dirapikan.'),
+      notes:
+        notes.trim() ||
+        (inspectionStatus === 'Sesuai Standar SOP'
+          ? 'Kondisi area bersih dan sesuai Standar Kebersihan Lazuardi GCS.'
+          : 'Terdapat catatan temuan kebersihan yang perlu dirapikan.'),
       checklistItems: checklist,
+      photoUrl: finalPhotoUrl,
     };
 
+    setIsUploadingPhoto(false);
     onSubmitInspection(newInspection);
     onClose();
   };
@@ -142,7 +228,7 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
                 Inspeksi Silang Tim (Peer Review)
               </h3>
               <p className="text-xs text-slate-400">
-                Unit {activeUser.unit} • SOP Lazuardi GCS
+                Unit {activeUser.unit} • Standar Kebersihan Lazuardi GCS
               </p>
             </div>
           </div>
@@ -176,7 +262,7 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
               <div>
                 <strong className="text-sky-950 block">Pemeriksaan Kualitas Antar Rekan:</strong>
                 <p className="text-sky-800 text-[11px] mt-0.5">
-                  Inspeksi silang difokuskan untuk saling mengecek checklist kebersihan &amp; memberikan catatan temuan. <em>Penilaian angka resmi dilakukan secara khusus oleh Kordinator dan Admin.</em>
+                  Inspeksi silang difokuskan untuk saling mengecek Standar Kebersihan toilet &amp; area kerja serta menyertakan foto bukti. Laporan akan otomatis masuk ke data rekan yang diinspeksi dan tersinkron ke Google Sheet.
                 </p>
               </div>
             </div>
@@ -186,7 +272,7 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
           <div>
             <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
               <Users className="w-3.5 h-3.5 text-sky-600" />
-              Pilih Rekan yang Diinspeksi:
+              Pilih Rekan yang Diinspeksi (Target Inspeksi):
             </label>
             {eligibleUsers.length > 0 ? (
               <div className="space-y-1.5">
@@ -216,7 +302,7 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
                   <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] flex items-center gap-1.5">
                     <Plane className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                     <span>
-                      Rekan ini sedang dinas luar (<strong>{targetUserDinas.reason || 'Tugas Luar'}</strong>). Jobdesk hariannya sedang dinonaktifkan.
+                      Rekan ini sedang dinas luar (<strong>{targetUserDinas.reason || 'Tugas Luar'}</strong>).
                     </span>
                   </div>
                 )}
@@ -241,15 +327,82 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
                 setArea(e.target.value);
                 setError(null);
               }}
-              placeholder="Contoh: Toilet Lantai 1, Ruang Kelas 2B, Koridor Utama..."
+              placeholder="Contoh: Toilet Lantai 1, Toilet Siswa, Ruang Kelas 2B, Koridor Utama..."
               className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
 
-          {/* SOP Checklist */}
+          {/* Foto Bukti Inspeksi Silang */}
+          <div>
+            <label className="block font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+              <span className="flex items-center gap-1">
+                <Camera className="w-3.5 h-3.5 text-sky-600" />
+                Foto Bukti Inspeksi Silang:
+              </span>
+              <span className="text-[10px] text-slate-400 font-normal">Opsional / Disarankan</span>
+            </label>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              capture="environment"
+              onChange={handlePhotoSelect}
+              className="hidden"
+            />
+
+            {photoDataUrl ? (
+              <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-900 group">
+                <img
+                  src={photoDataUrl}
+                  alt="Bukti Inspeksi Silang"
+                  className="w-full h-40 object-cover"
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-3 py-1.5 rounded-lg bg-sky-600 text-white font-bold text-xs flex items-center gap-1 cursor-pointer hover:bg-sky-500"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>Ganti Foto</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPhotoDataUrl(null)}
+                    className="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-bold text-xs flex items-center gap-1 cursor-pointer hover:bg-rose-500"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Hapus</span>
+                  </button>
+                </div>
+                <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-slate-900/80 text-white text-[10px] flex items-center gap-1 font-medium">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                  <span>Foto Terlampir & Siap Simpan</span>
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-slate-300 hover:border-sky-500 hover:bg-sky-50/50 rounded-xl p-4 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1.5"
+              >
+                <div className="w-9 h-9 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center">
+                  <Camera className="w-4 h-4" />
+                </div>
+                <span className="font-bold text-slate-800 text-xs">
+                  Ambil Foto / Pilih Gambar Bukti
+                </span>
+                <span className="text-[10px] text-slate-500">
+                  Gunakan kamera HP atau pilih file foto area/toilet yang diinspeksi
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Standar Kebersihan Checklist */}
           <div>
             <label className="block font-bold text-slate-700 mb-1.5">
-              Checklist Standar Kebersihan (Klik untuk Ceklist):
+              Standar Kebersihan (Klik untuk Ceklist):
             </label>
             <div className="space-y-1.5">
               {checklist.map((item, idx) => (
@@ -263,9 +416,9 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
                       : 'bg-slate-50 border-slate-200 text-slate-500'
                   }`}
                 >
-                  <span className="font-medium">{item.label}</span>
+                  <span className="font-medium pr-2">{item.label}</span>
                   <div
-                    className={`w-5 h-5 rounded-lg flex items-center justify-center font-bold text-xs ${
+                    className={`w-5 h-5 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
                       item.passed
                         ? 'bg-emerald-600 text-white'
                         : 'border border-slate-300 bg-white'
@@ -294,7 +447,7 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
                 }`}
               >
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>Sesuai Standar SOP</span>
+                <span>Sesuai Standar Kebersihan</span>
               </button>
 
               <button
@@ -321,7 +474,7 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Contoh: Lantai sudah sangat bersih dan wangi, mohon pastikan tempat sampah selalu terisi plastik..."
+              placeholder="Contoh: Toilet sangat bersih dan wangi, mohon pastikan tempat sampah selalu terisi plastik..."
               className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-800"
             />
           </div>
@@ -338,11 +491,11 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={eligibleUsers.length === 0}
+              disabled={eligibleUsers.length === 0 || isUploadingPhoto}
               className="flex-2 py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer disabled:opacity-50"
             >
               <Send className="w-4 h-4 text-sky-400" />
-              <span>Simpan Catatan Inspeksi</span>
+              <span>{isUploadingPhoto ? 'Menyimpan...' : 'Simpan Catatan Inspeksi'}</span>
             </button>
           </div>
         </form>
@@ -350,3 +503,4 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
     </div>
   );
 };
+

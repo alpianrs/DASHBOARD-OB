@@ -33,7 +33,7 @@ import { StorageService, isTaskAssignedToUser } from '../services/storage';
 import { JobBarengCard } from './JobBarengCard';
 import { formatGoogleDriveImageUrl, getGoogleDriveViewLink } from '../utils/driveHelper';
 import { parseInstructionSteps } from '../utils/instructionHelper';
-import { getJakartaDateString, getJakartaHour, isMasterTaskActive } from '../utils/dateHelper';
+import { getJakartaDateString, getJakartaHour, isMasterTaskActive, isJobBarengExpired } from '../utils/dateHelper';
 
 interface UserTaskViewProps {
   activeUser: User;
@@ -140,9 +140,10 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
     return isUserMatch && isDateMatch;
   });
 
-  // Active Insidental / Job Bareng for this user
+  // Active Insidental / Job Bareng for this user (auto hides expired tasks)
   const activeJobs = jobBarengList.filter((j) => {
     if (j.status !== 'Aktif') return false;
+    if (isJobBarengExpired(j)) return false; // Past deadline or date -> auto hide
     // If specific users are assigned
     if (j.assignmentType === 'specific' && j.assignedUserIds && j.assignedUserIds.length > 0) {
       return (
@@ -212,10 +213,12 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
       <div
         key={task.id}
         className={`border rounded-xl p-3.5 sm:p-4 transition-all shadow-xs ${
-          isCompleted
+          isCompleted && isLate
+            ? 'bg-amber-50/70 border-amber-300 ring-1 ring-amber-200/80'
+            : isCompleted
             ? 'bg-emerald-50/40 border-emerald-200/80'
             : isLate
-            ? 'bg-amber-50/40 border-amber-300/90 ring-1 ring-amber-200/60'
+            ? 'bg-amber-50/50 border-amber-300/90 ring-1 ring-amber-200/70'
             : 'bg-white border-slate-200/80 hover:border-slate-300'
         }`}
       >
@@ -223,7 +226,11 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
           <div className="flex items-start gap-3 flex-1 min-w-0">
             {/* Status Icon */}
             <div className="pt-0.5 shrink-0">
-              {isCompleted ? (
+              {isCompleted && isLate ? (
+                <div className="w-6 h-6 rounded-lg bg-amber-600 text-white flex items-center justify-center shadow-xs">
+                  <Clock className="w-3.5 h-3.5" />
+                </div>
+              ) : isCompleted ? (
                 <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                 </div>
@@ -243,7 +250,13 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
               <div className="flex items-center gap-1.5 flex-wrap">
                 <h4
                   className={`text-xs sm:text-sm font-bold tracking-tight ${
-                    isCompleted ? 'text-slate-500 line-through decoration-slate-400' : 'text-slate-900'
+                    isCompleted && isLate
+                      ? 'text-amber-950 line-through decoration-rose-500 decoration-2'
+                      : isCompleted
+                      ? 'text-slate-500 line-through decoration-slate-400'
+                      : isLate
+                      ? 'text-amber-950 font-bold'
+                      : 'text-slate-900'
                   }`}
                 >
                   {task.title}
@@ -283,17 +296,21 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
 
               {/* Late Reason notice if logged */}
               {existingLog?.lateReason && (
-                <div className="mt-2 text-[11px] p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-900">
-                  <strong className="font-semibold">Alasan Telat Tercatat:</strong> {existingLog.lateReason}
+                <div className="mt-2 text-[11px] p-2.5 bg-amber-100/90 border border-amber-300 rounded-xl text-amber-950 font-medium space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>Alasan Keterlambatan Tercatat:</span>
+                  </div>
+                  <p className="text-amber-900 italic pl-5">"{existingLog.lateReason}"</p>
                 </div>
               )}
 
-              {/* SOP Reference Photo (Optional Standard Cleanliness Example) */}
+              {/* Standar Kebersihan Reference Photo */}
               {task.standardPhotoUrl && (
                 <div className="mt-2 p-2 bg-sky-50/80 border border-sky-200/70 rounded-xl space-y-1">
                   <div className="flex items-center justify-between gap-1.5">
                     <span className="text-[10px] font-bold text-sky-900 flex items-center gap-1">
-                      📸 Contoh Standar Kebersihan (Acuan SOP)
+                      📸 Acuan Standar Kebersihan Lazuardi GCS
                     </span>
                     <button
                       type="button"
@@ -310,12 +327,12 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
                   >
                     <img
                       src={formatGoogleDriveImageUrl(task.standardPhotoUrl)}
-                      alt={`Standar SOP - ${task.title}`}
+                      alt={`Standar Kebersihan - ${task.title}`}
                       className="w-full h-28 sm:h-32 object-cover group-hover:scale-105 transition-transform duration-200"
                     />
                     <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors flex items-end p-1.5">
                       <span className="text-[9px] font-semibold text-white bg-slate-900/80 px-2 py-0.5 rounded backdrop-blur-xs flex items-center gap-1">
-                        <Eye className="w-2.5 h-2.5" /> Acuan Standar Lazuardi GCS
+                        <Eye className="w-2.5 h-2.5" /> Acuan Standar Kebersihan
                       </span>
                     </div>
                   </div>
@@ -329,7 +346,7 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
                     onClick={() => toggleExpand(task.id)}
                     className="text-[11px] font-semibold text-sky-700 hover:text-sky-800 flex items-center gap-1 cursor-pointer transition"
                   >
-                    <span>{expandedTaskId === task.id ? 'Tutup SOP' : 'Lihat Langkah Instruksi SOP'}</span>
+                    <span>{expandedTaskId === task.id ? 'Tutup Standar Kebersihan' : 'Lihat Langkah Standar Kebersihan'}</span>
                     {expandedTaskId === task.id ? (
                       <ChevronUp className="w-3 h-3" />
                     ) : (
@@ -341,7 +358,7 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
                     <div className="mt-1.5 p-3 bg-slate-50/90 border border-slate-200/80 rounded-xl space-y-2 text-xs text-slate-700 animate-in fade-in duration-150">
                       <p className="font-bold text-slate-900 mb-1 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
                         <FileCheck2 className="w-3.5 h-3.5 text-sky-600" />
-                        <span>Langkah-langkah SOP:</span>
+                        <span>Langkah Standar Kebersihan:</span>
                       </p>
                       <div className="space-y-1.5">
                         {parseInstructionSteps(task.instructions).map((inst, i) => (
@@ -367,9 +384,15 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
           <div className="shrink-0 pt-0.5">
             {isCompleted ? (
               <div className="flex flex-col items-end gap-1">
-                <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-[11px] border border-emerald-200/80 shadow-2xs">
-                  {existingLog?.isLate ? 'Selesai (Telat)' : 'Selesai ✓'}
-                </span>
+                {existingLog?.isLate ? (
+                  <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-bold text-[11px] border border-amber-300 shadow-2xs">
+                    <span className="line-through decoration-rose-500">Terlambat</span> (Selesai ✓)
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-[11px] border border-emerald-200/80 shadow-2xs">
+                    Selesai ✓
+                  </span>
+                )}
                 {existingLog?.photoUrl && (
                   <button
                     onClick={() => setSelectedPhotoPreview(existingLog.photoUrl!)}
@@ -918,11 +941,11 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
             </div>
 
             {myReceivedInspections.length > 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {myReceivedInspections.map((insp) => (
                   <div
                     key={insp.id}
-                    className="bg-white border border-slate-200/80 rounded-xl p-3.5 shadow-xs space-y-2 text-xs"
+                    className="bg-white border border-slate-200/80 rounded-xl p-3.5 sm:p-4 shadow-xs space-y-2.5 text-xs"
                   >
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-2">
@@ -940,22 +963,71 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
                             : 'bg-emerald-50 text-emerald-900 border-emerald-300'
                         }`}
                       >
-                        {insp.status || 'Sesuai Standar SOP'}
+                        {insp.status || 'Sesuai Standar Kebersihan'}
                       </span>
                     </div>
 
-                    <p className="text-slate-600">
+                    <p className="text-slate-700">
                       <strong>Area Diperiksa:</strong> {insp.area}
                     </p>
-                    <p className="text-slate-700 bg-slate-50 p-2.5 rounded-lg border border-slate-200/60 italic">
-                      "{insp.notes}"
-                    </p>
+
+                    {insp.notes && (
+                      <p className="text-slate-800 bg-slate-50 p-2.5 rounded-lg border border-slate-200/60 italic">
+                        "{insp.notes}"
+                      </p>
+                    )}
+
+                    {/* Inspection Photo if attached */}
+                    {insp.photoUrl && (
+                      <div className="flex items-center gap-2.5 p-2 bg-sky-50/60 border border-sky-200/70 rounded-lg">
+                        <img
+                          src={formatGoogleDriveImageUrl(insp.photoUrl)}
+                          alt="Foto Temuan Inspeksi"
+                          className="w-12 h-12 object-cover rounded-md border border-sky-300 shrink-0 cursor-pointer"
+                          onClick={() => setSelectedPhotoPreview(insp.photoUrl!)}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[11px] font-bold text-sky-950 block">Foto Temuan / Bukti Inspeksi</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPhotoPreview(insp.photoUrl!)}
+                            className="text-[10px] text-sky-700 hover:text-sky-900 font-semibold underline cursor-pointer"
+                          >
+                            Lihat Foto Lengkap ↗
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Checklist Breakdown */}
+                    {insp.checklistItems && insp.checklistItems.length > 0 && (
+                      <div className="pt-1.5 border-t border-slate-100 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                          Checklist Standar Kebersihan (Toilet & Area):
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px]">
+                          {insp.checklistItems.map((item, idx) => (
+                            <div
+                              key={idx}
+                              className={`px-2 py-1 rounded-md border flex items-center justify-between gap-1.5 ${
+                                item.passed
+                                  ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900'
+                                  : 'bg-amber-50/60 border-amber-200 text-amber-900'
+                              }`}
+                            >
+                              <span className="truncate">{item.label}</span>
+                              <span className="font-bold shrink-0">{item.passed ? '✓ Lolos' : '✗ Temuan'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-100">
                       <span>Tanggal: {insp.date}</span>
                       <span className="text-slate-500 font-medium">
-                        {insp.checklistItems?.filter((c) => c.passed).length || 5} dari{' '}
-                        {insp.checklistItems?.length || 5} item standar lolos
+                        {insp.checklistItems?.filter((c) => c.passed).length || 0} dari{' '}
+                        {insp.checklistItems?.length || 0} item standar lolos
                       </span>
                     </div>
                   </div>

@@ -1048,7 +1048,12 @@ export const StorageService = {
   },
   addPeerInspection: (inspection: PeerInspection): void => {
     const list = StorageService.getPeerInspections();
-    list.unshift(inspection);
+    const existingIdx = list.findIndex((p) => p.id === inspection.id);
+    if (existingIdx !== -1) {
+      list[existingIdx] = inspection;
+    } else {
+      list.unshift(inspection);
+    }
     StorageService.savePeerInspections(list);
   },
 
@@ -1060,7 +1065,18 @@ export const StorageService = {
   },
   addWeeklyScore: (score: WeeklyScore): void => {
     const list = StorageService.getWeeklyScores();
-    list.unshift(score);
+    const existingIndex = list.findIndex(
+      (w) =>
+        w.id === score.id ||
+        (w.userId === score.userId &&
+          ((w.saturdayDate && w.saturdayDate === score.saturdayDate) ||
+            (w.dateRange && w.dateRange === score.dateRange)))
+    );
+    if (existingIndex !== -1) {
+      list[existingIndex] = score;
+    } else {
+      list.unshift(score);
+    }
     StorageService.saveWeeklyScores(list);
   },
 
