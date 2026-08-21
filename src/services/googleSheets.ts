@@ -184,11 +184,11 @@ function setupDatabase() {
   ];
   createOrSetupSheet(ss, "MasterTask", masterTaskHeader, initialMasterTasks, "#1e3a8a");
 
-  // 3. Setup Sheet: TaskLogs
+  // 3. Setup Sheet: TaskLogs (Mencatat Keterlambatan, Alasan, Status Laporan, dan Foto Drive)
   var taskLogsHeader = [
     "ID", "Timestamp", "Date", "UserID", "UserName", "Unit", 
     "TaskTitle", "Category", "TimingType", "Status", "IsLate", 
-    "LateReason", "PhotoURL", "Notes", "KordinatorScore", "KordinatorNotes", 
+    "LateReason", "LateReportStatus", "PhotoURL", "Notes", "KordinatorScore", "KordinatorNotes", 
     "PeerInspector", "PeerStatus", "PeerNotes"
   ];
   createOrSetupSheet(ss, "TaskLogs", taskLogsHeader, [], "#065f46");
@@ -289,21 +289,57 @@ function doPost(e) {
     var rawContents = (e && e.postData && e.postData.contents) ? e.postData.contents : "{}";
     var payload = JSON.parse(rawContents);
 
-    // 1. Single Task Log Real-time Append (Otomatis tanpa menimpa & simpan foto ke Drive jika base64)
+    // 1. Single Task Log Real-time Append / Upsert (Simpan foto ke Google Drive & rekam alasan keterlambatan)
     if (payload.action === "logTask" && payload.logRow) {
       var sheet = ss.getSheetByName("TaskLogs");
       if (!sheet) {
         setupDatabase();
         sheet = ss.getSheetByName("TaskLogs");
       }
-      // Jika kolom PhotoURL (index 12) adalah base64, simpan ke Google Drive terlebih dahulu
-      if (payload.logRow[12] && typeof payload.logRow[12] === "string" && (payload.logRow[12].indexOf("data:image") === 0 || payload.logRow[12].length > 500)) {
-        var staffName = (payload.logRow[4] || "staff").toString().replace(/\\s+/g, "_");
+
+      // Check PhotoURL (index 13 in 20-col format, or index 12 if legacy)
+      var photoIdx = payload.logRow.length >= 20 ? 13 : 12;
+      if (payload.logRow[photoIdx] && typeof payload.logRow[photoIdx] === "string" && (payload.logRow[photoIdx].indexOf("data:image") === 0 || payload.logRow[photoIdx].length > 500)) {
+        var staffName = (payload.logRow[4] || "staff").toString().replace(/\s+/g, "_");
         var fn = "bukti_" + staffName + "_" + (new Date().getTime()) + ".jpg";
-        payload.logRow[12] = saveBase64ImageToDrive(payload.logRow[12], fn);
+        payload.logRow[photoIdx] = saveBase64ImageToDrive(payload.logRow[photoIdx], fn);
       }
-      sheet.appendRow(payload.logRow);
-      return jsonOutput({ success: true, message: "Task log tersimpan di Google Sheet & Foto di Google Drive!", photoUrl: payload.logRow[12] });
+
+      // Upsert: Periksa apakah TaskLog ID atau (UserID + TaskTitle + Date) sudah ada di sheet
+      var lastRow = sheet.getLastRow();
+      var existingRowIndex = -1;
+
+      if (lastRow > 1) {
+        var data = sheet.getRange(2, 1, lastRow - 1, Math.min(sheet.getLastColumn(), 10)).getValues();
+        var targetId = String(payload.logRow[0] || "");
+        var targetUserId = String(payload.logRow[3] || "");
+        var targetDate = String(payload.logRow[2] || "");
+        var targetTitle = String(payload.logRow[6] || "").toLowerCase().trim();
+
+        for (var r = 0; r < data.length; r++) {
+          var rowId = String(data[r][0] || "");
+          var rowDate = String(data[r][2] || "");
+          var rowUserId = String(data[r][3] || "");
+          var rowTitle = String(data[r][6] || "").toLowerCase().trim();
+
+          if (rowId === targetId || (rowUserId === targetUserId && rowDate === targetDate && rowTitle === targetTitle)) {
+            existingRowIndex = r + 2; // +2 for 1-based index and header row
+            break;
+          }
+        }
+      }
+
+      if (existingRowIndex > 1) {
+        sheet.getRange(existingRowIndex, 1, 1, payload.logRow.length).setValues([payload.logRow]);
+      } else {
+        sheet.appendRow(payload.logRow);
+      }
+
+      return jsonOutput({ 
+        success: true, 
+        message: "Task log & alasan keterlambatan tersimpan di Google Sheet!", 
+        photoUrl: payload.logRow[photoIdx] 
+      });
     }
 
     // 2. Upload Photo Proof to Google Drive Folder
@@ -529,6 +565,16 @@ export const GoogleSheetsService = {
   // Real-time single TaskLog direct append to Google Sheet
   logTaskToSheets: async (log: TaskLog): Promise<void> => {
     const syncConfig = StorageService.getSyncConfig();
+    const isLate = log.isLate || log.status === 'Terlambat';
+    const hasReason = Boolean(log.lateReason && log.lateReason.trim().length > 0);
+    const lateReportStatus = isLate
+      ? hasReason
+        ? 'SUDAH LAPOR ALASAN'
+        : 'BELUM LAPOR ALASAN'
+      : log.status === 'Dinas Luar'
+      ? 'DINAS LUAR'
+      : 'TEPAT WAKTU';
+
     const logRow = [
       log.id,
       log.timestamp,
@@ -540,14 +586,15 @@ export const GoogleSheetsService = {
       log.category,
       log.timingType,
       log.status,
-      log.isLate ? 'YA' : 'TIDAK',
+      isLate ? 'YA' : 'TIDAK',
       log.lateReason || '',
+      lateReportStatus,
       log.photoUrl || '',
       log.notes || '',
       log.kordinatorScore || '',
       log.kordinatorNotes || '',
       log.peerInspectorName || '',
-      log.peerScore || '',
+      (log as any).peerStatus || log.peerScore || '',
       log.peerNotes || '',
     ];
 
@@ -653,35 +700,49 @@ export const GoogleSheetsService = {
         'Status',
         'IsLate',
         'LateReason',
+        'LateReportStatus',
         'PhotoURL',
         'Notes',
         'KordinatorScore',
         'KordinatorNotes',
         'PeerInspector',
-        'PeerScore',
+        'PeerStatus',
         'PeerNotes',
       ],
-      ...logs.map((l) => [
-        l.id,
-        l.timestamp,
-        l.date,
-        l.userId,
-        l.userName,
-        l.unit,
-        l.taskTitle,
-        l.category,
-        l.timingType,
-        l.status,
-        l.isLate ? 'YA' : 'TIDAK',
-        l.lateReason || '',
-        l.photoUrl || '',
-        l.notes || '',
-        l.kordinatorScore || '',
-        l.kordinatorNotes || '',
-        l.peerInspectorName || '',
-        l.peerScore || '',
-        l.peerNotes || '',
-      ]),
+      ...logs.map((l) => {
+        const isLate = l.isLate || l.status === 'Terlambat';
+        const hasReason = Boolean(l.lateReason && l.lateReason.trim().length > 0);
+        const lateReportStatus = isLate
+          ? hasReason
+            ? 'SUDAH LAPOR ALASAN'
+            : 'BELUM LAPOR ALASAN'
+          : l.status === 'Dinas Luar'
+          ? 'DINAS LUAR'
+          : 'TEPAT WAKTU';
+
+        return [
+          l.id,
+          l.timestamp,
+          l.date,
+          l.userId,
+          l.userName,
+          l.unit,
+          l.taskTitle,
+          l.category,
+          l.timingType,
+          l.status,
+          isLate ? 'YA' : 'TIDAK',
+          l.lateReason || '',
+          lateReportStatus,
+          l.photoUrl || '',
+          l.notes || '',
+          l.kordinatorScore || '',
+          l.kordinatorNotes || '',
+          l.peerInspectorName || '',
+          (l as any).peerStatus || l.peerScore || '',
+          l.peerNotes || '',
+        ];
+      }),
     ];
 
     // 4. Prepare JobBareng values
@@ -1030,6 +1091,18 @@ export const GoogleSheetsService = {
                   parsedDate = now.split('T')[0];
                 }
 
+                const hasLateReportCol = row.length >= 20;
+                const isLateVal = String(row[10] || '').toUpperCase() === 'YA' || String(row[9] || '').toLowerCase() === 'terlambat';
+                const lateReason = row[11] || undefined;
+                const lateReportStatus = hasLateReportCol ? String(row[12] || '') : (isLateVal ? (lateReason ? 'SUDAH LAPOR ALASAN' : 'BELUM LAPOR ALASAN') : 'TEPAT WAKTU');
+                const photoUrl = hasLateReportCol ? row[13] : row[12];
+                const notes = hasLateReportCol ? row[14] : row[13];
+                const kordinatorScore = hasLateReportCol ? row[15] : row[14];
+                const kordinatorNotes = hasLateReportCol ? row[16] : row[15];
+                const peerInspectorName = hasLateReportCol ? row[17] : row[16];
+                const peerScore = hasLateReportCol ? row[18] : row[17];
+                const peerNotes = hasLateReportCol ? row[19] : row[18];
+
                 return {
                   id: row[0] || `tl-${i}`,
                   timestamp: row[1] || now,
@@ -1042,15 +1115,16 @@ export const GoogleSheetsService = {
                   category: (row[7] || 'Harian') as any,
                   timingType: (row[8] || 'anytime') as any,
                   status: (row[9] || 'Selesai') as any,
-                  isLate: String(row[10] || '').toUpperCase() === 'YA' || String(row[9] || '').toLowerCase() === 'terlambat',
-                  lateReason: row[11] || undefined,
-                  photoUrl: row[12] || undefined,
-                  notes: row[13] || undefined,
-                  kordinatorScore: row[14] ? Number(row[14]) : undefined,
-                  kordinatorNotes: row[15] || undefined,
-                  peerInspectorName: row[16] || undefined,
-                  peerScore: row[17] && !isNaN(Number(row[17])) ? Number(row[17]) : undefined,
-                  peerNotes: row[18] || undefined,
+                  isLate: isLateVal,
+                  lateReason: lateReason || undefined,
+                  lateReported: lateReportStatus === 'SUDAH LAPOR ALASAN',
+                  photoUrl: photoUrl || undefined,
+                  notes: notes || undefined,
+                  kordinatorScore: kordinatorScore && !isNaN(Number(kordinatorScore)) ? Number(kordinatorScore) : undefined,
+                  kordinatorNotes: kordinatorNotes || undefined,
+                  peerInspectorName: peerInspectorName || undefined,
+                  peerScore: peerScore && !isNaN(Number(peerScore)) ? Number(peerScore) : undefined,
+                  peerNotes: peerNotes || undefined,
                 };
               });
 

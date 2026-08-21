@@ -57,6 +57,8 @@ export interface TaskLog {
   status: TaskStatus;
   isLate: boolean;
   lateReason?: string;
+  lateReported?: boolean;
+  lateReportTime?: string;
   photoUrl?: string; // Google Drive link or base64
   driveFileId?: string;
   notes?: string;

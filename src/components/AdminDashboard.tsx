@@ -267,8 +267,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (!matchUser) return false;
     }
     // Status filter
-    if (selectedStatusFilter !== 'Semua' && log.status !== selectedStatusFilter) {
-      return false;
+    if (selectedStatusFilter !== 'Semua') {
+      if (selectedStatusFilter === 'Selesai') {
+        if (log.status !== 'Selesai' || log.isLate) return false;
+      } else if (selectedStatusFilter === 'Terlambat') {
+        if (!log.isLate && log.status !== 'Terlambat') return false;
+      } else if (selectedStatusFilter === 'Terlambat_SudahLapor') {
+        const isLate = log.isLate || log.status === 'Terlambat';
+        const hasReason = Boolean(log.lateReason && log.lateReason.trim().length > 0);
+        if (!isLate || !hasReason) return false;
+      } else if (selectedStatusFilter === 'Terlambat_BelumLapor') {
+        const isLate = log.isLate || log.status === 'Terlambat';
+        const hasReason = Boolean(log.lateReason && log.lateReason.trim().length > 0);
+        if (!isLate || hasReason) return false;
+      } else if (log.status !== selectedStatusFilter) {
+        return false;
+      }
     }
     // Search query
     if (searchQuery.trim()) {
@@ -1908,8 +1922,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 className="px-3 py-2 rounded-xl border border-slate-300 bg-white font-medium"
               >
                 <option value="Semua">Semua Status</option>
-                <option value="Selesai">Selesai</option>
-                <option value="Terlambat">Terlambat</option>
+                <option value="Selesai">Tepat Waktu (Selesai)</option>
+                <option value="Terlambat">Semua Terlambat</option>
+                <option value="Terlambat_SudahLapor">✓ Terlambat (Sudah Lapor Alasan)</option>
+                <option value="Terlambat_BelumLapor">⚠️ Terlambat (Belum Lapor Alasan)</option>
                 <option value="Dinas Luar">Dinas Luar</option>
               </select>
             </div>
@@ -1963,23 +1979,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </span>
                         </td>
                         <td className="p-3 whitespace-nowrap">
-                          <span
-                            className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                              log.status === 'Selesai'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : log.status === 'Terlambat'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-blue-100 text-blue-800'
-                            }`}
-                          >
-                            {log.status}
-                          </span>
+                          {log.isLate || log.status === 'Terlambat' ? (
+                            Boolean(log.lateReason && log.lateReason.trim().length > 0) ? (
+                              <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-amber-100 text-amber-900 border border-amber-300 inline-flex items-center gap-1 shadow-2xs">
+                                <Check className="w-3 h-3 text-emerald-700" /> Telat (Sudah Lapor)
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-rose-100 text-rose-800 border border-rose-300 inline-flex items-center gap-1 shadow-2xs">
+                                <AlertTriangle className="w-3 h-3 text-rose-600" /> Telat (Belum Lapor)
+                              </span>
+                            )
+                          ) : log.status === 'Selesai' ? (
+                            <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-emerald-100 text-emerald-800">
+                              Selesai
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-blue-100 text-blue-800">
+                              {log.status}
+                            </span>
+                          )}
                         </td>
                         <td className="p-3 max-w-xs text-[11px]">
                           {log.lateReason ? (
-                            <span className="text-amber-900 bg-amber-50 p-1 rounded font-semibold border border-amber-200">
-                              Telat: {log.lateReason}
-                            </span>
+                            <div className="p-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-950 font-semibold text-[11px] leading-tight">
+                              <span className="text-[9px] font-bold text-amber-800 uppercase block mb-0.5">
+                                Alasan Telat:
+                              </span>
+                              "{log.lateReason}"
+                            </div>
                           ) : log.notes ? (
                             <span className="italic text-slate-500">{log.notes}</span>
                           ) : (

@@ -988,15 +988,28 @@ export const StorageService = {
   },
   addTaskLog: (log: TaskLog): void => {
     const logs = StorageService.getTaskLogs();
-    logs.unshift(log); // newest first
+    const existingIndex = logs.findIndex(
+      (l) =>
+        l.id === log.id ||
+        (l.userId === log.userId &&
+          l.taskId === log.taskId &&
+          l.date === log.date)
+    );
+    if (existingIndex !== -1) {
+      logs[existingIndex] = { ...logs[existingIndex], ...log };
+    } else {
+      logs.unshift(log); // newest first
+    }
     StorageService.saveTaskLogs(logs);
   },
   updateTaskLog: (log: TaskLog): void => {
     const logs = StorageService.getTaskLogs();
     const index = logs.findIndex((l) => l.id === log.id);
     if (index !== -1) {
-      logs[index] = log;
+      logs[index] = { ...logs[index], ...log };
       StorageService.saveTaskLogs(logs);
+    } else {
+      StorageService.addTaskLog(log);
     }
   },
 
