@@ -12,6 +12,7 @@ import {
 } from './types';
 import { StorageService } from './services/storage';
 import { GoogleSheetsService } from './services/googleSheets';
+import { getJakartaDateString } from './utils/dateHelper';
 import { Navbar } from './components/Navbar';
 import { UserTaskView } from './components/UserTaskView';
 import { KordinatorView } from './components/KordinatorView';
@@ -166,7 +167,7 @@ export default function App() {
 
   // Photo Captured & Task Completed Handler
   const handlePhotoCaptured = async (photoDataUrl: string, notes: string) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getJakartaDateString();
     const timestamp = new Date().toISOString();
 
     // 1. Upload photo to Drive asynchronously

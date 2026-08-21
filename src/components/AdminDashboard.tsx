@@ -194,9 +194,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [jbAssignmentType, setJbAssignmentType] = useState<'all' | 'specific'>('all');
   const [jbSelectedUserIds, setJbSelectedUserIds] = useState<string[]>([]);
 
-  // 15 SOP Breakdown Filter State
-  const [sopSelectedUnit, setSopSelectedUnit] = useState<string>('Semua');
-  const [sopSelectedUser, setSopSelectedUser] = useState<string>('Semua');
+  // 15 SOP Breakdown Filter State (Inherits Unit & User from global filters)
   const [sopDateMode, setSopDateMode] = useState<'all' | 'week' | 'range' | 'month'>('all');
   const [sopSelectedSaturday, setSopSelectedSaturday] = useState<string>('Semua');
   const [sopStartDate, setSopStartDate] = useState<string>('');
@@ -232,18 +230,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [taskIsActive, setTaskIsActive] = useState<boolean>(true);
   const [selectedUserFilter, setSelectedUserFilter] = useState<string>('Semua');
 
-  // Chart 1: Pre-Readiness Specific Filters
-  const [prUnitFilter, setPrUnitFilter] = useState<string>('Semua');
-  const [prUserFilter, setPrUserFilter] = useState<string>('Semua');
+  // Helper to extract YYYY-MM-DD cleanly from any format
+  const normalizeLogDate = (dateVal?: string, timestampVal?: string): string => {
+    const raw = (dateVal || timestampVal || '').trim();
+    if (!raw) return '';
+    if (raw.includes('T')) return raw.split('T')[0];
+    if (raw.includes('/')) {
+      const parts = raw.split('/');
+      if (parts.length === 3) {
+        if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      }
+    }
+    return raw;
+  };
 
   // Filter Task Logs according to Date, Unit, User, and Status controls
   const filteredTaskLogs = taskLogs.filter((log) => {
-    // Date filter: if dateFilterMode is today, match todayStr; if custom, match between startDate and endDate
-    const logDate = log.date || (log.timestamp ? log.timestamp.split('T')[0] : '');
+    const logDate = normalizeLogDate(log.date, log.timestamp);
     if (dateFilterMode === 'today') {
       if (logDate !== todayStr && !log.timestamp?.startsWith(todayStr)) return false;
     } else if (dateFilterMode === 'custom') {
-      if (logDate < startDate || logDate > endDate) return false;
+      if (startDate && logDate < startDate) return false;
+      if (endDate && logDate > endDate) return false;
     }
     // Unit filter
     if (selectedUnitFilter !== 'Semua' && log.unit !== selectedUnitFilter) {
@@ -278,65 +287,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const lateLogs = filteredTaskLogs.filter((l) => l.isLate || l.status === 'Terlambat').length;
   const totalCompleted = completedLogs + lateLogs;
 
-  // Chart 1 Specific: PRE-READINESS Dedicated Task Logs & Status Breakdown
-  const preReadinessFilteredLogs = taskLogs.filter((log) => {
-    // Filter khusus tugas Pre-Readiness
-    const isPreReadiness =
-      log.timingType === 'pre_readiness' ||
-      (log.taskTitle && log.taskTitle.toLowerCase().includes('pagi')) ||
-      (log.taskTitle && log.taskTitle.toLowerCase().includes('sebelum jam masuk')) ||
-      (log.taskTitle && log.taskTitle.toLowerCase().includes('toilet pagi'));
-    if (!isPreReadiness) return false;
-
-    // Date filter
-    const logDate = log.date || (log.timestamp ? log.timestamp.split('T')[0] : '');
-    if (dateFilterMode === 'today') {
-      if (logDate !== todayStr && !log.timestamp?.startsWith(todayStr)) return false;
-    } else if (dateFilterMode === 'custom') {
-      if (logDate < startDate || logDate > endDate) return false;
-    }
-
-    // Chart-specific Unit filter (or inherited from main filter)
-    const effectiveUnit = prUnitFilter !== 'Semua' ? prUnitFilter : selectedUnitFilter;
-    if (effectiveUnit !== 'Semua' && log.unit !== effectiveUnit) {
-      return false;
-    }
-
-    // Chart-specific User filter (or inherited from main filter)
-    const effectiveUser = prUserFilter !== 'Semua' ? prUserFilter : selectedUserFilter;
-    if (effectiveUser !== 'Semua') {
-      const matchUser =
-        log.userId === effectiveUser ||
-        (log.userName && log.userName.toLowerCase().includes(effectiveUser.toLowerCase())) ||
-        (log.userName && effectiveUser.toLowerCase().includes(log.userName.toLowerCase()));
-      if (!matchUser) return false;
-    }
-
-    return true;
-  });
-
-  const prTepatWaktuCount = preReadinessFilteredLogs.filter(
-    (l) => (l.status === 'Selesai' && !l.isLate)
-  ).length;
-
-  const prTerlambatCount = preReadinessFilteredLogs.filter(
-    (l) => l.isLate || l.status === 'Terlambat'
-  ).length;
-
-  const prTotalCount = prTepatWaktuCount + prTerlambatCount;
-
-  // Chart Data: Pre-Readiness Pagi Tepat Waktu vs Terlambat
-  const statusPieData = [
-    { name: 'Tepat Waktu (Sebelum 09:00 WIB)', value: prTepatWaktuCount, color: '#10B981' },
-    { name: 'Terlambat Pre-Readiness (Lewat 09:00 WIB)', value: prTerlambatCount, color: '#F59E0B' },
-  ].filter((d) => d.value > 0);
-
-  // Fallback if no pre-readiness logged yet in filter
-  if (statusPieData.length === 0 && prTotalCount > 0) {
-    statusPieData.push({ name: 'Tepat Waktu (Sebelum 09:00 WIB)', value: prTotalCount, color: '#10B981' });
-  }
-
-  // Calculate target daily master tasks for filtered scope
+  // Filter Target Staff in Scope (Based on top global Unit and User filter)
   const targetStaffUsers = allUsers.filter((u) => {
     if (u.status !== 'Aktif') return false;
     if (u.role !== 'user' && u.role !== 'kordinator') return false;
@@ -347,6 +298,114 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return true;
   });
 
+  const daySpan = Math.max(
+    1,
+    Math.round(
+      (new Date(endDate || todayStr).getTime() - new Date(startDate || todayStr).getTime()) / (1000 * 60 * 60 * 24)
+    ) + 1
+  );
+
+  // Chart 1 Specific: PRE-READINESS Dedicated Task Logs & Status Breakdown
+  const preReadinessFilteredLogs = taskLogs.filter((log) => {
+    // Filter khusus tugas Pre-Readiness
+    const isPreReadiness =
+      log.timingType === 'pre_readiness' ||
+      (log.taskTitle && log.taskTitle.toLowerCase().includes('pagi')) ||
+      (log.taskTitle && log.taskTitle.toLowerCase().includes('sebelum jam masuk')) ||
+      (log.taskTitle && log.taskTitle.toLowerCase().includes('toilet pagi')) ||
+      (log.taskTitle && log.taskTitle.toLowerCase().includes('pre-readiness'));
+    if (!isPreReadiness) return false;
+
+    // Date filter
+    const logDate = normalizeLogDate(log.date, log.timestamp);
+    if (dateFilterMode === 'today') {
+      if (logDate !== todayStr && !log.timestamp?.startsWith(todayStr)) return false;
+    } else if (dateFilterMode === 'custom') {
+      if (startDate && logDate < startDate) return false;
+      if (endDate && logDate > endDate) return false;
+    }
+
+    // Unit filter (Inherit from top global filter)
+    if (selectedUnitFilter !== 'Semua' && log.unit !== selectedUnitFilter) {
+      return false;
+    }
+
+    // User filter (Inherit from top global filter)
+    if (selectedUserFilter !== 'Semua') {
+      const matchUser =
+        log.userId === selectedUserFilter ||
+        (log.userName && log.userName.toLowerCase().includes(selectedUserFilter.toLowerCase())) ||
+        (log.userName && selectedUserFilter.toLowerCase().includes(log.userName.toLowerCase()));
+      if (!matchUser) return false;
+    }
+
+    return true;
+  });
+
+  const prTepatWaktuCount = preReadinessFilteredLogs.filter(
+    (l) => l.status === 'Selesai' && !l.isLate
+  ).length;
+
+  const prTerlambatCount = preReadinessFilteredLogs.filter(
+    (l) => l.isLate || l.status === 'Terlambat'
+  ).length;
+
+  // Active Pre-Readiness Master Tasks assigned to target staff in scope
+  const activePreReadinessMasterTasks = masterTasks.filter(
+    (m) =>
+      isMasterTaskActive(m) &&
+      (m.timingType === 'pre_readiness' ||
+        m.title.toLowerCase().includes('pagi') ||
+        m.title.toLowerCase().includes('sebelum jam masuk') ||
+        m.title.toLowerCase().includes('pre-readiness'))
+  );
+
+  const preReadinessDailyTarget = targetStaffUsers.reduce((sum, user) => {
+    const assigned = activePreReadinessMasterTasks.filter((m) =>
+      isTaskAssignedToUser(m, user)
+    );
+    return sum + assigned.length;
+  }, 0);
+
+  const factorDays = dateFilterMode === 'today' ? 1 : dateFilterMode === 'all' ? 1 : Math.min(daySpan, 31);
+  const expectedPreReadinessTarget = Math.max(
+    preReadinessDailyTarget * factorDays,
+    prTepatWaktuCount + prTerlambatCount
+  );
+
+  // Any uncompleted Pre-Readiness task counts as Belum Dikerjakan / Terlambat
+  const prBelumDikerjakanCount = Math.max(
+    0,
+    expectedPreReadinessTarget - (prTepatWaktuCount + prTerlambatCount)
+  );
+
+  const totalPrTerlambatDanBelum = prTerlambatCount + prBelumDikerjakanCount;
+  const prTotalCount = prTepatWaktuCount + totalPrTerlambatDanBelum;
+
+  // Chart Data: Pre-Readiness Pagi Tepat Waktu vs Terlambat
+  const statusPieData = [
+    {
+      name: 'Tepat Waktu (< 09:00 WIB)',
+      value: prTepatWaktuCount,
+      color: '#10B981',
+    },
+    {
+      name: 'Terlambat / Belum Selesai (≥ 09:00 WIB)',
+      value: totalPrTerlambatDanBelum,
+      color: '#F59E0B',
+    },
+  ].filter((d) => d.value > 0);
+
+  // Fallback if no pre-readiness logged yet in filter
+  if (statusPieData.length === 0 && prTotalCount > 0) {
+    statusPieData.push({
+      name: 'Tepat Waktu (< 09:00 WIB)',
+      value: prTotalCount,
+      color: '#10B981',
+    });
+  }
+
+  // Calculate daily master tasks for filtered scope
   const dailyTasksAssignedCount = targetStaffUsers.reduce((sum, user) => {
     const userMaster = masterTasks.filter(
       (m) => m.category === 'Harian' && isMasterTaskActive(m) && isTaskAssignedToUser(m, user)
@@ -354,12 +413,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return sum + userMaster.length;
   }, 0);
 
-  const daySpan = Math.max(
-    1,
-    Math.round(
-      (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)
-    ) + 1
-  );
   const expectedTargetTasks =
     dateFilterMode === 'today'
       ? Math.max(dailyTasksAssignedCount, 1)
@@ -425,16 +478,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const filteredWeeklyScores = weeklyScores.filter((w) => {
     const userObj = allUsers.find((u) => u.id === w.userId || u.name.toLowerCase() === w.userName.toLowerCase());
     
-    // Filter Unit
-    if (sopSelectedUnit !== 'Semua') {
-      if (!userObj || (userObj.unit !== sopSelectedUnit && userObj.unit !== 'Semua Unit')) {
+    // Filter Unit (Inherit from top global filter)
+    if (selectedUnitFilter !== 'Semua') {
+      if (!userObj || (userObj.unit !== selectedUnitFilter && userObj.unit !== 'Semua Unit')) {
         return false;
       }
     }
     
-    // Filter Petugas
-    if (sopSelectedUser !== 'Semua') {
-      if (w.userName.toLowerCase() !== sopSelectedUser.toLowerCase() && (!userObj || userObj.name.toLowerCase() !== sopSelectedUser.toLowerCase())) {
+    // Filter Petugas (Inherit from top global filter)
+    if (selectedUserFilter !== 'Semua') {
+      if (w.userName.toLowerCase() !== selectedUserFilter.toLowerCase() && (!userObj || userObj.name.toLowerCase() !== selectedUserFilter.toLowerCase())) {
         return false;
       }
     }
@@ -1072,13 +1125,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onClick={() => {
                 setDateFilterMode('custom');
                 const d = new Date();
-                d.setDate(d.getDate() - 7);
-                const local = new Date(d.getTime() + 7 * 60 * 60 * 1000);
-                setStartDate(local.toISOString().split('T')[0]);
+                d.setDate(d.getDate() - 6);
+                setStartDate(getJakartaDateString(d));
                 setEndDate(todayStr);
               }}
               className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                dateFilterMode === 'custom' && startDate !== todayStr
+                dateFilterMode === 'custom' && startDate === getJakartaDateString(new Date(Date.now() - 6 * 86400000))
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
@@ -1090,13 +1142,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 setDateFilterMode('custom');
                 const d = new Date();
                 d.setDate(1); // 1st of month
-                const local = new Date(d.getTime() + 7 * 60 * 60 * 1000);
-                setStartDate(local.toISOString().split('T')[0]);
+                setStartDate(getJakartaDateString(d));
                 setEndDate(todayStr);
               }}
-              className="px-2.5 py-1 rounded-lg font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+              className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                dateFilterMode === 'custom' && startDate === getJakartaDateString(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
             >
               Bulan Ini
+            </button>
+            <button
+              onClick={() => {
+                setDateFilterMode('all');
+                setStartDate('');
+                setEndDate('');
+              }}
+              className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                dateFilterMode === 'all'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              Semua Waktu
             </button>
           </div>
 
@@ -1199,9 +1268,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 Terlambat Pre-Readiness
               </span>
               <div className="flex items-baseline justify-between mt-1">
-                <span className="text-2xl font-black text-amber-600">{lateLogs}</span>
+                <span className="text-2xl font-black text-amber-600">{totalPrTerlambatDanBelum}</span>
                 <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
-                  Wajib Alasan
+                  {prBelumDikerjakanCount > 0 ? `${prBelumDikerjakanCount} Belum` : 'Wajib Alasan'}
                 </span>
               </div>
               <div className="mt-1.5 text-[11px] text-slate-500">
@@ -1268,48 +1337,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     Distribusi Pre-Readiness: Tepat Waktu vs Terlambat
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Khusus monitoring tugas Pre-Readiness (Pagi sebelum 09:00 WIB).
+                    Monitoring kepatuhan tugas Pre-Readiness pagi (sebelum 09:00 WIB) sesuai filter aktif.
                   </p>
-                </div>
-
-                {/* Inline Quick Filter for Pre-Readiness */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <select
-                    value={prUnitFilter}
-                    onChange={(e) => {
-                      setPrUnitFilter(e.target.value);
-                      setPrUserFilter('Semua');
-                    }}
-                    className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium text-slate-700 focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                  >
-                    <option value="Semua">Semua Unit</option>
-                    {unitsList.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={prUserFilter}
-                    onChange={(e) => setPrUserFilter(e.target.value)}
-                    className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium text-slate-700 focus:ring-1 focus:ring-emerald-500 max-w-[130px] truncate cursor-pointer"
-                  >
-                    <option value="Semua">Semua Petugas</option>
-                    {allUsers
-                      .filter((u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator'))
-                      .filter(
-                        (u) =>
-                          prUnitFilter === 'Semua' ||
-                          u.unit === prUnitFilter ||
-                          u.unit === 'Semua Unit'
-                      )
-                      .map((u) => (
-                        <option key={u.id} value={u.name}>
-                          {u.name.replace(/\(.*\)/, '').trim()}
-                        </option>
-                      ))}
-                  </select>
                 </div>
               </div>
 
@@ -1341,14 +1370,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
               </div>
 
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
+              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
                 <span className="flex items-center gap-1.5 font-semibold text-emerald-700">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                   Tepat Waktu: {prTepatWaktuCount} ({prTotalCount > 0 ? Math.round((prTepatWaktuCount / prTotalCount) * 100) : 0}%)
                 </span>
                 <span className="flex items-center gap-1.5 font-semibold text-amber-700">
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                  Terlambat: {prTerlambatCount} ({prTotalCount > 0 ? Math.round((prTerlambatCount / prTotalCount) * 100) : 0}%)
+                  Terlambat & Belum: {totalPrTerlambatDanBelum} {prBelumDikerjakanCount > 0 ? `(${prTerlambatCount} telat, ${prBelumDikerjakanCount} belum)` : ''} ({prTotalCount > 0 ? Math.round((totalPrTerlambatDanBelum / prTotalCount) * 100) : 0}%)
                 </span>
               </div>
             </div>
@@ -1368,43 +1397,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       ? `Filter Unit: ${selectedUnitFilter}`
                       : 'Akumulasi seluruh target tugas unit Lazuardi GCS'}
                   </p>
-                </div>
-
-                {/* Inline Quick Filters for Chart */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <select
-                    value={selectedUnitFilter}
-                    onChange={(e) => setSelectedUnitFilter(e.target.value)}
-                    className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium text-slate-700 focus:ring-1 focus:ring-sky-500 cursor-pointer"
-                  >
-                    <option value="Semua">Semua Unit</option>
-                    {unitsList.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={selectedUserFilter}
-                    onChange={(e) => setSelectedUserFilter(e.target.value)}
-                    className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium text-slate-700 focus:ring-1 focus:ring-sky-500 max-w-[130px] truncate cursor-pointer"
-                  >
-                    <option value="Semua">Semua Petugas</option>
-                    {allUsers
-                      .filter((u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator'))
-                      .filter(
-                        (u) =>
-                          selectedUnitFilter === 'Semua' ||
-                          u.unit === selectedUnitFilter ||
-                          u.unit === 'Semua Unit'
-                      )
-                      .map((u) => (
-                        <option key={u.id} value={u.name}>
-                          {u.name.replace(/\(.*\)/, '').trim()}
-                        </option>
-                      ))}
-                  </select>
                 </div>
               </div>
 
@@ -1579,51 +1571,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     )}
                   </div>
                 )}
-
-                {/* Unit Filter */}
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-slate-700">Unit:</span>
-                  <select
-                    value={sopSelectedUnit}
-                    onChange={(e) => {
-                      setSopSelectedUnit(e.target.value);
-                      setSopSelectedUser('Semua');
-                    }}
-                    className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs"
-                  >
-                    <option value="Semua">Semua Unit</option>
-                    {unitsList.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Staff Filter */}
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-slate-700">Petugas:</span>
-                  <select
-                    value={sopSelectedUser}
-                    onChange={(e) => setSopSelectedUser(e.target.value)}
-                    className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 max-w-[200px] truncate cursor-pointer text-xs"
-                  >
-                    <option value="Semua">Semua Petugas & Kordinator</option>
-                    {allUsers
-                      .filter((u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator'))
-                      .filter(
-                        (u) =>
-                          sopSelectedUnit === 'Semua' ||
-                          u.unit === sopSelectedUnit ||
-                          u.unit === 'Semua Unit'
-                      )
-                      .map((u) => (
-                        <option key={u.id} value={u.name}>
-                          {u.name} ({u.role === 'kordinator' ? 'Kordinator' : u.unit})
-                        </option>
-                      ))}
-                  </select>
-                </div>
 
                 {/* KPI Badges */}
                 <div className="ml-auto flex items-center gap-2 flex-wrap text-xs">

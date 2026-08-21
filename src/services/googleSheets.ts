@@ -980,6 +980,7 @@ export const GoogleSheetsService = {
 
           if (rLogs !== undefined) {
             const masterTasks = StorageService.getMasterTasks();
+            const existingLocalLogs = StorageService.getTaskLogs();
             const parsedLogs: TaskLog[] = (rLogs || [])
               .filter((row: any[]) => row && row.length > 0 && row[0])
               .map((row: any[], i: number) => {
@@ -994,10 +995,42 @@ export const GoogleSheetsService = {
                   resolvedTaskTitle = matchedTask.title;
                 }
 
+                // Robust date parsing
+                let parsedDate = '';
+                const rawDate = row[2];
+                if (rawDate instanceof Date) {
+                  parsedDate = rawDate.toISOString().split('T')[0];
+                } else if (typeof rawDate === 'string' && rawDate.trim().length > 0) {
+                  const s = rawDate.trim();
+                  if (s.includes('T')) {
+                    parsedDate = s.split('T')[0];
+                  } else if (s.includes('/')) {
+                    const parts = s.split('/');
+                    if (parts.length === 3) {
+                      if (parts[2].length === 4) {
+                        parsedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                      } else if (parts[0].length === 4) {
+                        parsedDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+                      } else {
+                        parsedDate = s;
+                      }
+                    } else {
+                      parsedDate = s;
+                    }
+                  } else {
+                    parsedDate = s;
+                  }
+                } else if (row[1]) {
+                  const ts = String(row[1]).trim();
+                  parsedDate = ts.includes('T') ? ts.split('T')[0] : ts;
+                } else {
+                  parsedDate = now.split('T')[0];
+                }
+
                 return {
                   id: row[0] || `tl-${i}`,
                   timestamp: row[1] || now,
-                  date: row[2] || now.split('T')[0],
+                  date: parsedDate,
                   userId: row[3] || '',
                   userName: row[4] || '',
                   unit: row[5] || 'TK',
@@ -1006,7 +1039,7 @@ export const GoogleSheetsService = {
                   category: (row[7] || 'Harian') as any,
                   timingType: (row[8] || 'anytime') as any,
                   status: (row[9] || 'Selesai') as any,
-                  isLate: String(row[10] || '').toUpperCase() === 'YA',
+                  isLate: String(row[10] || '').toUpperCase() === 'YA' || String(row[9] || '').toLowerCase() === 'terlambat',
                   lateReason: row[11] || undefined,
                   photoUrl: row[12] || undefined,
                   notes: row[13] || undefined,
@@ -1017,7 +1050,18 @@ export const GoogleSheetsService = {
                   peerNotes: row[18] || undefined,
                 };
               });
-            StorageService.saveTaskLogs(parsedLogs);
+
+            // Merge local and sheet logs by ID to retain all historical test data
+            const logMap = new Map<string, TaskLog>();
+            existingLocalLogs.forEach((l) => logMap.set(l.id, l));
+            parsedLogs.forEach((l) => logMap.set(l.id, l));
+            const mergedLogs = Array.from(logMap.values()).sort((a, b) => {
+              const dateA = a.date || a.timestamp || '';
+              const dateB = b.date || b.timestamp || '';
+              return dateB.localeCompare(dateA);
+            });
+
+            StorageService.saveTaskLogs(mergedLogs);
           }
 
           if (rJobs !== undefined) {
