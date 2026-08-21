@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   CheckCircle2,
+  Check,
   Clock,
   Camera,
   AlertTriangle,
@@ -254,13 +255,32 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
                       ? 'text-amber-950 line-through decoration-rose-500 decoration-2'
                       : isCompleted
                       ? 'text-slate-500 line-through decoration-slate-400'
-                      : isLate
-                      ? 'text-amber-950 font-bold'
+                      : (isPreReadinessSection && isPastPreReadiness)
+                      ? 'text-amber-950 line-through decoration-rose-500 decoration-2'
                       : 'text-slate-900'
                   }`}
                 >
                   {task.title}
                 </h4>
+
+                {/* Status Badges next to Title */}
+                {isCompleted && isLate && (
+                  Boolean(existingLog?.lateReason && existingLog.lateReason.trim().length > 0) ? (
+                    <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[10px] inline-flex items-center gap-1 shadow-2xs">
+                      <Check className="w-3 h-3 text-emerald-700" /> Sudah Lapor Alasan
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300 font-bold text-[10px] inline-flex items-center gap-1 shadow-2xs">
+                      <AlertTriangle className="w-3 h-3 text-rose-600" /> Belum Lapor Alasan
+                    </span>
+                  )
+                )}
+
+                {!isCompleted && isPreReadinessSection && isPastPreReadiness && (
+                  <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300 font-bold text-[10px] inline-flex items-center gap-1 shadow-2xs">
+                    <Clock className="w-3 h-3 text-rose-600" /> Lewat Batas 09:00 (Wajib Alasan)
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 flex-wrap">
@@ -533,7 +553,7 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
             </div>
           ) : (
             <div className="p-2.5 rounded-xl bg-sky-50/70 border border-sky-200/70">
-              <span className="block font-bold text-sky-800 text-sm">Standar SOP</span>
+              <span className="block font-bold text-sky-800 text-sm">Standar Kebersihan</span>
               <span className="text-[10px] text-sky-700 font-semibold">Kualitas Kerja</span>
             </div>
           )}
@@ -651,7 +671,7 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
                 Belum Ada Daftar Tugas untuk Unit {activeUser.unit}
               </h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4">
-                Daftar Master Task kosong atau unit belum terpetakan. Klik tombol di bawah untuk memuat template tugas SOP Lazuardi GCS standar atau sinkronkan dengan Google Sheet.
+                Daftar Master Task kosong atau unit belum terpetakan. Klik tombol di bawah untuk memuat template tugas Standar Kebersihan Lazuardi GCS atau sinkronkan dengan Google Sheet.
               </p>
               <button
                 onClick={() => {
@@ -660,7 +680,7 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
                 }}
                 className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
               >
-                Muat Template Tugas Standar SOP
+                Muat Template Tugas Standar Kebersihan
               </button>
             </div>
           )}
@@ -1055,7 +1075,7 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
             <div className="flex items-center justify-between text-white text-xs pb-1 border-b border-slate-800">
               <span className="font-bold flex items-center gap-1.5">
                 <Camera className="w-4 h-4 text-sky-400" />
-                <span>Pratinjau Foto Bukti / Standar SOP</span>
+                <span>Pratinjau Foto Bukti / Standar Kebersihan</span>
               </span>
               <button
                 type="button"

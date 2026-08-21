@@ -45,7 +45,7 @@ export const GOOGLE_APPS_SCRIPT_CODE = `/**
  * 3. Hapus semua teks bawaan di "Code.gs", lalu Paste (Tempel) SELURUH kode di bawah ini.
  * 4. Klik ikon "Simpan" (Save 💾).
  * 5. Klik fungsi "setupDatabase" di dropdown atas lalu klik tombol "Run" (Jalankan)
- *    -> Ini akan OTOMATIS membuat seluruh Sheet, Kolom, Password, dan SOP Master Task Lazuardi!
+ *    -> Ini akan OTOMATIS membuat seluruh Sheet, Kolom, Password, dan Standar Kebersihan Master Task Lazuardi!
  * 6. Untuk menghubungkan ke Web App:
  *    - Klik tombol biru "Deploy" (Terapkan) di kanan atas > "New deployment" (Penerapan baru)
  *    - Pilih jenis: "Web app" (Aplikasi web)
@@ -155,7 +155,7 @@ function setupDatabase() {
   ];
   createOrSetupSheet(ss, "Users", usersHeader, initialUsers, "#0f172a");
 
-  // 2. Setup Sheet: MasterTask (SOP Kebersihan Standar Lazuardi)
+  // 2. Setup Sheet: MasterTask (Standar Kebersihan Lazuardi)
   var masterTaskHeader = ["ID", "Title", "Unit", "Category", "TimingType", "Instructions", "PhotoRequired", "IsActive", "Area", "Assignee", "StandardPhotoURL"];
   var initialMasterTasks = [
     // Pre-Readiness Pagi (00:00 - 09:00 WIB)
@@ -1330,7 +1330,7 @@ export const GoogleSheetsService = {
         }
       }
 
-      // Parse MasterTasks if present (Column F Job Bareng support & Column K SOP Standard Photo)
+      // Parse MasterTasks if present (Column F Job Bareng support & Column K Standar Kebersihan Photo)
       if (valueRanges[1]?.values?.length > 0) {
         const remoteTasks: MasterTask[] = valueRanges[1].values
           .filter((row: any[]) => row && row.length > 1 && String(row[1] || '').trim().length > 0)

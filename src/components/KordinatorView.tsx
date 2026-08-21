@@ -193,7 +193,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
 
   const getScoreDescription = (score: number) => {
     if (score === 4) return 'Sangat Bersih & Kinclong';
-    if (score === 3) return 'Bersih Sesuai SOP';
+    if (score === 3) return 'Bersih Sesuai Standar Kebersihan';
     if (score === 2) return 'Cukup (Perlu Ditingkatkan)';
     return 'Kurang (Perlu Perbaikan Segera)';
   };
@@ -386,12 +386,12 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                             onVerifyTaskLog(
                               log.id,
                               4,
-                              'Pekerjaan terverifikasi rapi dan sesuai SOP Lazuardi.'
+                              'Pekerjaan terverifikasi rapi dan sesuai Standar Kebersihan Lazuardi.'
                             )
                           }
                           className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition cursor-pointer shadow-xs"
                         >
-                          ✓ Verifikasi SOP
+                          ✓ Verifikasi Standar Kebersihan
                         </button>
                       )}
                     </div>
@@ -489,7 +489,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                   onClick={() => handleSetAllCategories(3)}
                   className="px-2.5 py-1 bg-white hover:bg-sky-50 border border-sky-300 text-sky-800 font-bold text-[11px] rounded-lg cursor-pointer transition shadow-2xs"
                 >
-                  Semua Nilai 3 (Standar SOP)
+                  Semua Nilai 3 (Standar Kebersihan)
                 </button>
               </div>
 
@@ -564,7 +564,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                             >
                               <span className="text-sm font-black">{num}</span>
                               <span className="text-[9px] font-medium leading-none opacity-90">
-                                {num === 4 ? 'Sangat Baik' : num === 3 ? 'SOP Baik' : num === 2 ? 'Cukup' : 'Kurang'}
+                                {num === 4 ? 'Sangat Baik' : num === 3 ? 'Standar Baik' : num === 2 ? 'Cukup' : 'Kurang'}
                               </span>
                             </button>
                           );
@@ -734,7 +734,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                 Inspeksi Lintas Seluruh Unit
               </h3>
               <p className="text-xs text-slate-500">
-                Kordinator memiliki wewenang menginspeksi seluruh unit sekolah Lazuardi GCS (Penilaian status SOP & Checklist).
+                Kordinator memiliki wewenang menginspeksi seluruh unit sekolah Lazuardi GCS (Penilaian status Standar Kebersihan & Checklist).
               </p>
             </div>
             <button
@@ -750,7 +750,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
           <div className="space-y-2.5">
             {peerInspections.length > 0 ? (
               peerInspections.map((p) => {
-                const isCompliant = p.status === 'Sesuai Standar SOP' || !p.status;
+                const isCompliant = p.status === 'Sesuai Standar Kebersihan' || p.status === 'Sesuai Standar SOP' || !p.status;
                 const passedCount = p.checklistItems ? p.checklistItems.filter((c) => c.passed).length : 0;
                 const totalChecklist = p.checklistItems ? p.checklistItems.length : 0;
 
@@ -779,7 +779,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                       >
                         {isCompliant ? (
                           <>
-                            <Check className="w-3 h-3 text-emerald-700" /> Sesuai Standar SOP
+                            <Check className="w-3 h-3 text-emerald-700" /> Sesuai Standar Kebersihan
                           </>
                         ) : (
                           <>
@@ -815,7 +815,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
           <div className="bg-sky-50/80 border border-sky-200 rounded-xl p-3 text-xs text-sky-950 flex items-center justify-between">
             <span>
               <strong>Peran Kordinator:</strong> Selain memonitor dan memberi nilai, Kordinator juga
-              mengerjakan SOP tugas kebersihan di unit kerjanya.
+              mengerjakan tugas standar kebersihan di unit kerjanya.
             </span>
           </div>
 

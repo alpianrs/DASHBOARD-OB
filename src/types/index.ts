@@ -33,7 +33,7 @@ export interface MasterTask {
   timingType: TimingType; // pre_readiness: 00:00-09:00, clock_out: 09:00-23:59, anytime: 00:00-23:59
   instructions: string[];
   photoRequired: boolean;
-  standardPhotoUrl?: string; // Optional URL / base64 photo for SOP cleanliness benchmark reference
+  standardPhotoUrl?: string; // Optional URL / base64 photo for Standar Kebersihan cleanliness benchmark reference
   estimatedMinutes?: number;
   area?: string;
   isActive: boolean;
@@ -123,7 +123,7 @@ export interface PeerInspection {
   targetUserName: string;
   targetUnit: UnitType;
   area: string;
-  status?: 'Sesuai Standar SOP' | 'Ada Temuan / Perlu Perbaikan';
+  status?: 'Sesuai Standar Kebersihan' | 'Sesuai Standar SOP' | 'Ada Temuan / Perlu Perbaikan';
   score?: number; // Optional legacy score (Official scoring only by Coordinator & Admin)
   notes: string;
   checklistItems: { label: string; passed: boolean }[];

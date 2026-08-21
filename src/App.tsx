@@ -421,6 +421,22 @@ export default function App() {
     GoogleSheetsService.pushAllToSheets().catch(console.warn);
   };
 
+  const handleUpdateTaskLog = (updatedLog: TaskLog) => {
+    StorageService.updateTaskLog(updatedLog);
+    setTaskLogs(StorageService.getTaskLogs());
+    showToast(`Log tugas "${updatedLog.taskTitle}" (${updatedLog.userName}) berhasil diperbarui & disimpan.`);
+    // Realtime sync this specific log to Google Sheets and push all
+    GoogleSheetsService.logTaskToSheets(updatedLog).catch(console.warn);
+    GoogleSheetsService.pushAllToSheets().catch(console.warn);
+  };
+
+  const handleDeleteTaskLog = (logId: string) => {
+    StorageService.deleteTaskLog(logId);
+    setTaskLogs(StorageService.getTaskLogs());
+    showToast('Log tugas berhasil dihapus.');
+    GoogleSheetsService.pushAllToSheets().catch(console.warn);
+  };
+
   // Google 2-Way Sync
   const handlePushSync = async () => {
     const res = await GoogleSheetsService.pushAllToSheets();
@@ -491,6 +507,8 @@ export default function App() {
             onDeleteMasterTask={handleDeleteMasterTask}
             onCreateJobBareng={handleCreateJobBareng}
             onApproveDinas={handleApproveDinas}
+            onUpdateTaskLog={handleUpdateTaskLog}
+            onDeleteTaskLog={handleDeleteTaskLog}
             onTriggerSync={() => setIsSyncModalOpen(true)}
           />
         ) : activeUser.role === 'kordinator' ? (

@@ -38,6 +38,9 @@ import {
   HelpCircle,
   Image as ImageIcon,
   Zap,
+  Camera,
+  Upload,
+  Folder,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -67,7 +70,7 @@ import {
   EVALUATION_CATEGORIES,
 } from '../types';
 import { StorageService, isTaskAssignedToUser } from '../services/storage';
-import { GOOGLE_APPS_SCRIPT_CODE } from '../services/googleSheets';
+import { GOOGLE_APPS_SCRIPT_CODE, GoogleSheetsService } from '../services/googleSheets';
 import {
   formatGoogleDriveImageUrl,
   getGoogleDriveViewLink,
@@ -103,6 +106,8 @@ interface AdminDashboardProps {
   onDeleteMasterTask: (taskId: string) => void;
   onCreateJobBareng: (job: JobBareng) => void;
   onApproveDinas: (requestId: string, approve: boolean) => void;
+  onUpdateTaskLog?: (taskLog: TaskLog) => void;
+  onDeleteTaskLog?: (logId: string) => void;
   onTriggerSync: () => void;
 }
 
@@ -125,6 +130,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onDeleteMasterTask,
   onCreateJobBareng,
   onApproveDinas,
+  onUpdateTaskLog,
+  onDeleteTaskLog,
   onTriggerSync,
 }) => {
   const [adminTab, setAdminTab] = useState<
@@ -229,6 +236,85 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [taskStandardPhotoUrl, setTaskStandardPhotoUrl] = useState<string>('');
   const [taskIsActive, setTaskIsActive] = useState<boolean>(true);
   const [selectedUserFilter, setSelectedUserFilter] = useState<string>('Semua');
+
+  // Edit & Fix Task Log Modal State
+  const [editingLog, setEditingLog] = useState<TaskLog | null>(null);
+  const [editLogStatus, setEditLogStatus] = useState<string>('Selesai');
+  const [editLogIsLate, setEditLogIsLate] = useState<boolean>(false);
+  const [editLogLateReason, setEditLogLateReason] = useState<string>('');
+  const [editLogPhotoUrl, setEditLogPhotoUrl] = useState<string>('');
+  const [editLogNotes, setEditLogNotes] = useState<string>('');
+  const [editLogKordScore, setEditLogKordScore] = useState<number | undefined>(undefined);
+  const [editLogKordNotes, setEditLogKordNotes] = useState<string>('');
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
+
+  const handleOpenEditLog = (log: TaskLog) => {
+    setEditingLog(log);
+    setEditLogStatus(log.status || 'Selesai');
+    setEditLogIsLate(Boolean(log.isLate || log.status === 'Terlambat'));
+    setEditLogLateReason(log.lateReason || '');
+    setEditLogPhotoUrl(log.photoUrl || '');
+    setEditLogNotes(log.notes || '');
+    setEditLogKordScore(log.kordinatorScore);
+    setEditLogKordNotes(log.kordinatorNotes || '');
+  };
+
+  const handlePhotoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingPhoto(true);
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      const result = uploadEvent.target?.result as string;
+      if (result) {
+        setEditLogPhotoUrl(result);
+      }
+      setIsUploadingPhoto(false);
+    };
+    reader.onerror = () => {
+      setIsUploadingPhoto(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveEditedLog = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLog) return;
+
+    const updatedLog: TaskLog = {
+      ...editingLog,
+      status: editLogStatus,
+      isLate: editLogIsLate,
+      lateReason: editLogIsLate ? (editLogLateReason.trim() || undefined) : (editLogLateReason.trim() || undefined),
+      photoUrl: editLogPhotoUrl.trim() || undefined,
+      notes: editLogNotes.trim() || undefined,
+      kordinatorScore: editLogKordScore,
+      kordinatorNotes: editLogKordNotes.trim() || undefined,
+      verifiedByKordinator: editLogKordScore ? true : editingLog.verifiedByKordinator,
+    };
+
+    if (onUpdateTaskLog) {
+      onUpdateTaskLog(updatedLog);
+    } else {
+      StorageService.updateTaskLog(updatedLog);
+      GoogleSheetsService.logTaskToSheets(updatedLog).catch(console.warn);
+      GoogleSheetsService.pushAllToSheets().catch(console.warn);
+    }
+
+    setEditingLog(null);
+  };
+
+  const handleDeleteLogClick = (logId: string, taskTitle: string, staffName: string) => {
+    if (window.confirm(`Yakin ingin menghapus log tugas "${taskTitle}" oleh ${staffName}? Data yang terhapus tidak dapat dikembalikan.`)) {
+      if (onDeleteTaskLog) {
+        onDeleteTaskLog(logId);
+      } else {
+        StorageService.deleteTaskLog(logId);
+        GoogleSheetsService.pushAllToSheets().catch(console.warn);
+      }
+    }
+  };
 
   // Helper to extract YYYY-MM-DD cleanly from any format
   const normalizeLogDate = (dateVal?: string, timestampVal?: string): string => {
@@ -1085,7 +1171,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           }`}
         >
           <Building2 className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Master SOP Tasks ({masterTasks.length})</span>
+          <span>Master Standar Kebersihan ({masterTasks.length})</span>
         </button>
 
         <button
@@ -1318,7 +1404,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </span>
               </div>
               <div className="mt-1.5 text-[11px] text-slate-500">
-                <span>Evaluasi 15 Standar SOP</span>
+                <span>Evaluasi 15 Standar Kebersihan</span>
               </div>
             </div>
 
@@ -1448,16 +1534,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
 
-            {/* Section 3: Penjabaran Nilai 15 Standar SOP Kebersihan (Evaluasi Kordinator) */}
+            {/* Section 3: Penjabaran Nilai 15 Standar Kebersihan (Evaluasi Kordinator) */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs lg:col-span-2 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div>
                   <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
                     <ClipboardCheck className="w-5 h-5 text-indigo-600" />
-                    Penjabaran Nilai 15 Standar SOP Kebersihan (Evaluasi Kordinator)
+                    Penjabaran Nilai 15 Standar Kebersihan (Evaluasi Kordinator)
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Rekapitulasi nilai rata-rata 15 standar SOP kebersihan (Skala 1.0 - 4.0: 1=Kurang, 2=Cukup, 3=Baik, 4=Sangat Baik).
+                    Rekapitulasi nilai rata-rata 15 standar kebersihan (Skala 1.0 - 4.0: 1=Kurang, 2=Cukup, 3=Baik, 4=Sangat Baik).
                   </p>
                 </div>
 
@@ -1940,12 +2026,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <th className="p-3">Waktu & Tanggal</th>
                     <th className="p-3">Staff / OB / OG</th>
                     <th className="p-3">Unit</th>
-                    <th className="p-3">Pekerjaan SOP</th>
+                    <th className="p-3">Pekerjaan Standar Kebersihan</th>
                     <th className="p-3">Kategori</th>
                     <th className="p-3">Status</th>
                     <th className="p-3">Alasan Telat / Catatan</th>
                     <th className="p-3">Bukti Foto Live</th>
                     <th className="p-3">Nilai Kord</th>
+                    <th className="p-3 text-center">Aksi / Perbaiki</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
@@ -2015,14 +2102,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </td>
                         <td className="p-3 whitespace-nowrap">
                           {log.photoUrl ? (
-                            <button
-                              onClick={() => setPhotoPreview(log.photoUrl!)}
-                              className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-[11px] flex items-center gap-1 cursor-pointer border border-emerald-200"
-                            >
-                              <Eye className="w-3 h-3" /> Foto Live
-                            </button>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <button
+                                onClick={() => setPhotoPreview(log.photoUrl!)}
+                                className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-[11px] flex items-center gap-1 cursor-pointer border border-emerald-200 transition"
+                                title="Lihat Foto Bukti"
+                              >
+                                <Eye className="w-3 h-3" /> Foto Live
+                              </button>
+                              <button
+                                onClick={() => handleOpenEditLog(log)}
+                                className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer"
+                                title="Perbaiki / Ganti Bukti Foto"
+                              >
+                                <Camera className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           ) : (
-                            <span className="text-slate-400 text-[11px]">Tidak ada</span>
+                            <button
+                              onClick={() => handleOpenEditLog(log)}
+                              className="px-2 py-1 rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 font-medium text-[10px] flex items-center gap-1 cursor-pointer border border-amber-200 transition"
+                              title="Unggah / Tambah Bukti Foto"
+                            >
+                              <Upload className="w-3 h-3" /> Tambah Foto
+                            </button>
                           )}
                         </td>
                         <td className="p-3 whitespace-nowrap">
@@ -2034,11 +2137,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <span className="text-slate-400">-</span>
                           )}
                         </td>
+                        <td className="p-3 whitespace-nowrap text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => handleOpenEditLog(log)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                              title="Perbaiki Data Log & Bukti Foto"
+                            >
+                              <Edit2 className="w-3 h-3 text-sky-400" />
+                              <span>Perbaiki</span>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteLogClick(log.id, log.taskTitle, log.userName)}
+                              className="p-1 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition cursor-pointer"
+                              title="Hapus Log Tugas"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={9} className="p-8 text-center text-slate-400">
+                      <td colSpan={10} className="p-8 text-center text-slate-400">
                         Tidak ada log tugas yang cocok dengan filter yang dipilih.
                       </td>
                     </tr>
@@ -2060,7 +2182,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     Rekap Pekerjaan yang Tidak Dikerjakan (Missed Tasks) & Penilaian Kepatuhan
                   </h3>
                   <p className="text-xs text-rose-800/80">
-                    Daftar tugas SOP harian yang belum dikerjakan staff pada tanggal <strong>{startDate}</strong>.
+                    Daftar tugas standar kebersihan harian yang belum dikerjakan staff pada tanggal <strong>{startDate}</strong>.
                     {isSelectedDateDayOff && ' (Catatan: Tanggal ini berstatus Hari Libur / Off, tidak ada penalti)'}
                   </p>
                 </div>
@@ -2477,7 +2599,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div>
               <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-emerald-600" />
-                Master Task SOP & Penugasan Individu
+                Master Task Standar Kebersihan & Penugasan Individu
               </h3>
               <p className="text-xs text-slate-500">
                 Atur tugas standar kebersihan dan tentukan penugasan khusus per staff OB/OG atau tugas bersama per unit.
@@ -2638,7 +2760,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               rel="noreferrer"
                               className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-bold text-[10px] hover:bg-amber-100 transition"
                             >
-                              🖼️ Contoh SOP ↗
+                              🖼️ Contoh Standar Kebersihan ↗
                             </a>
                           )}
                         </div>
@@ -2680,7 +2802,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {t.instructions && t.instructions.length > 0 && (
                       <div className="p-3 bg-slate-50 rounded-xl space-y-1.5 text-slate-700 text-xs border border-slate-200/70">
                         <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider block">
-                          Langkah Instruksi SOP:
+                          Langkah Instruksi Standar Kebersihan:
                         </span>
                         <div className="space-y-1">
                           {parseInstructionSteps(t.instructions).map((ins, i) => (
@@ -3333,7 +3455,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="flex justify-between items-center px-5 py-4 bg-slate-900 border-b border-slate-800 text-white">
               <h3 className="font-bold text-sm text-white flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-emerald-400" />
-                {editingTask ? 'Edit Master Task SOP' : 'Tambah Master Task SOP'}
+                {editingTask ? 'Edit Master Task Standar Kebersihan' : 'Tambah Master Task Standar Kebersihan'}
               </h3>
               <button
                 onClick={() => {
@@ -3349,7 +3471,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <form onSubmit={handleSaveMasterTask} className="p-5 space-y-3.5">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  Judul Pekerjaan SOP:
+                  Judul Pekerjaan Standar Kebersihan:
                 </label>
                 <input
                   type="text"
@@ -3452,7 +3574,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  Instruksi Langkah SOP (1 baris per langkah):
+                  Instruksi Langkah Standar Kebersihan (1 baris per langkah):
                 </label>
                 <textarea
                   rows={3}
@@ -3465,13 +3587,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  Link / URL Foto Contoh Standar SOP (Opsional):
+                  Link / URL Foto Contoh Standar Kebersihan (Opsional):
                 </label>
                 <input
                   type="url"
                   value={taskStandardPhotoUrl}
                   onChange={(e) => setTaskStandardPhotoUrl(e.target.value)}
-                  placeholder="https://drive.google.com/... atau link gambar SOP"
+                  placeholder="https://drive.google.com/... atau link gambar Standar Kebersihan"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 text-slate-800 text-xs"
                 />
                 <p className="text-[11px] text-slate-500 mt-1">
@@ -3481,7 +3603,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="mt-2 p-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3">
                     <img
                       src={taskStandardPhotoUrl}
-                      alt="SOP Preview"
+                      alt="Standar Kebersihan Preview"
                       className="w-12 h-12 object-cover rounded-lg border border-slate-300"
                       onError={(e) => {
                         (e.target as HTMLElement).style.display = 'none';
@@ -3489,7 +3611,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     />
                     <div className="min-w-0 flex-1">
                       <span className="text-[11px] font-bold text-emerald-800 block truncate">
-                        ✓ Link Foto SOP Terdeteksi
+                        ✓ Link Foto Standar Kebersihan Terdeteksi
                       </span>
                       <a
                         href={taskStandardPhotoUrl}
@@ -3652,7 +3774,206 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       )}
 
-      {/* Photo Preview Modal with Google Drive quick link */}
+      {/* Edit / Fix Task Log Modal */}
+      {editingLog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white border border-slate-200/80 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl space-y-0 text-xs">
+            <div className="flex justify-between items-center px-5 py-4 bg-slate-900 border-b border-slate-800 text-white">
+              <div>
+                <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                  <Edit2 className="w-4 h-4 text-sky-400" />
+                  Perbaiki Data Log & Bukti Foto
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {editingLog.userName} • Unit {editingLog.unit} • {editingLog.date}
+                </p>
+              </div>
+              <button
+                onClick={() => setEditingLog(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditedLog} className="p-5 space-y-3.5 max-h-[80vh] overflow-y-auto">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                <span className="text-[10px] font-bold uppercase text-slate-500 block">Pekerjaan:</span>
+                <p className="font-bold text-slate-900 text-xs">{editingLog.taskTitle}</p>
+                <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                  <span>Kategori: {editingLog.category}</span>
+                  <span>•</span>
+                  <span>Waktu: {editingLog.timingType}</span>
+                </div>
+              </div>
+
+              {/* Status */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Status Pengerjaan:</label>
+                  <select
+                    value={editLogStatus}
+                    onChange={(e) => setEditLogStatus(e.target.value)}
+                    className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-semibold focus:ring-2 focus:ring-sky-500"
+                  >
+                    <option value="Selesai">✅ Selesai</option>
+                    <option value="Terlambat">⚠️ Terlambat</option>
+                    <option value="Tidak Selesai">❌ Tidak Selesai</option>
+                    <option value="Pending">⏳ Pending</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Status Keterlambatan:</label>
+                  <select
+                    value={editLogIsLate ? 'ya' : 'tidak'}
+                    onChange={(e) => setEditLogIsLate(e.target.value === 'ya')}
+                    className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-semibold focus:ring-2 focus:ring-sky-500"
+                  >
+                    <option value="tidak">Tepat Waktu (Tidak Telat)</option>
+                    <option value="ya">Terlambat (Late)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Alasan Telat */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Alasan Keterlambatan (Late Reason):
+                </label>
+                <input
+                  type="text"
+                  value={editLogLateReason}
+                  onChange={(e) => setEditLogLateReason(e.target.value)}
+                  placeholder="Contoh: Ban motor bocor di jalan / Hujan deras..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 font-medium"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Alasan ini akan tersimpan di riwayat aplikasi dan disinkronkan ke kolom Alasan Telat di Google Sheets.
+                </p>
+              </div>
+
+              {/* Bukti Foto Live & Perbaikan */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <label className="block font-bold text-slate-700">
+                  Bukti Foto Live (URL / Upload Foto Baru):
+                </label>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={editLogPhotoUrl}
+                    onChange={(e) => setEditLogPhotoUrl(e.target.value)}
+                    placeholder="https://drive.google.com/... atau data URL foto"
+                    className="flex-1 px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 text-[11px]"
+                  />
+                  <label className="px-3 py-2 rounded-xl bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 font-bold flex items-center gap-1 cursor-pointer transition">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {isUploadingPhoto && (
+                  <p className="text-[11px] text-sky-600 animate-pulse font-semibold">
+                    Sedang memproses foto baru...
+                  </p>
+                )}
+
+                {editLogPhotoUrl && (
+                  <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3">
+                    <img
+                      src={editLogPhotoUrl}
+                      alt="Preview Bukti"
+                      className="w-14 h-14 object-cover rounded-lg border border-slate-300 bg-slate-100 shrink-0"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[11px] font-bold text-emerald-800 block truncate">
+                        ✓ Foto bukti terpasang
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setEditLogPhotoUrl('')}
+                        className="text-[10px] text-rose-600 hover:underline font-semibold"
+                      >
+                        Hapus Foto
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Catatan Tambahan */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Catatan Tambahan:</label>
+                <input
+                  type="text"
+                  value={editLogNotes}
+                  onChange={(e) => setEditLogNotes(e.target.value)}
+                  placeholder="Catatan dari staff atau admin..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 text-xs"
+                />
+              </div>
+
+              {/* Evaluasi / Nilai Kordinator */}
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Nilai Kordinator (1-4):</label>
+                  <select
+                    value={editLogKordScore !== undefined ? editLogKordScore : ''}
+                    onChange={(e) => setEditLogKordScore(e.target.value ? Number(e.target.value) : undefined)}
+                    className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-sky-500"
+                  >
+                    <option value="">Belum Dinilai (-)</option>
+                    <option value="1">⭐ 1 (Kurang)</option>
+                    <option value="2">⭐ 2 (Cukup)</option>
+                    <option value="3">⭐ 3 (Baik)</option>
+                    <option value="4">⭐ 4 (Sangat Baik)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Catatan Evaluasi:</label>
+                  <input
+                    type="text"
+                    value={editLogKordNotes}
+                    onChange={(e) => setEditLogKordNotes(e.target.value)}
+                    placeholder="Masukan kordinator..."
+                    className="w-full px-2.5 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setEditingLog(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-300 font-bold hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-2 py-2.5 rounded-xl bg-slate-900 text-white font-bold shadow-md hover:bg-slate-800 transition cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Check className="w-4 h-4 text-emerald-400" />
+                  <span>Simpan Perubahan</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Photo Preview Modal with Google Drive quick link and direct fallback */}
       {photoPreview && (
         <div
           onClick={() => setPhotoPreview(null)}
@@ -3674,22 +3995,60 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </button>
             </div>
 
-            <img
-              src={photoPreview}
-              alt="Proof"
-              className="w-full h-auto max-h-[65vh] object-contain rounded-xl bg-black/40"
-            />
+            <div className="relative rounded-xl overflow-hidden bg-black/40 min-h-[200px] flex items-center justify-center">
+              <img
+                src={photoPreview}
+                alt="Proof"
+                className="w-full h-auto max-h-[65vh] object-contain rounded-xl"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  target.style.display = 'none';
+                  const fallback = target.nextElementSibling as HTMLElement;
+                  if (fallback) fallback.style.display = 'flex';
+                }}
+              />
+              <div
+                style={{ display: 'none' }}
+                className="flex-col items-center justify-center p-6 text-center text-slate-300 space-y-2"
+              >
+                <AlertTriangle className="w-8 h-8 text-amber-400" />
+                <p className="text-xs font-medium">
+                  Pratinjau langsung tidak dapat dimuat di browser ini (misal file tersimpan di Google Drive dengan akses privat atau URL eksternal).
+                </p>
+                <a
+                  href={getGoogleDriveViewLink(photoPreview)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs inline-flex items-center gap-1.5 transition"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Buka Gambar di Tab Baru
+                </a>
+              </div>
+            </div>
 
             <div className="flex items-center justify-between gap-2 pt-1">
-              <a
-                href={syncConfig.driveFolderUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="px-3 py-1.5 bg-blue-600/30 border border-blue-500/50 hover:bg-blue-600/50 text-blue-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span>Buka Folder Google Drive ↗</span>
-              </a>
+              <div className="flex items-center gap-2">
+                <a
+                  href={getGoogleDriveViewLink(photoPreview)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 bg-sky-600/30 border border-sky-500/50 hover:bg-sky-600/50 text-sky-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Buka Link Foto ↗</span>
+                </a>
+
+                <a
+                  href={syncConfig.driveFolderUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 bg-blue-600/30 border border-blue-500/50 hover:bg-blue-600/50 text-blue-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Folder className="w-3.5 h-3.5" />
+                  <span>Folder Drive</span>
+                </a>
+              </div>
 
               <button
                 onClick={() => setPhotoPreview(null)}

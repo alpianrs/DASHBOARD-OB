@@ -237,7 +237,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
           </button>
         </div>
 
-        {/* Security Rule Notice & SOP Benchmark Photo Reference */}
+        {/* Security Rule Notice & Standar Kebersihan Benchmark Photo Reference */}
         <div className="bg-amber-950/40 border-b border-amber-800/30 px-4 py-2 text-[11px] text-amber-200 flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
             <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
@@ -252,7 +252,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
               rel="noreferrer"
               className="text-[10px] text-amber-300 hover:text-amber-100 font-bold underline shrink-0 flex items-center gap-0.5"
             >
-              Lihat Acuan SOP ↗
+              Lihat Acuan Standar Kebersihan ↗
             </a>
           )}
         </div>

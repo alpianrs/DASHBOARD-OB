@@ -75,8 +75,8 @@ export const LateReasonModal: React.FC<LateReasonModalProps> = ({
             <div>
               <p className="font-bold text-amber-950 mb-0.5">Pekerjaan: {task.title}</p>
               <p className="text-amber-800">
-                Pekerjaan diselesaikan setelah pukul 09:00 WIB. Berdasarkan SOP Facility
-                Management Lazuardi, alasan akan dicatat di laporan harian Admin.
+                Pekerjaan diselesaikan setelah pukul 09:00 WIB. Berdasarkan Standar Kebersihan Facility
+                Management Lazuardi, alasan akan dicatat di laporan harian Admin dan tersimpan ke Google Sheet.
               </p>
             </div>
           </div>

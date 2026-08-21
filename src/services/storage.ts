@@ -28,7 +28,7 @@ export const DEFAULT_HOLIDAY_CONFIG: HolidayConfig = {
   isHolidayToday: false,
   holidayReason: 'Libur Nasional / Tanggal Merah',
   workdaysActive: true, // Monday-Friday is standard active schedule
-  autoWeekendOff: true, // Saturday and Sunday automatically off
+  autoWeekendOff: false, // Default false: strictly only libur if explicitly turned on by Admin
   disabledDates: [],
 };
 
@@ -1012,6 +1012,10 @@ export const StorageService = {
       StorageService.addTaskLog(log);
     }
   },
+  deleteTaskLog: (logId: string): void => {
+    const logs = StorageService.getTaskLogs().filter((l) => l.id !== logId);
+    StorageService.saveTaskLogs(logs);
+  },
 
   getJobBareng: (): JobBareng[] => {
     return getStoredItem<JobBareng[]>(STORAGE_KEYS.JOB_BARENG, SEED_JOB_BARENG);
@@ -1114,27 +1118,34 @@ export const StorageService = {
   },
   isDayOffToday: (dateStr?: string): { isOff: boolean; reason: string } => {
     const config = StorageService.getHolidayConfig();
-    const targetDate = dateStr ? new Date(`${dateStr}T00:00:00`) : new Date();
-    const checkDateStr = dateStr || new Date().toISOString().split('T')[0];
-    const dayOfWeek = targetDate.getDay(); // 0 = Sunday, 6 = Saturday
+    if (!config) return { isOff: false, reason: '' };
 
-    // 1. Check if manually marked as holiday today (if checking today)
+    const checkDateStr = dateStr || new Date().toISOString().split('T')[0];
+    
+    // 1. Check if manually marked as holiday today (only if checking current active date)
     const todayActual = new Date().toISOString().split('T')[0];
-    if (checkDateStr === todayActual && config.isHolidayToday) {
+    if (checkDateStr === todayActual && config.isHolidayToday === true) {
       return { isOff: true, reason: config.holidayReason || 'Libur Ditetapkan Admin' };
     }
 
     // 2. Check if specific date is in disabledDates
-    if (config.disabledDates && config.disabledDates.includes(checkDateStr)) {
+    if (config.disabledDates && Array.isArray(config.disabledDates) && config.disabledDates.includes(checkDateStr)) {
       return { isOff: true, reason: config.holidayReason || 'Libur Terjadwal' };
     }
 
-    // 3. Check weekend rule (Sabtu & Minggu libur jika autoWeekendOff true)
-    if (config.autoWeekendOff && (dayOfWeek === 0 || dayOfWeek === 6)) {
-      return {
-        isOff: true,
-        reason: dayOfWeek === 0 ? 'Hari Minggu (Weekend Off)' : 'Hari Sabtu (Weekend Off)',
-      };
+    // 3. Check weekend rule ONLY IF autoWeekendOff is explicitly enabled by Admin
+    if (config.autoWeekendOff === true) {
+      const parts = checkDateStr.split('-');
+      if (parts.length === 3) {
+        const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        const dayOfWeek = d.getDay(); // 0 = Sunday, 6 = Saturday
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          return {
+            isOff: true,
+            reason: dayOfWeek === 0 ? 'Hari Minggu (Weekend Off)' : 'Hari Sabtu (Weekend Off)',
+          };
+        }
+      }
     }
 
     return { isOff: false, reason: '' };

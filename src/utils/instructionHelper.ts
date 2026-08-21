@@ -1,6 +1,6 @@
 /**
- * Instruction Steps Parser Helper for Lazuardi GCS SOP
- * Parses SOP instructions containing dashes ('-'), newlines ('\n'), or pipes ('|')
+ * Instruction Steps Parser Helper for Lazuardi GCS Standar Kebersihan
+ * Parses Standar Kebersihan instructions containing dashes ('-'), newlines ('\n'), or pipes ('|')
  * into clean, individually formatted line-by-line steps with numbers.
  */
 

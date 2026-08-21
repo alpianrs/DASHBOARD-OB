@@ -296,7 +296,7 @@ export const SyncStatusModal: React.FC<SyncStatusModalProps> = ({
             </div>
 
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              Klik tombol di bawah untuk membuat seluruh tab (Users, MasterTask, TaskLogs, JobBareng, dll) beserta kolom dan data SOP Lazuardi di Google Sheet Anda secara otomatis.
+              Klik tombol di bawah untuk membuat seluruh tab (Users, MasterTask, TaskLogs, JobBareng, dll) beserta kolom dan data Standar Kebersihan Lazuardi di Google Sheet Anda secara otomatis.
             </p>
 
             <div className="flex flex-wrap gap-2 pt-1">

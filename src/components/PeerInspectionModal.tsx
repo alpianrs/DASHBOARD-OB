@@ -70,8 +70,8 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
   );
   const [area, setArea] = useState<string>('');
   const [inspectionStatus, setInspectionStatus] = useState<
-    'Sesuai Standar SOP' | 'Ada Temuan / Perlu Perbaikan'
-  >('Sesuai Standar SOP');
+    'Sesuai Standar Kebersihan' | 'Sesuai Standar SOP' | 'Ada Temuan / Perlu Perbaikan'
+  >('Sesuai Standar Kebersihan');
   const [notes, setNotes] = useState<string>('');
   const [checklist, setChecklist] = useState<{ label: string; passed: boolean }[]>(
     DEFAULT_CHECKLIST.map((item) => ({ label: item, passed: true }))
@@ -99,10 +99,10 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
 
     // If any item failed, suggest setting status to Ada Temuan
     const anyFailed = next.some((item) => !item.passed);
-    if (anyFailed && inspectionStatus === 'Sesuai Standar SOP') {
+    if (anyFailed && (inspectionStatus === 'Sesuai Standar Kebersihan' || inspectionStatus === 'Sesuai Standar SOP')) {
       setInspectionStatus('Ada Temuan / Perlu Perbaikan');
     } else if (!anyFailed && inspectionStatus === 'Ada Temuan / Perlu Perbaikan') {
-      setInspectionStatus('Sesuai Standar SOP');
+      setInspectionStatus('Sesuai Standar Kebersihan');
     }
   };
 
@@ -202,7 +202,7 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
       status: inspectionStatus,
       notes:
         notes.trim() ||
-        (inspectionStatus === 'Sesuai Standar SOP'
+        (inspectionStatus === 'Sesuai Standar Kebersihan' || inspectionStatus === 'Sesuai Standar SOP'
           ? 'Kondisi area bersih dan sesuai Standar Kebersihan Lazuardi GCS.'
           : 'Terdapat catatan temuan kebersihan yang perlu dirapikan.'),
       checklistItems: checklist,
@@ -439,9 +439,9 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setInspectionStatus('Sesuai Standar SOP')}
+                onClick={() => setInspectionStatus('Sesuai Standar Kebersihan')}
                 className={`p-2.5 rounded-xl border text-center font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                  inspectionStatus === 'Sesuai Standar SOP'
+                  inspectionStatus === 'Sesuai Standar Kebersihan' || inspectionStatus === 'Sesuai Standar SOP'
                     ? 'bg-emerald-100 border-emerald-400 text-emerald-900 shadow-2xs'
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                 }`}
