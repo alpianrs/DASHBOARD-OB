@@ -565,6 +565,7 @@ export const GoogleSheetsService = {
   // Real-time single TaskLog direct append to Google Sheet
   logTaskToSheets: async (log: TaskLog): Promise<void> => {
     const syncConfig = StorageService.getSyncConfig();
+    const token = getCachedAccessToken();
     const isLate = log.isLate || log.status === 'Terlambat';
     const hasReason = Boolean(log.lateReason && log.lateReason.trim().length > 0);
     const lateReportStatus = isLate
@@ -598,6 +599,7 @@ export const GoogleSheetsService = {
       log.peerNotes || '',
     ];
 
+    // 1. Post to Apps Script Web App (if configured)
     if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
       try {
         await fetch(syncConfig.webAppUrl, {
@@ -611,6 +613,27 @@ export const GoogleSheetsService = {
         });
       } catch (err) {
         console.warn('Real-time task log post failed, will be included in full sync:', err);
+      }
+    }
+
+    // 2. Direct Google Sheets REST API append fallback (if OAuth token present)
+    if (token) {
+      try {
+        await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/TaskLogs!A:T:append?valueInputOption=USER_ENTERED`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              values: [logRow],
+            }),
+          }
+        );
+      } catch (err) {
+        console.warn('Direct REST TaskLog append fallback error:', err);
       }
     }
   },
@@ -897,11 +920,11 @@ export const GoogleSheetsService = {
       const batchData = [
         { range: 'Users!A1:H' + (userRows.length + 10), values: userRows },
         { range: 'MasterTask!A1:K' + (taskRows.length + 10), values: taskRows },
-        { range: 'TaskLogs!A1:S' + (logRows.length + 20), values: logRows },
-        { range: 'JobBareng!A1:J' + (jobRows.length + 10), values: jobRows },
+        { range: 'TaskLogs!A1:T' + (logRows.length + 20), values: logRows },
+        { range: 'JobBareng!A1:L' + (jobRows.length + 10), values: jobRows },
         { range: 'DinasRequests!A1:K' + (dinasRows.length + 10), values: dinasRows },
-        { range: 'PeerInspections!A1:L' + (peerRows.length + 10), values: peerRows },
-        { range: 'WeeklyScores!A1:K' + (weeklyRows.length + 10), values: weeklyRows },
+        { range: 'PeerInspections!A1:N' + (peerRows.length + 10), values: peerRows },
+        { range: 'WeeklyScores!A1:L' + (weeklyRows.length + 10), values: weeklyRows },
       ];
 
       await fetch(
@@ -1281,7 +1304,15 @@ export const GoogleSheetsService = {
     }
 
     try {
-      const ranges = ['Users!A2:H', 'MasterTask!A2:K', 'TaskLogs!A2:S', 'JobBareng!A2:J', 'DinasRequests!A2:K', 'WeeklyScores!A2:K'];
+      const ranges = [
+        'Users!A2:H',
+        'MasterTask!A2:K',
+        'TaskLogs!A2:T',
+        'JobBareng!A2:L',
+        'DinasRequests!A2:K',
+        'PeerInspections!A2:N',
+        'WeeklyScores!A2:L',
+      ];
       const query = ranges.map((r) => `ranges=${encodeURIComponent(r)}`).join('&');
 
       const res = await fetch(
@@ -1300,7 +1331,7 @@ export const GoogleSheetsService = {
       const data = await res.json();
       const valueRanges = data.valueRanges || [];
 
-      // Parse Users if present
+      // 0. Parse Users if present
       if (valueRanges[0]?.values?.length > 0) {
         const remoteUsers: User[] = valueRanges[0].values
           .filter((row: any[]) => row && row.length > 0 && (row[1] || row[0]))
@@ -1330,7 +1361,7 @@ export const GoogleSheetsService = {
         }
       }
 
-      // Parse MasterTasks if present (Column F Job Bareng support & Column K Standar Kebersihan Photo)
+      // 1. Parse MasterTasks if present (Column F Job Bareng support & Column K Standar Kebersihan Photo)
       if (valueRanges[1]?.values?.length > 0) {
         const remoteTasks: MasterTask[] = valueRanges[1].values
           .filter((row: any[]) => row && row.length > 1 && String(row[1] || '').trim().length > 0)
@@ -1380,6 +1411,201 @@ export const GoogleSheetsService = {
         if (remoteTasks.length > 0) {
           StorageService.saveMasterTasks(remoteTasks);
         }
+      }
+
+      // 2. Parse TaskLogs if present (including LateReason, LateReportStatus, PhotoURL)
+      if (valueRanges[2]?.values?.length > 0) {
+        const masterTasks = StorageService.getMasterTasks();
+        const existingLocalLogs = StorageService.getTaskLogs();
+        const parsedLogs: TaskLog[] = valueRanges[2].values
+          .filter((row: any[]) => row && row.length > 0 && row[0])
+          .map((row: any[], i: number) => {
+            const rawTaskVal = String(row[6] || '').trim();
+            let resolvedTaskId = rawTaskVal;
+            let resolvedTaskTitle = rawTaskVal;
+            const matchedTask = masterTasks.find(
+              (t) => t.id === rawTaskVal || t.title.toLowerCase() === rawTaskVal.toLowerCase()
+            );
+            if (matchedTask) {
+              resolvedTaskId = matchedTask.id;
+              resolvedTaskTitle = matchedTask.title;
+            }
+
+            const hasLateReportCol = row.length >= 20;
+            const isLateVal = String(row[10] || '').toUpperCase() === 'YA' || String(row[9] || '').toLowerCase() === 'terlambat';
+            const lateReason = row[11] || undefined;
+            const photoUrl = hasLateReportCol ? row[13] : row[12];
+            const notes = hasLateReportCol ? row[14] : row[13];
+            const kordinatorScore = hasLateReportCol ? row[15] : row[14];
+            const kordinatorNotes = hasLateReportCol ? row[16] : row[15];
+            const peerInspectorName = hasLateReportCol ? row[17] : row[16];
+            const peerStatus = hasLateReportCol ? row[18] : row[17];
+            const peerNotes = hasLateReportCol ? row[19] : row[18];
+
+            return {
+              id: row[0] || `tl-sheet-${i}`,
+              timestamp: row[1] || now,
+              date: row[2] || now.split('T')[0],
+              userId: row[3] || '',
+              userName: row[4] || '',
+              unit: row[5] || 'TK',
+              taskId: resolvedTaskId,
+              taskTitle: resolvedTaskTitle,
+              category: (row[7] || 'Harian') as any,
+              timingType: (row[8] || 'anytime') as any,
+              status: (row[9] || 'Selesai') as any,
+              isLate: isLateVal,
+              lateReason,
+              photoUrl: photoUrl || undefined,
+              notes: notes || undefined,
+              kordinatorScore: kordinatorScore ? Number(kordinatorScore) : undefined,
+              kordinatorNotes: kordinatorNotes || undefined,
+              peerInspectorName: peerInspectorName || undefined,
+              peerStatus: peerStatus || undefined,
+              peerNotes: peerNotes || undefined,
+            };
+          });
+
+        const logMap = new Map<string, TaskLog>();
+        existingLocalLogs.forEach((l) => logMap.set(l.id, l));
+        parsedLogs.forEach((l) => logMap.set(l.id, l));
+        StorageService.saveTaskLogs(Array.from(logMap.values()));
+      }
+
+      // 3. Parse JobBareng if present
+      if (valueRanges[3]?.values?.length > 0) {
+        const existingLocalJobs = StorageService.getJobBareng();
+        const parsedJobs: JobBareng[] = valueRanges[3].values
+          .filter((row: any[]) => row && row.length > 0 && row[0])
+          .map((row: any[], i: number) => {
+            const participantsRaw = row[7] ? String(row[7]).split(',').map((s) => s.trim()).filter(Boolean) : [];
+            const completedRaw = row[8] ? String(row[8]).split(',').map((s) => s.trim()).filter(Boolean) : [];
+            const assignmentType = (row[10] && String(row[10]).toLowerCase() === 'specific') ? 'specific' : 'all';
+            const assignedRaw = row[11] ? String(row[11]).split(',').map((s) => s.trim()).filter(Boolean) : undefined;
+            return {
+              id: row[0] || `jb-${i}`,
+              title: row[1] || 'Job Bareng',
+              description: row[2] || '',
+              date: row[3] || now.split('T')[0],
+              targetUnit: row[4] || 'Semua Unit',
+              targetArea: row[5] || 'Area Terkait',
+              status: (row[6] || 'Aktif') as any,
+              assignmentType,
+              assignedUserIds: assignedRaw,
+              assignedUserNames: assignedRaw,
+              participantIds: participantsRaw,
+              participantNames: participantsRaw,
+              completedUserIds: completedRaw,
+              completedUserNames: completedRaw,
+              createdAt: row[9] || now,
+            };
+          });
+
+        const jobMap = new Map<string, JobBareng>();
+        existingLocalJobs.forEach((j) => jobMap.set(j.id, j));
+        parsedJobs.forEach((j) => {
+          const existing = jobMap.get(j.id);
+          if (existing) {
+            const mergedParticipants = Array.from(new Set([...(existing.participantNames || existing.participantIds || []), ...(j.participantNames || j.participantIds || [])]));
+            const mergedCompleted = Array.from(new Set([...(existing.completedUserNames || existing.completedUserIds || []), ...(j.completedUserNames || j.completedUserIds || [])]));
+            jobMap.set(j.id, {
+              ...existing,
+              ...j,
+              participantNames: mergedParticipants,
+              participantIds: mergedParticipants,
+              completedUserNames: mergedCompleted,
+              completedUserIds: mergedCompleted,
+            });
+          } else {
+            jobMap.set(j.id, j);
+          }
+        });
+        StorageService.saveJobBareng(Array.from(jobMap.values()));
+      }
+
+      // 4. Parse DinasRequests if present
+      if (valueRanges[4]?.values?.length > 0) {
+        const parsedDinas: DinasRequest[] = valueRanges[4].values
+          .filter((row: any[]) => row && row.length > 0 && row[0])
+          .map((row: any[], i: number) => ({
+            id: row[0] || `dr-${i}`,
+            date: row[1] || now.split('T')[0],
+            userId: row[2] || '',
+            userName: row[3] || '',
+            unit: row[4] || 'TK',
+            reason: row[5] || '',
+            destination: row[6] || '',
+            status: (row[7] || 'Pending') as any,
+            approvedByName: row[8] || undefined,
+            approvedAt: row[9] || undefined,
+            createdAt: row[10] || now,
+          }));
+        StorageService.saveDinasRequests(parsedDinas);
+      }
+
+      // 5. Parse PeerInspections if present
+      if (valueRanges[5]?.values?.length > 0) {
+        const parsedPeer: PeerInspection[] = valueRanges[5].values
+          .filter((row: any[]) => row && row.length > 0 && row[0])
+          .map((row: any[], i: number) => {
+            let checklist: { label: string; passed: boolean }[] = [];
+            try {
+              if (row[12] && typeof row[12] === 'string' && row[12].trim().startsWith('[')) {
+                checklist = JSON.parse(row[12]);
+              }
+            } catch (e) {
+              checklist = [];
+            }
+            return {
+              id: row[0] || `pi-${i}`,
+              date: row[1] || now.split('T')[0],
+              inspectorId: row[2] || '',
+              inspectorName: row[3] || '',
+              inspectorUnit: row[4] || 'TK',
+              targetUserId: row[5] || '',
+              targetUserName: row[6] || '',
+              targetUnit: row[7] || 'TK',
+              area: row[8] || '',
+              status: (row[9] || 'Sesuai') as any,
+              notes: row[10] || '',
+              photoUrl: row[11] || undefined,
+              checklist,
+              timestamp: row[13] || now,
+            };
+          });
+        StorageService.savePeerInspections(parsedPeer);
+      }
+
+      // 6. Parse WeeklyScores if present
+      if (valueRanges[6]?.values?.length > 0) {
+        const parsedScores: WeeklyScore[] = valueRanges[6].values
+          .filter((row: any[]) => row && row.length > 0 && row[0])
+          .map((row: any[], i: number) => {
+            let categoryScores = {};
+            try {
+              if (row[9] && typeof row[9] === 'string' && row[9].trim().startsWith('{')) {
+                categoryScores = JSON.parse(row[9]);
+              }
+            } catch (e) {
+              categoryScores = {};
+            }
+            return {
+              id: row[0] || `ws-${i}`,
+              userId: row[1] || '',
+              userName: row[2] || '',
+              unit: row[3] || 'TK',
+              weekNumber: 1,
+              year: Number(row[5]) || new Date().getFullYear(),
+              dateRange: row[6] || '',
+              saturdayDate: row[4] || '',
+              score: Number(row[7]) || 4.0,
+              kordinatorName: row[8] || '',
+              categoryScores,
+              notes: row[10] || '',
+              timestamp: row[11] || now,
+            };
+          });
+        StorageService.saveWeeklyScores(parsedScores);
       }
 
       syncConfig.lastSyncTime = now;

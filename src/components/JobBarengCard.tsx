@@ -15,8 +15,17 @@ export const JobBarengCard: React.FC<JobBarengCardProps> = ({
   onJoinJob,
   onCompleteJob,
 }) => {
-  const hasJoined = job.participantIds.includes(activeUser.id);
-  const hasCompleted = job.completedUserIds.includes(activeUser.id);
+  const hasJoined =
+    job.participantIds?.includes(activeUser.id) ||
+    job.participantIds?.includes(activeUser.username) ||
+    Boolean(activeUser.name && job.participantNames?.some((n) => n.toLowerCase().trim() === activeUser.name.toLowerCase().trim())) ||
+    Boolean(activeUser.name && job.participantIds?.some((id) => id.toLowerCase().trim() === activeUser.name.toLowerCase().trim()));
+
+  const hasCompleted =
+    job.completedUserIds?.includes(activeUser.id) ||
+    job.completedUserIds?.includes(activeUser.username) ||
+    Boolean(activeUser.name && job.completedUserNames?.some((n) => n.toLowerCase().trim() === activeUser.name.toLowerCase().trim())) ||
+    Boolean(activeUser.name && job.completedUserIds?.some((id) => id.toLowerCase().trim() === activeUser.name.toLowerCase().trim()));
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 text-white shadow-md relative overflow-hidden group">

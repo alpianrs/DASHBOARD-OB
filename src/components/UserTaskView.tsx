@@ -141,23 +141,45 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
     return isUserMatch && isDateMatch;
   });
 
-  // Active Insidental / Job Bareng for this user (auto hides expired tasks)
+  // Active Insidental / Job Bareng for this user
   const activeJobs = jobBarengList.filter((j) => {
     if (j.status !== 'Aktif') return false;
-    if (isJobBarengExpired(j)) return false; // Past deadline or date -> auto hide
+    
     // If specific users are assigned
-    if (j.assignmentType === 'specific' && j.assignedUserIds && j.assignedUserIds.length > 0) {
-      return (
-        j.assignedUserIds.includes(activeUser.id) ||
-        (activeUser.name && j.assignedUserNames?.some((n) => n.toLowerCase() === activeUser.name.toLowerCase()))
-      );
+    if (
+      j.assignmentType === 'specific' &&
+      ((j.assignedUserIds && j.assignedUserIds.length > 0) ||
+        (j.assignedUserNames && j.assignedUserNames.length > 0))
+    ) {
+      const isAssigned =
+        (j.assignedUserIds &&
+          j.assignedUserIds.some(
+            (id) =>
+              id === activeUser.id ||
+              id === activeUser.username ||
+              (activeUser.name && id.toLowerCase() === activeUser.name.toLowerCase())
+          )) ||
+        (j.assignedUserNames &&
+          activeUser.name &&
+          j.assignedUserNames.some(
+            (n) => n.toLowerCase().trim() === activeUser.name.toLowerCase().trim()
+          ));
+
+      if (!isAssigned) return false;
+      return true;
     }
-    // Otherwise check unit
-    return (
-      isGeneralUnit ||
+
+    // Target unit check
+    const isTargetAll =
+      !j.targetUnit ||
       j.targetUnit === 'Semua Unit' ||
-      j.targetUnit.trim().toLowerCase() === activeUser.unit.trim().toLowerCase()
-    );
+      j.targetUnit.toLowerCase().includes('semua');
+    const isTargetUnitMatch =
+      j.targetUnit &&
+      activeUser.unit &&
+      j.targetUnit.trim().toLowerCase() === activeUser.unit.trim().toLowerCase();
+
+    return isGeneralUnit || isTargetAll || isTargetUnitMatch;
   });
 
   // Categorized tasks with fallback normalization
@@ -255,8 +277,6 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
                       ? 'text-amber-950 line-through decoration-rose-500 decoration-2'
                       : isCompleted
                       ? 'text-slate-500 line-through decoration-slate-400'
-                      : (isPreReadinessSection && isPastPreReadiness)
-                      ? 'text-amber-950 line-through decoration-rose-500 decoration-2'
                       : 'text-slate-900'
                   }`}
                 >
@@ -267,18 +287,18 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
                 {isCompleted && isLate && (
                   Boolean(existingLog?.lateReason && existingLog.lateReason.trim().length > 0) ? (
                     <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[10px] inline-flex items-center gap-1 shadow-2xs">
-                      <Check className="w-3 h-3 text-emerald-700" /> Sudah Lapor Alasan
+                      <Check className="w-3 h-3 text-emerald-700" /> Telat (Sudah Lapor Alasan)
                     </span>
                   ) : (
                     <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300 font-bold text-[10px] inline-flex items-center gap-1 shadow-2xs">
-                      <AlertTriangle className="w-3 h-3 text-rose-600" /> Belum Lapor Alasan
+                      <AlertTriangle className="w-3 h-3 text-rose-600" /> Telat (Belum Lapor Alasan)
                     </span>
                   )
                 )}
 
                 {!isCompleted && isPreReadinessSection && isPastPreReadiness && (
-                  <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300 font-bold text-[10px] inline-flex items-center gap-1 shadow-2xs">
-                    <Clock className="w-3 h-3 text-rose-600" /> Lewat Batas 09:00 (Wajib Alasan)
+                  <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[10px] inline-flex items-center gap-1 shadow-2xs animate-pulse">
+                    <Clock className="w-3 h-3 text-amber-700" /> Lewat Batas 09:00 (Wajib Alasan Telat)
                   </span>
                 )}
               </div>
