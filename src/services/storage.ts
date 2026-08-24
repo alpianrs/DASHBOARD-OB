@@ -991,8 +991,8 @@ export const StorageService = {
     const existingIndex = logs.findIndex(
       (l) =>
         l.id === log.id ||
-        (l.userId === log.userId &&
-          l.taskId === log.taskId &&
+        ((l.userId === log.userId || (l.userName && log.userName && l.userName.trim().toLowerCase() === log.userName.trim().toLowerCase())) &&
+          (l.taskId === log.taskId || (l.taskTitle && log.taskTitle && l.taskTitle.trim().toLowerCase() === log.taskTitle.trim().toLowerCase())) &&
           l.date === log.date)
     );
     if (existingIndex !== -1) {

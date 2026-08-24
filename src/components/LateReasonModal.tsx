@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Clock, Send, X, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Clock, Send, X, ShieldAlert, Camera, CheckCircle2 } from 'lucide-react';
 import { MasterTask } from '../types';
 
 interface LateReasonModalProps {
   isOpen: boolean;
   onClose: () => void;
   task: MasterTask;
-  onSubmitReason: (reason: string) => void;
+  onSubmitReason: (reason: string, capturePhoto: boolean) => void;
 }
 
 const COMMON_REASONS = [
@@ -29,8 +29,7 @@ export const LateReasonModal: React.FC<LateReasonModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAction = (capturePhoto: boolean) => {
     const finalReason = customReason.trim()
       ? customReason.trim()
       : selectedPreset;
@@ -40,7 +39,7 @@ export const LateReasonModal: React.FC<LateReasonModalProps> = ({
       return;
     }
 
-    onSubmitReason(finalReason);
+    onSubmitReason(finalReason, capturePhoto);
     onClose();
   };
 
@@ -69,14 +68,13 @@ export const LateReasonModal: React.FC<LateReasonModalProps> = ({
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <div className="p-5 space-y-4">
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 flex items-start gap-2.5">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div>
               <p className="font-bold text-amber-950 mb-0.5">Pekerjaan: {task.title}</p>
               <p className="text-amber-800">
-                Pekerjaan diselesaikan setelah pukul 09:00 WIB. Berdasarkan Standar Kebersihan Facility
-                Management Lazuardi, alasan akan dicatat di laporan harian Admin dan tersimpan ke Google Sheet.
+                Pekerjaan diselesaikan setelah pukul 09:00 WIB. Alasan keterlambatan akan langsung tercatat di sistem, tugas akan ditandai coret selesai telat, dan data terkirim otomatis ke Google Sheet.
               </p>
             </div>
           </div>
@@ -129,23 +127,34 @@ export const LateReasonModal: React.FC<LateReasonModalProps> = ({
             </p>
           )}
 
-          <div className="flex items-center gap-2 pt-2">
+          <div className="space-y-2 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleAction(false)}
+                className="py-2.5 px-3 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-950 text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs transition cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4 text-amber-700" />
+                <span>Simpan & Selesai Langsung</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAction(true)}
+                className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
+              >
+                <Camera className="w-4 h-4 text-sky-400" />
+                <span>Simpan & Foto Bukti</span>
+              </button>
+            </div>
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition cursor-pointer"
+              className="w-full py-2 rounded-xl text-slate-500 text-xs font-semibold hover:bg-slate-100 transition cursor-pointer text-center"
             >
               Batal
             </button>
-            <button
-              type="submit"
-              className="flex-2 py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
-            >
-              <Send className="w-4 h-4 text-sky-400" />
-              <span>Simpan Alasan & Lanjutkan</span>
-            </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );

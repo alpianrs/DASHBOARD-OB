@@ -398,9 +398,10 @@ function writeSheet(ss, sheetName, rows) {
     if (sheetName === "TaskLogs") {
       for (var r = 1; r < rows.length; r++) {
         var row = rows[r];
-        if (row && row[12] && typeof row[12] === "string" && (row[12].indexOf("data:image") === 0 || row[12].length > 500)) {
-          var staff = (row[4] || "staff").toString().replace(/\\s+/g, "_");
-          row[12] = saveBase64ImageToDrive(row[12], "bukti_" + staff + "_" + r + "_" + (new Date().getTime()) + ".jpg");
+        var photoIdx = row.length >= 20 ? 13 : 12;
+        if (row && row[photoIdx] && typeof row[photoIdx] === "string" && (row[photoIdx].indexOf("data:image") === 0 || row[photoIdx].length > 500)) {
+          var staff = (row[4] || "staff").toString().replace(/\s+/g, "_");
+          row[photoIdx] = saveBase64ImageToDrive(row[photoIdx], "bukti_" + staff + "_" + r + "_" + (new Date().getTime()) + ".jpg");
         }
       }
     } else if (sheetName === "MasterTask") {
@@ -434,14 +435,15 @@ function convertExistingBase64PhotosToDrive() {
   
   var lastRow = sheet.getLastRow();
   var convertedCount = 0;
-  var photoRange = sheet.getRange(2, 13, lastRow - 1, 1); // Kolom M (PhotoURL)
+  var photoCol = sheet.getLastColumn() >= 20 ? 14 : 13; // Kolom N (14) atau M (13)
+  var photoRange = sheet.getRange(2, photoCol, lastRow - 1, 1);
   var values = photoRange.getValues();
   
   for (var i = 0; i < values.length; i++) {
     var cellValue = String(values[i][0] || "").trim();
     if (cellValue && (cellValue.indexOf("data:image") === 0 || cellValue.length > 500)) {
       var staffName = sheet.getRange(i + 2, 5).getValue() || "staff";
-      var fn = "bukti_" + String(staffName).replace(/\\s+/g, "_") + "_" + (i + 1) + ".jpg";
+      var fn = "bukti_" + String(staffName).replace(/\s+/g, "_") + "_" + (i + 1) + ".jpg";
       var driveLink = saveBase64ImageToDrive(cellValue, fn);
       values[i][0] = driveLink;
       convertedCount++;

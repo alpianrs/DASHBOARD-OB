@@ -149,7 +149,12 @@ export default function App() {
     setActiveJobBarengTarget(null);
     setIsLateTaskProgress(isLate);
 
-    if (isLate && task.timingType === 'pre_readiness') {
+    const isPreReadiness =
+      task.timingType === 'pre_readiness' ||
+      (task.category && task.category.toLowerCase().includes('pre')) ||
+      (task.title && task.title.toLowerCase().includes('pre-readiness'));
+
+    if (isLate && isPreReadiness) {
       // Prompt for Late Reason first
       setIsLateModalOpen(true);
     } else {
@@ -159,10 +164,51 @@ export default function App() {
   };
 
   // Late Reason Submitted
-  const handleLateReasonSubmitted = (reason: string) => {
+  const handleLateReasonSubmitted = async (reason: string, capturePhoto: boolean) => {
     setPendingLateReason(reason);
     setIsLateModalOpen(false);
-    setIsCameraModalOpen(true);
+
+    if (activeTaskTarget) {
+      const today = getJakartaDateString();
+      const timestamp = new Date().toISOString();
+      const isLate = true;
+      const status = 'Terlambat';
+
+      const newLog: TaskLog = {
+        id: `tl-${Date.now()}`,
+        timestamp,
+        date: today,
+        userId: activeUser.id,
+        userName: activeUser.name,
+        userRole: activeUser.role,
+        unit: activeUser.unit,
+        taskId: activeTaskTarget.id,
+        taskTitle: activeTaskTarget.title,
+        category: activeTaskTarget.category,
+        timingType: activeTaskTarget.timingType,
+        status,
+        isLate,
+        lateReason: reason,
+        notes: `Alasan Keterlambatan: ${reason}`,
+      };
+
+      StorageService.addTaskLog(newLog);
+      setTaskLogs(StorageService.getTaskLogs());
+
+      // Trigger real-time direct append / update to Google Sheets
+      GoogleSheetsService.logTaskToSheets(newLog).catch(console.warn);
+      GoogleSheetsService.pushAllToSheets().catch(console.warn);
+
+      confetti({ particleCount: 40, spread: 60, origin: { y: 0.7 } });
+      showToast(`Alasan keterlambatan "${activeTaskTarget.title}" tersimpan & tercatat di Google Sheet!`);
+    }
+
+    if (capturePhoto) {
+      setIsCameraModalOpen(true);
+    } else {
+      setActiveTaskTarget(null);
+      setPendingLateReason(null);
+    }
   };
 
   // Photo Captured & Task Completed Handler
@@ -222,32 +268,59 @@ export default function App() {
       // Regular / Master Task Completed
       const isLate = isLateTaskProgress;
       const status = isLate ? 'Terlambat' : 'Selesai';
+      const reason = pendingLateReason || undefined;
 
-      const newLog: TaskLog = {
-        id: `tl-${Date.now()}`,
-        timestamp,
-        date: today,
-        userId: activeUser.id,
-        userName: activeUser.name,
-        userRole: activeUser.role,
-        unit: activeUser.unit,
-        taskId: activeTaskTarget.id,
-        taskTitle: activeTaskTarget.title,
-        category: activeTaskTarget.category,
-        timingType: activeTaskTarget.timingType,
-        status,
-        isLate,
-        lateReason: pendingLateReason || undefined,
-        photoUrl: driveUpload.driveUrl,
-        driveFileId: driveUpload.fileId,
-        notes,
-      };
+      const currentLogs = StorageService.getTaskLogs();
+      const existingLogIdx = currentLogs.findIndex(
+        (l) =>
+          (l.taskId === activeTaskTarget.id ||
+            (l.taskTitle && activeTaskTarget.title && l.taskTitle.trim().toLowerCase() === activeTaskTarget.title.trim().toLowerCase())) &&
+          (l.userId === activeUser.id || (l.userName && l.userName.trim().toLowerCase() === activeUser.name.trim().toLowerCase())) &&
+          l.date === today
+      );
 
-      StorageService.addTaskLog(newLog);
+      let targetLog: TaskLog;
+
+      if (existingLogIdx >= 0) {
+        targetLog = {
+          ...currentLogs[existingLogIdx],
+          photoUrl: driveUpload.driveUrl,
+          driveFileId: driveUpload.fileId,
+          notes: notes
+            ? `${currentLogs[existingLogIdx].notes ? currentLogs[existingLogIdx].notes + ' | ' : ''}${notes}`
+            : currentLogs[existingLogIdx].notes,
+          lateReason: reason || currentLogs[existingLogIdx].lateReason,
+          status: isLate || currentLogs[existingLogIdx].isLate ? 'Terlambat' : 'Selesai',
+          isLate: isLate || currentLogs[existingLogIdx].isLate,
+        };
+        StorageService.updateTaskLog(targetLog);
+      } else {
+        targetLog = {
+          id: `tl-${Date.now()}`,
+          timestamp,
+          date: today,
+          userId: activeUser.id,
+          userName: activeUser.name,
+          userRole: activeUser.role,
+          unit: activeUser.unit,
+          taskId: activeTaskTarget.id,
+          taskTitle: activeTaskTarget.title,
+          category: activeTaskTarget.category,
+          timingType: activeTaskTarget.timingType,
+          status,
+          isLate,
+          lateReason: reason,
+          photoUrl: driveUpload.driveUrl,
+          driveFileId: driveUpload.fileId,
+          notes,
+        };
+        StorageService.addTaskLog(targetLog);
+      }
+
       setTaskLogs(StorageService.getTaskLogs());
 
       // Trigger real-time direct append to Google Sheets TaskLogs
-      GoogleSheetsService.logTaskToSheets(newLog).catch(console.warn);
+      GoogleSheetsService.logTaskToSheets(targetLog).catch(console.warn);
 
       // Confetti celebration
       confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });

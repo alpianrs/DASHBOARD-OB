@@ -227,10 +227,18 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
       (l) =>
         l.taskId === task.id ||
         (l.taskTitle && task.title && l.taskTitle.trim().toLowerCase() === task.title.trim().toLowerCase()) ||
-        (l.taskId && task.title && l.taskId.trim().toLowerCase() === task.title.trim().toLowerCase())
+        (l.taskId && task.title && l.taskId.trim().toLowerCase() === task.title.trim().toLowerCase()) ||
+        (l.taskId && task.id && l.taskId.trim() === task.id.trim())
     );
-    const isCompleted = existingLog?.status === 'Selesai' || existingLog?.status === 'Terlambat';
-    const isLate = existingLog?.isLate || (isPreReadinessSection && isPastPreReadiness && !isCompleted);
+    const isCompleted =
+      existingLog?.status === 'Selesai' ||
+      existingLog?.status === 'Terlambat' ||
+      Boolean(existingLog?.lateReason && existingLog.lateReason.trim().length > 0);
+    const isLate =
+      existingLog?.isLate ||
+      existingLog?.status === 'Terlambat' ||
+      Boolean(existingLog?.lateReason && existingLog.lateReason.trim().length > 0) ||
+      (isPreReadinessSection && isPastPreReadiness);
 
     return (
       <div
