@@ -64,103 +64,13 @@ const SEED_USERS: User[] = [
   },
   {
     id: 'u-kord-01',
-    username: 'kordinator',
+    username: 'lili',
     password: 'password123',
-    name: 'Rizky Pratama',
+    name: 'Lili Ariyanto',
     role: 'kordinator',
-    unit: 'Semua Unit',
-    status: 'Aktif',
-    phone: '081298765432',
-  },
-  {
-    id: 'u-tk-01',
-    username: 'budi_tk',
-    password: 'password123',
-    name: 'Budi Santoso (OB)',
-    role: 'user',
-    unit: 'TK',
-    status: 'Aktif',
-    phone: '081311112222',
-  },
-  {
-    id: 'u-tk-02',
-    username: 'siti_tk',
-    password: 'password123',
-    name: 'Siti Aminah (OG)',
-    role: 'user',
-    unit: 'TK',
-    status: 'Aktif',
-    phone: '081311113333',
-  },
-  {
-    id: 'u-sd-01',
-    username: 'agus_sd',
-    password: 'password123',
-    name: 'Agus Setiawan (OB)',
-    role: 'user',
-    unit: 'SD',
-    status: 'Aktif',
-    phone: '081322224444',
-  },
-  {
-    id: 'u-sd-02',
-    username: 'ratih_sd',
-    password: 'password123',
-    name: 'Ratih Purwasih (OG)',
-    role: 'user',
-    unit: 'SD',
-    status: 'Aktif',
-    phone: '081322225555',
-  },
-  {
-    id: 'u-smp-01',
-    username: 'dodi_smp',
-    password: 'password123',
-    name: 'Dodi Firmansyah (OB)',
-    role: 'user',
-    unit: 'SMP',
-    status: 'Aktif',
-    phone: '081333336666',
-  },
-  {
-    id: 'u-smp-02',
-    username: 'maya_smp',
-    password: 'password123',
-    name: 'Maya Indah (OG)',
-    role: 'user',
-    unit: 'SMP',
-    status: 'Aktif',
-    phone: '081333337777',
-  },
-  {
-    id: 'u-pelangi-01',
-    username: 'hendra_pelangi',
-    password: 'password123',
-    name: 'Hendra Wijaya (OB)',
-    role: 'user',
-    unit: 'Pelangi Direktorat',
-    status: 'Aktif',
-    phone: '081344448888',
-  },
-  {
-    id: 'u-arrazi-01',
-    username: 'fajar_arrazi',
-    password: 'password123',
-    name: 'Fajar Ramadhan (OB)',
-    role: 'user',
     unit: 'Ar Razi',
     status: 'Aktif',
-    phone: '081355559999',
-  },
-  {
-    id: 'u-khaldun-01',
-    username: 'ilham_khaldun',
-    password: 'password123',
-    name: 'Ilham Saputra (OB)',
-    role: 'user',
-    unit: 'Khaldun',
-    status: 'Aktif',
-    phone: '081366660000',
+    phone: '081298765432',
   },
 ];
 
@@ -173,7 +83,7 @@ const SEED_MASTER_TASKS: MasterTask[] = [
     unit: 'Semua Unit',
     category: 'Harian',
     timingType: 'pre_readiness',
-    assignee: 'Budi Santoso (OB)',
+    assignee: 'Semua Petugas',
     instructions: [
       'Bersihkan wastafel dan cermin dengan cleaner & lap microfiber.',
       'Sikat kloset menggunakan chemical desinfektan dan bilas bersih.',
@@ -192,7 +102,7 @@ const SEED_MASTER_TASKS: MasterTask[] = [
     unit: 'Semua Unit',
     category: 'Harian',
     timingType: 'pre_readiness',
-    assignee: 'Siti Aminah (OG)',
+    assignee: 'Semua Petugas',
     instructions: [
       'Sapu lantai ruang kelas/kantor secara merata dari sudut hingga depan.',
       'Lap meja guru, meja murid, dan papan tulis hingga bersih.',
@@ -211,7 +121,7 @@ const SEED_MASTER_TASKS: MasterTask[] = [
     unit: 'Semua Unit',
     category: 'Harian',
     timingType: 'pre_readiness',
-    assignee: 'Agus Setiawan (OB)',
+    assignee: 'Semua Petugas',
     instructions: [
       'Cek level galon air minum di dispenser guru & siswa.',
       'Ganti galon baru jika tersisa < 1/4 dan bersihkan nampan tetesan air dispenser.',
@@ -228,7 +138,7 @@ const SEED_MASTER_TASKS: MasterTask[] = [
     unit: 'Semua Unit',
     category: 'Harian',
     timingType: 'pre_readiness',
-    assignee: 'Ratih Purwasih (OG)',
+    assignee: 'Semua Petugas',
     instructions: [
       'Sapu koridor utama bebas dari daun, debu, dan sampah tercecer.',
       'Lap railing tangga dan pegangan pintu masuk.',
@@ -248,7 +158,7 @@ const SEED_MASTER_TASKS: MasterTask[] = [
     unit: 'Semua Unit',
     category: 'Harian',
     timingType: 'clock_out',
-    assignee: 'Dodi Firmansyah (OB)',
+    assignee: 'Semua Petugas',
     instructions: [
       'Kumpulkan sampah dari seluruh ruang kelas, kantor, dan toilet.',
       'Ikat polybag hitam dan bawa ke TPS utama dengan gerobak sampah.',
@@ -266,7 +176,7 @@ const SEED_MASTER_TASKS: MasterTask[] = [
     unit: 'Semua Unit',
     category: 'Harian',
     timingType: 'clock_out',
-    assignee: 'Maya Indah (OG)',
+    assignee: 'Semua Petugas',
     instructions: [
       'Sapu ulang area dari sisa kertas, remah makanan, dan kotoran.',
       'Pel menggunakan mop bersih dengan takaran wpc/desinfektan yang sesuai.',
@@ -284,7 +194,7 @@ const SEED_MASTER_TASKS: MasterTask[] = [
     unit: 'Semua Unit',
     category: 'Harian',
     timingType: 'clock_out',
-    assignee: 'Hendra Wijaya (OB)',
+    assignee: 'Semua Petugas',
     instructions: [
       'Periksa seluruh AC dan lampu di ruang kelas/kantor dalam kondisi OFF.',
       'Tutup rapat semua jendela dan kunci pintu ruangan.',
@@ -320,7 +230,7 @@ const SEED_MASTER_TASKS: MasterTask[] = [
     unit: 'Semua Unit',
     category: 'Mingguan',
     timingType: 'anytime',
-    assignee: 'Fajar Ramadhan (OB)',
+    assignee: 'Semua Petugas',
     instructions: [
       'Gunakan cairan pembersih kerak keramik pada nat dan sudut toilet.',
       'Sikat dinding keramik setinggi 1.5 meter secara menyeluruh.',
@@ -338,7 +248,7 @@ const SEED_MASTER_TASKS: MasterTask[] = [
     unit: 'Semua Unit',
     category: 'Mingguan',
     timingType: 'anytime',
-    assignee: 'Ilham Saputra (OB)',
+    assignee: 'Semua Petugas',
     instructions: [
       'Semprot glass cleaner pada kaca.',
       'Tarik dengan window squeegee dari atas ke bawah.',
@@ -375,7 +285,7 @@ const SEED_MASTER_TASKS: MasterTask[] = [
     unit: 'Semua Unit',
     category: 'Bulanan',
     timingType: 'anytime',
-    assignee: 'Budi Santoso (OB)',
+    assignee: 'Semua Petugas',
     instructions: [
       'Gunakan mesin polisher / sikat lantai heavy duty.',
       'Keringkan dengan vacuum wet/dry atau mop bersih.',
@@ -392,7 +302,7 @@ const SEED_MASTER_TASKS: MasterTask[] = [
     unit: 'Semua Unit',
     category: 'Bulanan',
     timingType: 'anytime',
-    assignee: 'Agus Setiawan (OB)',
+    assignee: 'Semua Petugas',
     instructions: [
       'Kuras toren penampungan air gedung.',
       'Angkat endapan lumpur dan sampah dari selokan/parit keliling gedung.',
@@ -405,464 +315,12 @@ const SEED_MASTER_TASKS: MasterTask[] = [
   },
 ];
 
-// Initial Task Logs (recent history)
-const getTodayStr = () => {
-  const d = new Date();
-  const local = new Date(d.getTime() + 7 * 60 * 60 * 1000);
-  return local.toISOString().split('T')[0];
-};
-
-const getDaysAgoStr = (days: number) => {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  const local = new Date(d.getTime() + 7 * 60 * 60 * 1000);
-  return local.toISOString().split('T')[0];
-};
-
-const getYesterdayStr = () => getDaysAgoStr(1);
-
-const SEED_TASK_LOGS: TaskLog[] = [
-  // HARI INI (TODAY) LOGS
-  {
-    id: 'tl-today-001',
-    timestamp: `${getTodayStr()}T06:45:00Z`,
-    date: getTodayStr(),
-    userId: 'u-tk-01',
-    userName: 'Budi Santoso (OB)',
-    userRole: 'user',
-    unit: 'TK',
-    taskId: 'mt-pr-01',
-    taskTitle: 'Sanitasi & Pembersihan Toilet Pagi (Wastafel, Kloset, Lantai Kering)',
-    category: 'Harian',
-    timingType: 'pre_readiness',
-    status: 'Selesai',
-    isLate: false,
-    photoUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&q=80',
-    notes: 'Toilet TK bersih dan wangi, wastafel disinfektan.',
-    verifiedByKordinator: true,
-    kordinatorId: 'u-kord-01',
-    kordinatorName: 'Rizky Pratama',
-    kordinatorScore: 4,
-    kordinatorNotes: 'Pekerjaan sangat baik dan rapi.',
-  },
-  {
-    id: 'tl-today-002',
-    timestamp: `${getTodayStr()}T07:15:00Z`,
-    date: getTodayStr(),
-    userId: 'u-sd-01',
-    userName: 'Agus Setiawan (OB)',
-    userRole: 'user',
-    unit: 'SD',
-    taskId: 'mt-pr-03',
-    taskTitle: 'Penyediaan Air Minum Galon & Perlengkapan Sanitasi Unit',
-    category: 'Harian',
-    timingType: 'pre_readiness',
-    status: 'Selesai',
-    isLate: false,
-    photoUrl: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=400&q=80',
-    notes: 'Galon terisi penuh di semua lantai SD.',
-    verifiedByKordinator: true,
-    kordinatorId: 'u-kord-01',
-    kordinatorName: 'Rizky Pratama',
-    kordinatorScore: 4,
-  },
-  {
-    id: 'tl-today-003',
-    timestamp: `${getTodayStr()}T09:20:00Z`,
-    date: getTodayStr(),
-    userId: 'u-smp-01',
-    userName: 'Dodi Firmansyah (OB)',
-    userRole: 'user',
-    unit: 'SMP',
-    taskId: 'mt-co-01',
-    taskTitle: 'Pengosongan & Pembuangan Semua Tempat Sampah ke TPS Akhir',
-    category: 'Harian',
-    timingType: 'pre_readiness',
-    status: 'Terlambat',
-    isLate: true,
-    lateReason: 'Membantu persiapan sound system acara terlebih dahulu di aula SMP.',
-    photoUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&q=80',
-    notes: 'Sampah TPS sudah diangkut semua.',
-    verifiedByKordinator: true,
-    kordinatorId: 'u-kord-01',
-    kordinatorName: 'Rizky Pratama',
-    kordinatorScore: 3,
-    kordinatorNotes: 'Alasan terverifikasi terlambat karena tugas mendadak.',
-  },
-  {
-    id: 'tl-today-004',
-    timestamp: `${getTodayStr()}T07:30:00Z`,
-    date: getTodayStr(),
-    userId: 'u-pelangi-01',
-    userName: 'Hendra Wijaya (OB)',
-    userRole: 'user',
-    unit: 'Pelangi Direktorat',
-    taskId: 'mt-pr-01',
-    taskTitle: 'Sanitasi & Pembersihan Toilet Pagi (Wastafel, Kloset, Lantai Kering)',
-    category: 'Harian',
-    timingType: 'pre_readiness',
-    status: 'Selesai',
-    isLate: false,
-    photoUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&q=80',
-    notes: 'Toilet direktorat wangi dan bersih.',
-    inspectedByPeer: true,
-    peerInspectorId: 'u-arrazi-01',
-    peerInspectorName: 'Fajar Ramadhan (OB)',
-    peerInspectorUnit: 'Ar Razi',
-    peerScore: 4,
-    peerNotes: 'Mantap bang Hendra, sangat kinclong.',
-  },
-  {
-    id: 'tl-today-005',
-    timestamp: `${getTodayStr()}T08:10:00Z`,
-    date: getTodayStr(),
-    userId: 'u-arrazi-01',
-    userName: 'Fajar Ramadhan (OB)',
-    userRole: 'user',
-    unit: 'Ar Razi',
-    taskId: 'mt-pr-04',
-    taskTitle: 'Penyapuan Koridor, Lobby Utama, & Tangga Area Unit',
-    category: 'Harian',
-    timingType: 'pre_readiness',
-    status: 'Selesai',
-    isLate: false,
-    photoUrl: 'https://images.unsplash.com/photo-1517502884422-41eaead166d4?auto=format&fit=crop&w=400&q=80',
-    notes: 'Lobby Ar Razi bersih dan keset rapi.',
-  },
-  {
-    id: 'tl-today-006',
-    timestamp: `${getTodayStr()}T07:50:00Z`,
-    date: getTodayStr(),
-    userId: 'u-kord-01',
-    userName: 'Rizky Pratama',
-    userRole: 'kordinator',
-    unit: 'Semua Unit',
-    taskId: 'mt-pr-01',
-    taskTitle: 'Inspeksi & Quality Control Kesiapan Fasilitas Pagi Seluruh Unit',
-    category: 'Harian',
-    timingType: 'pre_readiness',
-    status: 'Selesai',
-    isLate: false,
-    photoUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&q=80',
-    notes: 'QC unit TK, SD, SMP selesai sebelum pukul 08:00 WIB.',
-  },
-
-  // KEMARIN (YESTERDAY) LOGS
-  {
-    id: 'tl-001',
-    timestamp: `${getYesterdayStr()}T07:30:00Z`,
-    date: getYesterdayStr(),
-    userId: 'u-tk-01',
-    userName: 'Budi Santoso (OB)',
-    userRole: 'user',
-    unit: 'TK',
-    taskId: 'mt-pr-01',
-    taskTitle: 'Sanitasi & Pembersihan Toilet Pagi (Wastafel, Kloset, Lantai Kering)',
-    category: 'Harian',
-    timingType: 'pre_readiness',
-    status: 'Selesai',
-    isLate: false,
-    photoUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&q=80',
-    notes: 'Toilet TK bersih, sabun dan handuk kertas sudah diisi.',
-    verifiedByKordinator: true,
-    kordinatorId: 'u-kord-01',
-    kordinatorName: 'Rizky Pratama',
-    kordinatorScore: 4,
-    kordinatorNotes: 'Pekerjaan sangat bersih dan rapi.',
-  },
-  {
-    id: 'tl-002',
-    timestamp: `${getYesterdayStr()}T08:15:00Z`,
-    date: getYesterdayStr(),
-    userId: 'u-sd-01',
-    userName: 'Agus Setiawan (OB)',
-    userRole: 'user',
-    unit: 'SD',
-    taskId: 'mt-pr-02',
-    taskTitle: 'Pembersihan & Penataan Ruang Kelas / Kantor Guru Sebelum Jam Masuk',
-    category: 'Harian',
-    timingType: 'pre_readiness',
-    status: 'Selesai',
-    isLate: false,
-    photoUrl: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=400&q=80',
-    notes: 'Kelas SD 1A - 3B sudah disapu dan meja ditata rapi.',
-    verifiedByKordinator: true,
-    kordinatorId: 'u-kord-01',
-    kordinatorName: 'Rizky Pratama',
-    kordinatorScore: 4,
-  },
-  {
-    id: 'tl-003',
-    timestamp: `${getYesterdayStr()}T09:45:00Z`,
-    date: getYesterdayStr(),
-    userId: 'u-smp-01',
-    userName: 'Dodi Firmansyah (OB)',
-    userRole: 'user',
-    unit: 'SMP',
-    taskId: 'mt-pr-01',
-    taskTitle: 'Sanitasi & Pembersihan Toilet Pagi (Wastafel, Kloset, Lantai Kering)',
-    category: 'Harian',
-    timingType: 'pre_readiness',
-    status: 'Terlambat',
-    isLate: true,
-    lateReason: 'Membantu angkat kursi upacara terlebih dahulu di lapangan utama.',
-    photoUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&q=80',
-    notes: 'Toilet SMP putra dan putri selesai.',
-    verifiedByKordinator: true,
-    kordinatorId: 'u-kord-01',
-    kordinatorName: 'Rizky Pratama',
-    kordinatorScore: 3,
-    kordinatorNotes: 'Alasan terverifikasi, tapi ke depan usahakan delegasikan.',
-  },
-  {
-    id: 'tl-004',
-    timestamp: `${getDaysAgoStr(2)}T07:15:00Z`,
-    date: getDaysAgoStr(2),
-    userId: 'u-pelangi-01',
-    userName: 'Hendra Wijaya (OB)',
-    userRole: 'user',
-    unit: 'Pelangi Direktorat',
-    taskId: 'mt-pr-01',
-    taskTitle: 'Sanitasi & Pembersihan Toilet Pagi (Wastafel, Kloset, Lantai Kering)',
-    category: 'Harian',
-    timingType: 'pre_readiness',
-    status: 'Selesai',
-    isLate: false,
-    photoUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&q=80',
-    notes: 'Toilet direktorat wangi dan bersih.',
-    inspectedByPeer: true,
-    peerInspectorId: 'u-arrazi-01',
-    peerInspectorName: 'Fajar Ramadhan (OB)',
-    peerInspectorUnit: 'Ar Razi',
-    peerScore: 4,
-    peerNotes: 'Mantap bang Hendra, sangat kinclong.',
-  },
-  {
-    id: 'tl-005',
-    timestamp: `${getDaysAgoStr(3)}T08:00:00Z`,
-    date: getDaysAgoStr(3),
-    userId: 'u-sd-02',
-    userName: 'Ratih Purwasih (OG)',
-    userRole: 'user',
-    unit: 'SD',
-    taskId: 'mt-pr-04',
-    taskTitle: 'Penyapuan Koridor, Lobby Utama, & Tangga Area Unit',
-    category: 'Harian',
-    timingType: 'pre_readiness',
-    status: 'Selesai',
-    isLate: false,
-    photoUrl: 'https://images.unsplash.com/photo-1517502884422-41eaead166d4?auto=format&fit=crop&w=400&q=80',
-    notes: 'Koridor lantai 1 & 2 bersih.',
-  },
-  {
-    id: 'tl-006',
-    timestamp: `${getDaysAgoStr(4)}T09:30:00Z`,
-    date: getDaysAgoStr(4),
-    userId: 'u-tk-02',
-    userName: 'Siti Aminah (OG)',
-    userRole: 'user',
-    unit: 'TK',
-    taskId: 'mt-pr-02',
-    taskTitle: 'Pembersihan & Penataan Ruang Kelas / Kantor Guru Sebelum Jam Masuk',
-    category: 'Harian',
-    timingType: 'pre_readiness',
-    status: 'Terlambat',
-    isLate: true,
-    lateReason: 'Menunggu perbaikan kran air wastafel TK dari teknisi.',
-    photoUrl: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=400&q=80',
-    notes: 'Ruang kelas TK A & B siap digunakan.',
-  },
-];
-
-// Seed Job Bareng (Ad-hoc urgent collective work order)
-const SEED_JOB_BARENG: JobBareng[] = [
-  {
-    id: 'jb-001',
-    title: 'Kerja Bakti Bersih Area Lapangan & Panggung Acara HUT Lazuardi',
-    description:
-      'Pembersihan rumput liar, penyapuan daun kering, penataan panggung dan pembersihan tribun penonton untuk persiapan acara.',
-    date: getTodayStr(),
-    timeTarget: '13:00 - 15:30 WIB',
-    targetUnit: 'Semua Unit',
-    targetArea: 'Lapangan Utama & Panggung',
-    createdBy: 'u-adm-01',
-    createdByName: 'Alpian (FM Head)',
-    status: 'Aktif',
-    participantIds: ['u-tk-01', 'u-sd-01', 'u-smp-01', 'u-pelangi-01'],
-    completedUserIds: ['u-tk-01'],
-    createdAt: `${getTodayStr()}T08:00:00Z`,
-  },
-];
-
-// Seed Dinas Requests
-const SEED_DINAS_REQUESTS: DinasRequest[] = [
-  {
-    id: 'dn-001',
-    date: getTodayStr(),
-    userId: 'u-khaldun-01',
-    userName: 'Ilham Saputra (OB)',
-    unit: 'Khaldun',
-    reason: 'Pembelian chemical stok bulanan dan sparepart kran di Toko Bangunan Mitra Pusat.',
-    destination: 'Mitra Bangunan Cinere & Depo',
-    status: 'Disetujui',
-    approvedBy: 'u-adm-01',
-    approvedByName: 'Alpian (FM Head)',
-    approvedAt: `${getTodayStr()}T08:30:00Z`,
-    createdAt: `${getTodayStr()}T06:30:00Z`,
-  },
-];
-
-// Seed Peer Inspections
-const SEED_PEER_INSPECTIONS: PeerInspection[] = [
-  {
-    id: 'pi-001',
-    timestamp: `${getYesterdayStr()}T10:00:00Z`,
-    date: getYesterdayStr(),
-    inspectorId: 'u-tk-02',
-    inspectorName: 'Siti Aminah (OG)',
-    inspectorRole: 'user',
-    inspectorUnit: 'TK',
-    targetUserId: 'u-tk-01',
-    targetUserName: 'Budi Santoso (OB)',
-    targetUnit: 'TK',
-    area: 'Area Bermain & Ruang Kelas TK B',
-    score: 9,
-    notes: 'Lantai sangat bersih, mainan tersusun rapi di rak.',
-    checklistItems: [
-      { label: 'Lantai bebas debu & kotoran', passed: true },
-      { label: 'Wastafel & cermin mengkilap', passed: true },
-      { label: 'Tempat sampah kosong & terpasang plastik', passed: true },
-      { label: 'Aroma ruangan segar / tidak apek', passed: true },
-    ],
-  },
-  {
-    id: 'pi-002',
-    timestamp: `${getTodayStr()}T09:30:00Z`,
-    date: getTodayStr(),
-    inspectorId: 'u-arrazi-01',
-    inspectorName: 'Fajar Ramadhan (OB)',
-    inspectorRole: 'user',
-    inspectorUnit: 'Ar Razi',
-    targetUserId: 'u-pelangi-01',
-    targetUserName: 'Hendra Wijaya (OB)',
-    targetUnit: 'Pelangi Direktorat',
-    area: 'Lobby & Ruang Rapat Pelangi',
-    score: 9,
-    notes: 'Kaca bersih, meja rapat rapi, dispenser air penuh.',
-    checklistItems: [
-      { label: 'Lantai bebas debu & kotoran', passed: true },
-      { label: 'Wastafel & cermin mengkilap', passed: true },
-      { label: 'Tempat sampah kosong & terpasang plastik', passed: true },
-      { label: 'Aroma ruangan segar / tidak apek', passed: true },
-    ],
-  },
-];
-
-// Seed Weekly Scores (Given by Coordinator using 1-4 scale and 15 specific categories)
-const SEED_WEEKLY_SCORES: WeeklyScore[] = [
-  {
-    id: 'ws-001',
-    weekNumber: 33,
-    year: 2026,
-    dateRange: 'Minggu ke-33 (17 - 22 Agu 2026)',
-    userId: 'u-tk-01',
-    userName: 'Budi Santoso (OB)',
-    unit: 'TK',
-    kordinatorId: 'u-kord-01',
-    kordinatorName: 'Rizky Pratama',
-    score: 3.8, // 1.0 - 4.0 scale
-    categoryScores: {
-      'Lantai & nat': 4,
-      'Pintu, kusen, dinding, dan jendela': 4,
-      'kaca pintu & jendela luar dan dalam': 3,
-      'Toilet': 4,
-      'Furniture': 4,
-      'Kipas angin & ac': 4,
-      'Karpet': 4,
-      'Sink': 4,
-      'Loker': 3,
-      'Meja': 4,
-      'Rak': 4,
-      'Porselene Toilet': 4,
-      'Koridor': 4,
-      'Halaman': 3,
-      'Tanaman Indoor/Outdoor': 4,
-    },
-    cleanlinessScore: 3.9,
-    speedScore: 3.8,
-    sopScore: 3.9,
-    notes: 'Kinerja sangat baik dan konsisten. Sanitasi toilet dan kebersihan lantai TK sangat rapi dan wangi.',
-    timestamp: `${getYesterdayStr()}T16:00:00Z`,
-  },
-  {
-    id: 'ws-002',
-    weekNumber: 33,
-    year: 2026,
-    dateRange: 'Minggu ke-33 (17 - 22 Agu 2026)',
-    userId: 'u-sd-01',
-    userName: 'Agus Setiawan (OB)',
-    unit: 'SD',
-    kordinatorId: 'u-kord-01',
-    kordinatorName: 'Rizky Pratama',
-    score: 3.4,
-    categoryScores: {
-      'Lantai & nat': 3,
-      'Pintu, kusen, dinding, dan jendela': 3,
-      'kaca pintu & jendela luar dan dalam': 3,
-      'Toilet': 4,
-      'Furniture': 3,
-      'Kipas angin & ac': 3,
-      'Karpet': 3,
-      'Sink': 4,
-      'Loker': 3,
-      'Meja': 4,
-      'Rak': 3,
-      'Porselene Toilet': 4,
-      'Koridor': 4,
-      'Halaman': 3,
-      'Tanaman Indoor/Outdoor': 3,
-    },
-    cleanlinessScore: 3.5,
-    speedScore: 3.3,
-    sopScore: 3.4,
-    notes: 'Kerapihan ruang kelas SD sangat baik. Mohon cek berkala kaca pintu dan sela-sela jendela luar.',
-    timestamp: `${getYesterdayStr()}T16:15:00Z`,
-  },
-  {
-    id: 'ws-003',
-    weekNumber: 33,
-    year: 2026,
-    dateRange: 'Minggu ke-33 (17 - 22 Agu 2026)',
-    userId: 'u-smp-01',
-    userName: 'Dodi Firmansyah (OB)',
-    unit: 'SMP',
-    kordinatorId: 'u-kord-01',
-    kordinatorName: 'Rizky Pratama',
-    score: 3.1,
-    categoryScores: {
-      'Lantai & nat': 3,
-      'Pintu, kusen, dinding, dan jendela': 3,
-      'kaca pintu & jendela luar dan dalam': 3,
-      'Toilet': 3,
-      'Furniture': 3,
-      'Kipas angin & ac': 3,
-      'Karpet': 3,
-      'Sink': 3,
-      'Loker': 3,
-      'Meja': 3,
-      'Rak': 3,
-      'Porselene Toilet': 3,
-      'Koridor': 4,
-      'Halaman': 3,
-      'Tanaman Indoor/Outdoor': 3,
-    },
-    cleanlinessScore: 3.2,
-    speedScore: 3.0,
-    sopScore: 3.1,
-    notes: 'Cukup baik, perlu ditingkatkan ketepatan waktu penyelesaian pre-readiness pagi hari.',
-    timestamp: `${getYesterdayStr()}T16:30:00Z`,
-  },
-];
+// Initial Task Logs (Seed is empty, sourced from Google Sheets)
+const SEED_TASK_LOGS: TaskLog[] = [];
+const SEED_JOB_BARENG: JobBareng[] = [];
+const SEED_DINAS_REQUESTS: DinasRequest[] = [];
+const SEED_PEER_INSPECTIONS: PeerInspection[] = [];
+const SEED_WEEKLY_SCORES: WeeklyScore[] = [];
 
 // Storage Helper Functions
 export const getStoredItem = <T>(key: string, defaultValue: T): T => {
@@ -891,12 +349,53 @@ export const StorageService = {
       setStoredItem(STORAGE_KEYS.USERS, SEED_USERS);
       return SEED_USERS;
     }
-    return users;
+    // Clean up old legacy mock users that were hardcoded before Google Sheets sync
+    const legacyDummyUserIds = new Set([
+      'u-tk-01',
+      'u-tk-02',
+      'u-sd-01',
+      'u-sd-02',
+      'u-smp-01',
+      'u-smp-02',
+      'u-pelangi-01',
+      'u-khaldun-01',
+    ]);
+    const filtered = users.filter(
+      (u) =>
+        !legacyDummyUserIds.has(u.id) &&
+        !u.name.toLowerCase().includes('budi santoso') &&
+        !u.name.toLowerCase().includes('ratih purwasih') &&
+        !u.name.toLowerCase().includes('hendra wijaya')
+    );
+
+    // If Rizky Pratama was in storage, replace or update with Lili
+    const normalized = filtered.map((u) => {
+      if (u.id === 'u-kord-01' && u.name === 'Rizky Pratama') {
+        return {
+          ...u,
+          name: 'Lili Ariyanto',
+          username: 'lili',
+          unit: 'Ar Razi' as const,
+        };
+      }
+      return u;
+    });
+
+    if (normalized.length === 0) {
+      setStoredItem(STORAGE_KEYS.USERS, SEED_USERS);
+      return SEED_USERS;
+    }
+
+    if (
+      normalized.length !== users.length ||
+      normalized.some((u, i) => u.name !== users[i]?.name)
+    ) {
+      setStoredItem(STORAGE_KEYS.USERS, normalized);
+    }
+    return normalized;
   },
   saveUsers: (users: User[]): void => {
-    if (users && users.length > 0) {
-      setStoredItem(STORAGE_KEYS.USERS, users);
-    }
+    setStoredItem(STORAGE_KEYS.USERS, users || []);
   },
   addUser: (user: User): void => {
     const users = StorageService.getUsers();
@@ -976,12 +475,14 @@ export const StorageService = {
   },
 
   getTaskLogs: (): TaskLog[] => {
-    const logs = getStoredItem<TaskLog[]>(STORAGE_KEYS.TASK_LOGS, SEED_TASK_LOGS);
-    if (!logs || logs.length === 0) {
-      setStoredItem(STORAGE_KEYS.TASK_LOGS, SEED_TASK_LOGS);
-      return SEED_TASK_LOGS;
+    const logs = getStoredItem<TaskLog[]>(STORAGE_KEYS.TASK_LOGS, []);
+    const cleanLogs = (logs || []).filter(
+      (l) => !l.id.startsWith('tl-today-') && !l.id.startsWith('tl-00')
+    );
+    if (cleanLogs.length !== (logs || []).length) {
+      setStoredItem(STORAGE_KEYS.TASK_LOGS, cleanLogs);
     }
-    return logs;
+    return cleanLogs;
   },
   saveTaskLogs: (logs: TaskLog[]): void => {
     setStoredItem(STORAGE_KEYS.TASK_LOGS, logs);
@@ -1018,7 +519,12 @@ export const StorageService = {
   },
 
   getJobBareng: (): JobBareng[] => {
-    return getStoredItem<JobBareng[]>(STORAGE_KEYS.JOB_BARENG, SEED_JOB_BARENG);
+    const jobs = getStoredItem<JobBareng[]>(STORAGE_KEYS.JOB_BARENG, []);
+    const cleanJobs = (jobs || []).filter((j) => j.id !== 'jb-001');
+    if (cleanJobs.length !== (jobs || []).length) {
+      setStoredItem(STORAGE_KEYS.JOB_BARENG, cleanJobs);
+    }
+    return cleanJobs;
   },
   saveJobBareng: (jobs: JobBareng[]): void => {
     setStoredItem(STORAGE_KEYS.JOB_BARENG, jobs);
@@ -1038,7 +544,12 @@ export const StorageService = {
   },
 
   getDinasRequests: (): DinasRequest[] => {
-    return getStoredItem<DinasRequest[]>(STORAGE_KEYS.DINAS_REQUESTS, SEED_DINAS_REQUESTS);
+    const reqs = getStoredItem<DinasRequest[]>(STORAGE_KEYS.DINAS_REQUESTS, []);
+    const cleanReqs = (reqs || []).filter((r) => r.id !== 'dn-001');
+    if (cleanReqs.length !== (reqs || []).length) {
+      setStoredItem(STORAGE_KEYS.DINAS_REQUESTS, cleanReqs);
+    }
+    return cleanReqs;
   },
   saveDinasRequests: (requests: DinasRequest[]): void => {
     setStoredItem(STORAGE_KEYS.DINAS_REQUESTS, requests);
@@ -1058,7 +569,12 @@ export const StorageService = {
   },
 
   getPeerInspections: (): PeerInspection[] => {
-    return getStoredItem<PeerInspection[]>(STORAGE_KEYS.PEER_INSPECTIONS, SEED_PEER_INSPECTIONS);
+    const list = getStoredItem<PeerInspection[]>(STORAGE_KEYS.PEER_INSPECTIONS, []);
+    const cleanList = (list || []).filter((p) => p.id !== 'pi-001' && p.id !== 'pi-002');
+    if (cleanList.length !== (list || []).length) {
+      setStoredItem(STORAGE_KEYS.PEER_INSPECTIONS, cleanList);
+    }
+    return cleanList;
   },
   savePeerInspections: (inspections: PeerInspection[]): void => {
     setStoredItem(STORAGE_KEYS.PEER_INSPECTIONS, inspections);
@@ -1075,7 +591,12 @@ export const StorageService = {
   },
 
   getWeeklyScores: (): WeeklyScore[] => {
-    return getStoredItem<WeeklyScore[]>(STORAGE_KEYS.WEEKLY_SCORES, SEED_WEEKLY_SCORES);
+    const list = getStoredItem<WeeklyScore[]>(STORAGE_KEYS.WEEKLY_SCORES, []);
+    const cleanList = (list || []).filter((w) => !w.id.startsWith('ws-00'));
+    if (cleanList.length !== (list || []).length) {
+      setStoredItem(STORAGE_KEYS.WEEKLY_SCORES, cleanList);
+    }
+    return cleanList;
   },
   saveWeeklyScores: (scores: WeeklyScore[]): void => {
     setStoredItem(STORAGE_KEYS.WEEKLY_SCORES, scores);
