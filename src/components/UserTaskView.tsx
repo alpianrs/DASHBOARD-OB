@@ -128,18 +128,16 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
   // Exclusively display tasks assigned to this user
   const userMasterTasks = myAssignedTasks;
 
-  // Today's logs for this active user (matching by userId or userName, and date or timestamp)
+  // Today's logs for this active user (strictly matching by userId/userName AND today's date)
   const userTodayLogs = taskLogs.filter((l) => {
     const isUserMatch =
       l.userId === activeUser.id ||
       (l.userName && activeUser.name && l.userName.trim().toLowerCase() === activeUser.name.trim().toLowerCase()) ||
       (activeUser.username && l.userId === activeUser.username);
     const isDateMatch =
-      !l.date ||
-      l.date === today ||
-      (l.timestamp && l.timestamp.startsWith(today)) ||
-      (l.date && l.date.includes(today));
-    return isUserMatch && isDateMatch;
+      (l.date && l.date.trim() === today) ||
+      (l.timestamp && l.timestamp.startsWith(today));
+    return isUserMatch && Boolean(isDateMatch);
   });
 
   // Active Insidental / Job Bareng for this user

@@ -31,6 +31,7 @@ import {
   EVALUATION_CATEGORIES,
 } from '../types';
 import { UserTaskView } from './UserTaskView';
+import { getJakartaDateString } from '../utils/dateHelper';
 import {
   getSaturdayOptionsList,
   formatSaturdayDate,
@@ -114,9 +115,9 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
     ? obOgStaff
     : obOgStaff.filter((u) => u.unit === selectedUnitFilter);
 
-  // Today logs
-  const today = new Date().toISOString().split('T')[0];
-  const todayLogs = taskLogs.filter((l) => l.date === today);
+  // Today logs (WIB timezone)
+  const today = getJakartaDateString();
+  const todayLogs = taskLogs.filter((l) => l.date === today || (l.timestamp && l.timestamp.startsWith(today)));
 
   const filteredLogs = selectedUnitFilter === 'Semua Unit'
     ? todayLogs
