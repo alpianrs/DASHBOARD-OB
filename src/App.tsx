@@ -605,6 +605,7 @@ export default function App() {
             onStartTask={handleStartTask}
             onJoinJobBareng={handleJoinJobBareng}
             onCompleteJobBareng={handleCompleteJobBareng}
+            onCreateJobBareng={handleCreateJobBareng}
             onOpenDinasModal={() => setIsDinasModalOpen(true)}
             onOpenPeerInspectionModal={() => setIsPeerInspectionModalOpen(true)}
             onSubmitWeeklyScore={handleSubmitWeeklyScore}

@@ -18,6 +18,11 @@ import {
   ChevronDown,
   ChevronUp,
   FileSpreadsheet,
+  Sparkles,
+  Plus,
+  Clock,
+  MapPin,
+  X,
 } from 'lucide-react';
 import {
   User,
@@ -31,6 +36,7 @@ import {
   EVALUATION_CATEGORIES,
 } from '../types';
 import { UserTaskView } from './UserTaskView';
+import { JobBarengCard } from './JobBarengCard';
 import { getJakartaDateString } from '../utils/dateHelper';
 import {
   getSaturdayOptionsList,
@@ -51,6 +57,7 @@ interface KordinatorViewProps {
   onStartTask: (task: MasterTask, isLate: boolean) => void;
   onJoinJobBareng: (jobId: string) => void;
   onCompleteJobBareng: (job: JobBareng) => void;
+  onCreateJobBareng?: (job: JobBareng) => void;
   onOpenDinasModal: () => void;
   onOpenPeerInspectionModal: () => void;
   onSubmitWeeklyScore: (score: WeeklyScore) => void;
@@ -69,14 +76,25 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
   onStartTask,
   onJoinJobBareng,
   onCompleteJobBareng,
+  onCreateJobBareng,
   onOpenDinasModal,
   onOpenPeerInspectionModal,
   onSubmitWeeklyScore,
   onVerifyTaskLog,
 }) => {
   const [activeKordTab, setActiveKordTab] = useState<
-    'my_tasks' | 'inspect_all' | 'weekly_rating' | 'monitoring'
+    'my_tasks' | 'job_bareng' | 'inspect_all' | 'weekly_rating' | 'monitoring'
   >('monitoring');
+
+  // Job Bareng Modal State for Coordinator
+  const [isCreatingJob, setIsCreatingJob] = useState<boolean>(false);
+  const [jbTitle, setJbTitle] = useState<string>('');
+  const [jbDescription, setJbDescription] = useState<string>('');
+  const [jbUnit, setJbUnit] = useState<UnitType>('Semua Unit');
+  const [jbArea, setJbArea] = useState<string>('Area Sekolah');
+  const [jbTime, setJbTime] = useState<string>('13:00 - 15:30 WIB');
+  const [jbAssignmentType, setJbAssignmentType] = useState<'all' | 'specific'>('all');
+  const [jbSelectedUserIds, setJbSelectedUserIds] = useState<string[]>([]);
 
   // Multi-unit filter for Coordinator inspection
   const [selectedUnitFilter, setSelectedUnitFilter] = useState<UnitType | 'Semua Unit'>('Semua Unit');
@@ -185,6 +203,42 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
     setTimeout(() => setScoreSuccessMsg(null), 3500);
   };
 
+  // Handle Create Job Bareng by Coordinator
+  const handleSaveJobBareng = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!jbTitle.trim()) return;
+
+    const assignedStaffUsers = allUsers.filter((u) => jbSelectedUserIds.includes(u.id));
+
+    const newJob: JobBareng = {
+      id: `jb-${Date.now()}`,
+      title: jbTitle.trim(),
+      description: jbDescription.trim() || 'Pekerjaan insidental kebersihan bersama unit Facility Management.',
+      date: today,
+      timeTarget: jbTime,
+      targetUnit: jbUnit,
+      targetArea: jbArea,
+      createdBy: activeUser.id,
+      createdByName: `${activeUser.name} (Kordinator)`,
+      status: 'Aktif',
+      assignmentType: jbAssignmentType,
+      assignedUserIds: jbAssignmentType === 'specific' ? jbSelectedUserIds : undefined,
+      assignedUserNames: jbAssignmentType === 'specific' ? assignedStaffUsers.map((u) => u.name) : undefined,
+      participantIds: [],
+      completedUserIds: [],
+      createdAt: new Date().toISOString(),
+    };
+
+    if (onCreateJobBareng) {
+      onCreateJobBareng(newJob);
+    }
+    setIsCreatingJob(false);
+    setJbTitle('');
+    setJbDescription('');
+    setJbAssignmentType('all');
+    setJbSelectedUserIds([]);
+  };
+
   const getScoreBadgeColor = (score: number) => {
     if (score >= 3.5) return 'bg-emerald-100 text-emerald-800 border-emerald-300';
     if (score >= 2.5) return 'bg-sky-100 text-sky-800 border-sky-300';
@@ -202,7 +256,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
   return (
     <div className="space-y-4 pb-20">
       {/* Coordinator Top Navigation Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 bg-slate-100/90 rounded-xl text-xs font-semibold border border-slate-200/60">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 p-1 bg-slate-100/90 rounded-xl text-xs font-semibold border border-slate-200/60">
         <button
           onClick={() => setActiveKordTab('monitoring')}
           className={`py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
@@ -213,6 +267,18 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
         >
           <Eye className="w-3.5 h-3.5" />
           <span>Live Monitoring Tim</span>
+        </button>
+
+        <button
+          onClick={() => setActiveKordTab('job_bareng')}
+          className={`py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            activeKordTab === 'job_bareng'
+              ? 'bg-slate-900 text-white shadow-xs font-bold'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          <span>Job Bareng</span>
         </button>
 
         <button
@@ -404,6 +470,282 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                 Belum ada pekerjaan yang disubmit untuk filter unit ini hari ini.
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 1.5: JOB BARENG / TUGAS INSIDENTAL */}
+      {activeKordTab === 'job_bareng' && (
+        <div className="space-y-4 animate-in fade-in duration-150">
+          {/* Header & Create Action Banner */}
+          <div className="bg-slate-900 text-white border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-md flex flex-wrap items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" /> Akses Instruksi & Partisipasi Kordinator
+                </span>
+              </div>
+              <h3 className="font-bold text-base sm:text-lg text-white tracking-tight">
+                Manajemen & Partisipasi Job Bareng
+              </h3>
+              <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
+                Sebagai Kordinator, Anda dapat membuat dan menginstruksikan tugas Job Bareng / Insidental untuk tim, sekaligus ikut serta bergabung dan mengerjakan tugas tersebut.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                setJbTitle('');
+                setJbDescription('');
+                setJbUnit('Semua Unit');
+                setJbArea('Area Sekolah');
+                setJbTime('13:00 - 15:30 WIB');
+                setJbAssignmentType('all');
+                setJbSelectedUserIds([]);
+                setIsCreatingJob(true);
+              }}
+              className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-98"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Instruksikan Job Bareng Baru</span>
+            </button>
+          </div>
+
+          {/* Active Job Bareng Cards Stream */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-600" />
+                <span>Daftar Job Bareng / Tugas Insidental Aktif ({jobBarengList.filter((j) => j.status === 'Aktif').length})</span>
+              </h4>
+              <span className="text-xs text-slate-500">
+                Klik tombol untuk ikut serta atau menyelesaikan tugas
+              </span>
+            </div>
+
+            {jobBarengList.length > 0 ? (
+              jobBarengList.map((job) => (
+                <JobBarengCard
+                  key={job.id}
+                  job={job}
+                  activeUser={activeUser}
+                  onJoinJob={onJoinJobBareng}
+                  onCompleteJob={onCompleteJobBareng}
+                />
+              ))
+            ) : (
+              <div className="p-8 text-center bg-white border border-slate-200/80 rounded-2xl text-slate-400 text-xs space-y-2">
+                <Sparkles className="w-8 h-8 text-slate-300 mx-auto" />
+                <p className="font-medium text-slate-600">Belum ada tugas Job Bareng yang aktif saat ini.</p>
+                <p className="text-[11px] text-slate-400">
+                  Gunakan tombol <strong>"+ Instruksikan Job Bareng Baru"</strong> di atas untuk membagikan tugas bersama ke petugas.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* CREATE JOB BARENG MODAL (KORDINATOR) */}
+      {isCreatingJob && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white border border-slate-200/80 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl space-y-0 text-xs">
+            <div className="flex justify-between items-center px-5 py-4 bg-slate-900 border-b border-slate-800 text-white">
+              <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                Instruksikan Tugas Job Bareng / Insidental
+              </h3>
+              <button
+                onClick={() => setIsCreatingJob(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveJobBareng} className="p-5 space-y-3.5">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Judul Pekerjaan Insidental / Bersama:
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Pembersihan Lapangan Pasca Acara / Cuci Kaca Gedung"
+                  value={jbTitle}
+                  onChange={(e) => setJbTitle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Deskripsi / Arahan Singkat:</label>
+                <textarea
+                  rows={2}
+                  placeholder="Arahan pembagian kerja, titik fokus pembersihan, atau peralatan yang disiapkan..."
+                  value={jbDescription}
+                  onChange={(e) => setJbDescription(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Target Unit:</label>
+                  <select
+                    value={jbUnit}
+                    onChange={(e) => setJbUnit(e.target.value as UnitType)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="Semua Unit">Semua Unit</option>
+                    <option value="TK">TK</option>
+                    <option value="SD">SD</option>
+                    <option value="SMP">SMP</option>
+                    <option value="Pelangi Direktorat">Pelangi Direktorat</option>
+                    <option value="Ar Razi">Ar Razi</option>
+                    <option value="Khaldun">Khaldun</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Area Lokasi:</label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Selasar Lantai 2"
+                    value={jbArea}
+                    onChange={(e) => setJbArea(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Target Waktu Pengerjaan:</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 13:00 - 15:30 WIB"
+                  value={jbTime}
+                  onChange={(e) => setJbTime(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              {/* Target Penugasan: Semua User vs Pilih Beberapa User */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <label className="block font-bold text-slate-800">Target Petugas Pelaksana:</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setJbAssignmentType('all');
+                      setJbSelectedUserIds([]);
+                    }}
+                    className={`py-2 px-3 rounded-xl border font-bold text-center transition cursor-pointer text-xs ${
+                      jbAssignmentType === 'all'
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    Semua Petugas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setJbAssignmentType('specific')}
+                    className={`py-2 px-3 rounded-xl border font-bold text-center transition cursor-pointer text-xs ${
+                      jbAssignmentType === 'specific'
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    Pilih Petugas Khusus
+                  </button>
+                </div>
+
+                {jbAssignmentType === 'specific' && (
+                  <div className="space-y-2 pt-2 border-t border-slate-200 animate-in fade-in">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-semibold text-slate-600">
+                        Pilih staff ({jbSelectedUserIds.length} dipilih):
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const staffList = allUsers
+                              .filter((u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator'))
+                              .filter((u) => jbUnit === 'Semua Unit' || u.unit === jbUnit || u.unit === 'Semua Unit')
+                              .map((u) => u.id);
+                            setJbSelectedUserIds(staffList);
+                          }}
+                          className="text-amber-600 hover:underline font-bold"
+                        >
+                          Pilih Semua
+                        </button>
+                        <span>•</span>
+                        <button
+                          type="button"
+                          onClick={() => setJbSelectedUserIds([])}
+                          className="text-rose-600 hover:underline font-bold"
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="max-h-36 overflow-y-auto space-y-1 bg-white p-2 rounded-xl border border-slate-200">
+                      {allUsers
+                        .filter((u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator'))
+                        .filter((u) => jbUnit === 'Semua Unit' || u.unit === jbUnit || u.unit === 'Semua Unit')
+                        .map((u) => {
+                          const isChecked = jbSelectedUserIds.includes(u.id);
+                          return (
+                            <label
+                              key={u.id}
+                              className={`flex items-center gap-2 p-1.5 rounded-lg border text-xs cursor-pointer transition ${
+                                isChecked
+                                  ? 'bg-amber-50 border-amber-300 font-bold text-amber-900'
+                                  : 'bg-white border-transparent hover:bg-slate-50 text-slate-700'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setJbSelectedUserIds([...jbSelectedUserIds, u.id]);
+                                  } else {
+                                    setJbSelectedUserIds(jbSelectedUserIds.filter((id) => id !== u.id));
+                                  }
+                                }}
+                                className="rounded text-amber-600 focus:ring-amber-500"
+                              />
+                              <span className="truncate">{u.name}</span>
+                              <span className="text-[10px] text-slate-400 font-normal ml-auto">
+                                Unit {u.unit} {u.role === 'kordinator' ? '(Kord)' : ''}
+                              </span>
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingJob(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-300 font-bold hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-2 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold shadow-md transition cursor-pointer"
+                >
+                  Publikasikan Job Bareng
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
