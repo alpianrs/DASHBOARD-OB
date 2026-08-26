@@ -380,7 +380,8 @@ export default function App() {
   const handleSubmitPeerInspection = (inspection: PeerInspection) => {
     StorageService.addPeerInspection(inspection);
     setPeerInspections(StorageService.getPeerInspections());
-    showToast(`Inspeksi untuk ${inspection.targetUserName} berhasil disimpan!`);
+    showToast(`Inspeksi kebersihan untuk ${inspection.targetUserName} berhasil disimpan & tercatat di Google Sheet!`);
+    GoogleSheetsService.logPeerInspectionToSheets(inspection).catch(console.warn);
     GoogleSheetsService.pushAllToSheets().catch(console.warn);
   };
 

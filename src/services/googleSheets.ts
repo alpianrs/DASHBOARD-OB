@@ -342,7 +342,58 @@ function doPost(e) {
       });
     }
 
-    // 2. Upload Photo Proof to Google Drive Folder
+    // 2. Single Peer Inspection Real-time Append / Upsert
+    if (payload.action === "logPeerInspection" && payload.inspectionRow) {
+      var pSheet = ss.getSheetByName("PeerInspections");
+      if (!pSheet) {
+        setupDatabase();
+        pSheet = ss.getSheetByName("PeerInspections");
+      }
+
+      var photoColIdx = 11; // Index 11 (Kolom L / PhotoURL)
+      if (payload.inspectionRow[photoColIdx] && typeof payload.inspectionRow[photoColIdx] === "string" && (payload.inspectionRow[photoColIdx].indexOf("data:image") === 0 || payload.inspectionRow[photoColIdx].length > 500)) {
+        var inspectorName = (payload.inspectionRow[3] || "inspector").toString().replace(/\s+/g, "_");
+        var pfn = "inspeksi_" + inspectorName + "_" + (new Date().getTime()) + ".jpg";
+        payload.inspectionRow[photoColIdx] = saveBase64ImageToDrive(payload.inspectionRow[photoColIdx], pfn);
+      }
+
+      var pLastRow = pSheet.getLastRow();
+      var existingPeerIndex = -1;
+
+      if (pLastRow > 1) {
+        var pData = pSheet.getRange(2, 1, pLastRow - 1, Math.min(pSheet.getLastColumn(), 8)).getValues();
+        var pTargetId = String(payload.inspectionRow[0] || "");
+        var pTargetInspectorId = String(payload.inspectionRow[2] || "");
+        var pTargetDate = String(payload.inspectionRow[1] || "");
+        var pTargetTargetUserId = String(payload.inspectionRow[5] || "");
+
+        for (var pr = 0; pr < pData.length; pr++) {
+          var prId = String(pData[pr][0] || "");
+          var prDate = String(pData[pr][1] || "");
+          var prInspectorId = String(pData[pr][2] || "");
+          var prTargetUserId = String(pData[pr][5] || "");
+
+          if (prId === pTargetId || (prInspectorId === pTargetInspectorId && prDate === pTargetDate && prTargetUserId === pTargetTargetUserId)) {
+            existingPeerIndex = pr + 2;
+            break;
+          }
+        }
+      }
+
+      if (existingPeerIndex > 1) {
+        pSheet.getRange(existingPeerIndex, 1, 1, payload.inspectionRow.length).setValues([payload.inspectionRow]);
+      } else {
+        pSheet.appendRow(payload.inspectionRow);
+      }
+
+      return jsonOutput({ 
+        success: true, 
+        message: "Laporan inspeksi silang tersimpan di Google Sheet!", 
+        photoUrl: payload.inspectionRow[photoColIdx] 
+      });
+    }
+
+    // 3. Upload Photo Proof to Google Drive Folder
     if (payload.action === "uploadPhoto" && payload.base64) {
       var driveUrl = saveBase64ImageToDrive(payload.base64, payload.filename);
       return jsonOutput({
@@ -352,13 +403,13 @@ function doPost(e) {
       });
     }
 
-    // 3. Setup Database Trigger
+    // 4. Setup Database Trigger
     if (payload.action === "setupDatabase") {
       var setupResult = setupDatabase();
       return jsonOutput(setupResult);
     }
 
-    // 4. Batch Sync Full Data
+    // 5. Batch Sync Full Data
     if (payload.users && payload.users.length) writeSheet(ss, "Users", payload.users);
     if (payload.masterTasks && payload.masterTasks.length) writeSheet(ss, "MasterTask", payload.masterTasks);
     if (payload.taskLogs && payload.taskLogs.length) writeSheet(ss, "TaskLogs", payload.taskLogs);
@@ -409,6 +460,14 @@ function writeSheet(ss, sheetName, rows) {
         var row = rows[r];
         if (row && row[10] && typeof row[10] === "string" && (row[10].indexOf("data:image") === 0 || row[10].length > 500)) {
           row[10] = saveBase64ImageToDrive(row[10], "standar_sop_" + r + "_" + (new Date().getTime()) + ".jpg");
+        }
+      }
+    } else if (sheetName === "PeerInspections") {
+      for (var r = 1; r < rows.length; r++) {
+        var row = rows[r];
+        if (row && row[11] && typeof row[11] === "string" && (row[11].indexOf("data:image") === 0 || row[11].length > 500)) {
+          var inspector = (row[3] || "inspector").toString().replace(/\s+/g, "_");
+          row[11] = saveBase64ImageToDrive(row[11], "inspeksi_" + inspector + "_" + r + "_" + (new Date().getTime()) + ".jpg");
         }
       }
     }
@@ -636,6 +695,67 @@ export const GoogleSheetsService = {
         );
       } catch (err) {
         console.warn('Direct REST TaskLog append fallback error:', err);
+      }
+    }
+  },
+
+  // Real-time single PeerInspection direct append to Google Sheet
+  logPeerInspectionToSheets: async (inspection: PeerInspection): Promise<void> => {
+    const syncConfig = StorageService.getSyncConfig();
+    const token = getCachedAccessToken();
+
+    const peerRow = [
+      inspection.id,
+      inspection.date,
+      inspection.inspectorId,
+      inspection.inspectorName,
+      inspection.inspectorUnit,
+      inspection.targetUserId,
+      inspection.targetUserName,
+      inspection.targetUnit,
+      inspection.area || '',
+      inspection.status || 'Sesuai Standar Kebersihan',
+      inspection.notes || '',
+      inspection.photoUrl || '',
+      JSON.stringify(inspection.checklistItems || []),
+      inspection.timestamp,
+    ];
+
+    // 1. Post to Apps Script Web App (if configured)
+    if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
+      try {
+        await fetch(syncConfig.webAppUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'logPeerInspection',
+            inspectionRow: peerRow,
+          }),
+        });
+      } catch (err) {
+        console.warn('Real-time peer inspection post failed, will be included in full sync:', err);
+      }
+    }
+
+    // 2. Direct Google Sheets REST API append fallback (if OAuth token present)
+    if (token) {
+      try {
+        await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/PeerInspections!A:N:append?valueInputOption=USER_ENTERED`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              values: [peerRow],
+            }),
+          }
+        );
+      } catch (err) {
+        console.warn('Direct REST PeerInspections append fallback error:', err);
       }
     }
   },
@@ -1563,15 +1683,16 @@ export const GoogleSheetsService = {
               date: row[1] || now.split('T')[0],
               inspectorId: row[2] || '',
               inspectorName: row[3] || '',
+              inspectorRole: 'user',
               inspectorUnit: row[4] || 'TK',
               targetUserId: row[5] || '',
               targetUserName: row[6] || '',
               targetUnit: row[7] || 'TK',
               area: row[8] || '',
-              status: (row[9] || 'Sesuai') as any,
+              status: (row[9] || 'Sesuai Standar Kebersihan') as any,
               notes: row[10] || '',
               photoUrl: row[11] || undefined,
-              checklist,
+              checklistItems: checklist,
               timestamp: row[13] || now,
             };
           });

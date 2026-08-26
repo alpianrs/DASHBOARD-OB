@@ -66,6 +66,7 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
   onOpenPeerInspectionModal,
 }) => {
   const [activeTab, setActiveTab] = useState<'harian' | 'mingguan' | 'bulanan' | 'riwayat'>('harian');
+  const [inspectionSubTab, setInspectionSubTab] = useState<'submitted' | 'received'>('submitted');
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [selectedPhotoPreview, setSelectedPhotoPreview] = useState<string | null>(null);
 
@@ -205,9 +206,19 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
       ? Math.round((completedTodayCount / totalDailyTasksCount) * 100)
       : 100;
 
-  // Inspections where active user was evaluated
+  // Inspections where active user was evaluated (Received)
   const myReceivedInspections = peerInspections.filter(
-    (p) => p.targetUserId === activeUser.id
+    (p) => p.targetUserId === activeUser.id || (p.targetUserName && p.targetUserName.trim() === activeUser.name.trim())
+  );
+
+  // Inspections where active user was the inspector (Submitted)
+  const mySubmittedInspections = peerInspections.filter(
+    (p) => p.inspectorId === activeUser.id || (p.inspectorName && p.inspectorName.trim() === activeUser.name.trim())
+  );
+
+  // Inspections done by active user today
+  const todaySubmittedInspections = mySubmittedInspections.filter(
+    (p) => p.date === today || p.timestamp?.startsWith(today)
   );
 
   // Access control for evaluation scores (Only Admin and Coordinator can view scores)
@@ -604,9 +615,9 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
                   <span className="px-2 py-0.5 rounded-full bg-blue-500/30 text-blue-200 text-[10px] font-bold border border-blue-400/40 flex items-center gap-1">
                     <Plane className="w-3 h-3" /> Bebas Lapor (Sedang Dinas Luar)
                   </span>
-                ) : peerInspections.filter((p) => p.inspectorId === activeUser.id && (p.date === today || p.timestamp?.startsWith(today))).length > 0 ? (
+                ) : todaySubmittedInspections.length > 0 ? (
                   <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Sudah Lapor Hari Ini
+                    <CheckCircle2 className="w-3 h-3" /> Sudah Lapor Hari Ini ({todaySubmittedInspections.length}x)
                   </span>
                 ) : (
                   <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30 flex items-center gap-1">
@@ -625,9 +636,42 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
             className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-md transition cursor-pointer active:scale-95 shrink-0"
           >
             <ShieldCheck className="w-4 h-4" />
-            <span>+ Isi Laporan Inspeksi Silang</span>
+            <span>{todaySubmittedInspections.length > 0 ? '+ Lapor Inspeksi Tambahan' : '+ Isi Laporan Inspeksi Silang'}</span>
           </button>
         </div>
+
+        {/* Live Feedback: Display today's submitted inspection confirmation */}
+        {todaySubmittedInspections.length > 0 && (
+          <div className="p-3 bg-slate-800/80 border border-sky-500/40 rounded-xl space-y-1.5 text-xs text-slate-200">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="font-bold text-sky-300 flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Laporan Terakhir Anda Hari Ini:
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/70 text-emerald-300 border border-emerald-600/50 font-semibold">
+                ✓ Tercatat di Google Sheet &amp; Database
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1">
+              <div>
+                <span className="text-slate-400">Rekan Diinspeksi:</span>{' '}
+                <strong className="text-white">{todaySubmittedInspections[0].targetUserName}</strong> ({todaySubmittedInspections[0].targetUnit})
+              </div>
+              <div>
+                <span className="text-slate-400">Area:</span>{' '}
+                <strong className="text-white">{todaySubmittedInspections[0].area}</strong>
+              </div>
+              <div className="sm:col-span-2 text-slate-300">
+                <span className="text-slate-400">Status:</span>{' '}
+                <span className={`font-semibold ${todaySubmittedInspections[0].status === 'Ada Temuan / Perlu Perbaikan' ? 'text-amber-300' : 'text-emerald-300'}`}>
+                  {todaySubmittedInspections[0].status || 'Sesuai Standar Kebersihan'}
+                </span>
+                {todaySubmittedInspections[0].notes && (
+                  <span className="italic text-slate-300 ml-1.5">"{todaySubmittedInspections[0].notes}"</span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
           <span>
@@ -637,7 +681,7 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
             onClick={() => setActiveTab('riwayat')}
             className="text-sky-400 hover:text-sky-300 font-semibold cursor-pointer"
           >
-            Lihat Riwayat Inspeksi ↗
+            Lihat Rekap Riwayat Inspeksi ({mySubmittedInspections.length} Dibuat / {myReceivedInspections.length} Diterima) ↗
           </button>
         </div>
       </div>
@@ -976,114 +1020,268 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
             </div>
           )}
 
-          {/* Peer Inspections Received */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
+          {/* Dual Peer Inspection History Section */}
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
               <h4 className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                Laporan Hasil Inspeksi Rekan & Kordinator
+                <ShieldCheck className="w-4 h-4 text-sky-600" />
+                Rekap Laporan Inspeksi Silang (Peer Review)
               </h4>
-              <span className="text-xs text-slate-500 font-semibold">
-                {myReceivedInspections.length} Laporan
-              </span>
+              {/* Sub-tab switcher */}
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-bold border border-slate-200">
+                <button
+                  onClick={() => setInspectionSubTab('submitted')}
+                  className={`px-3 py-1 rounded-md transition cursor-pointer ${
+                    inspectionSubTab === 'submitted'
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Laporan yang Saya Buat ({mySubmittedInspections.length})
+                </button>
+                <button
+                  onClick={() => setInspectionSubTab('received')}
+                  className={`px-3 py-1 rounded-md transition cursor-pointer ${
+                    inspectionSubTab === 'received'
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Laporan yang Saya Terima ({myReceivedInspections.length})
+                </button>
+              </div>
             </div>
 
-            {myReceivedInspections.length > 0 ? (
-              <div className="space-y-3">
-                {myReceivedInspections.map((insp) => (
-                  <div
-                    key={insp.id}
-                    className="bg-white border border-slate-200/80 rounded-xl p-3.5 sm:p-4 shadow-xs space-y-2.5 text-xs"
-                  >
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900">
-                          {insp.inspectorName} ({insp.inspectorUnit})
-                        </span>
-                        <span className="px-2 py-0.5 rounded-md bg-sky-50 text-sky-800 text-[10px] font-bold border border-sky-200/60">
-                          {insp.inspectorRole === 'kordinator' ? 'Kordinator' : 'Inspeksi Rekan'}
-                        </span>
-                      </div>
-                      <span
-                        className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold border ${
-                          insp.status === 'Ada Temuan / Perlu Perbaikan'
-                            ? 'bg-amber-50 text-amber-900 border-amber-300'
-                            : 'bg-emerald-50 text-emerald-900 border-emerald-300'
-                        }`}
+            {/* View 1: Inspeksi yang Saya Lakukan (Submitted by Active User) */}
+            {inspectionSubTab === 'submitted' && (
+              <div className="space-y-3 animate-in fade-in duration-150">
+                {mySubmittedInspections.length > 0 ? (
+                  mySubmittedInspections.map((insp) => {
+                    const isCompliant =
+                      insp.status === 'Sesuai Standar Kebersihan' ||
+                      insp.status === 'Sesuai Standar SOP' ||
+                      !insp.status;
+                    return (
+                      <div
+                        key={insp.id}
+                        className="bg-white border border-slate-200/90 rounded-xl p-3.5 sm:p-4 shadow-xs space-y-2.5 text-xs hover:border-sky-300 transition"
                       >
-                        {insp.status || 'Sesuai Standar Kebersihan'}
-                      </span>
-                    </div>
-
-                    <p className="text-slate-700">
-                      <strong>Area Diperiksa:</strong> {insp.area}
-                    </p>
-
-                    {insp.notes && (
-                      <p className="text-slate-800 bg-slate-50 p-2.5 rounded-lg border border-slate-200/60 italic">
-                        "{insp.notes}"
-                      </p>
-                    )}
-
-                    {/* Inspection Photo if attached */}
-                    {insp.photoUrl && (
-                      <div className="flex items-center gap-2.5 p-2 bg-sky-50/60 border border-sky-200/70 rounded-lg">
-                        <img
-                          src={formatGoogleDriveImageUrl(insp.photoUrl)}
-                          alt="Foto Temuan Inspeksi"
-                          className="w-12 h-12 object-cover rounded-md border border-sky-300 shrink-0 cursor-pointer"
-                          onClick={() => setSelectedPhotoPreview(insp.photoUrl!)}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <span className="text-[11px] font-bold text-sky-950 block">Foto Temuan / Bukti Inspeksi</span>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedPhotoPreview(insp.photoUrl!)}
-                            className="text-[10px] text-sky-700 hover:text-sky-900 font-semibold underline cursor-pointer"
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 text-sm">
+                              {insp.targetUserName}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-200">
+                              Unit {insp.targetUnit}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[10px] font-semibold border border-emerald-200/80 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Tersimpan di Google Sheet
+                            </span>
+                          </div>
+                          <span
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border ${
+                              isCompliant
+                                ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                                : 'bg-amber-50 text-amber-900 border-amber-300'
+                            }`}
                           >
-                            Lihat Foto Lengkap ↗
-                          </button>
+                            {insp.status || 'Sesuai Standar Kebersihan'}
+                          </span>
                         </div>
-                      </div>
-                    )}
 
-                    {/* Checklist Breakdown */}
-                    {insp.checklistItems && insp.checklistItems.length > 0 && (
-                      <div className="pt-1.5 border-t border-slate-100 space-y-1">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                          Checklist Standar Kebersihan (Toilet & Area):
-                        </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px]">
-                          {insp.checklistItems.map((item, idx) => (
-                            <div
-                              key={idx}
-                              className={`px-2 py-1 rounded-md border flex items-center justify-between gap-1.5 ${
-                                item.passed
-                                  ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900'
-                                  : 'bg-amber-50/60 border-amber-200 text-amber-900'
-                              }`}
-                            >
-                              <span className="truncate">{item.label}</span>
-                              <span className="font-bold shrink-0">{item.passed ? '✓ Lolos' : '✗ Temuan'}</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700 bg-slate-50/70 p-2.5 rounded-lg border border-slate-100">
+                          <p>
+                            <span className="text-slate-400 font-medium">Area yang Diperiksa:</span>{' '}
+                            <strong>{insp.area}</strong>
+                          </p>
+                          <p>
+                            <span className="text-slate-400 font-medium">Waktu Lapor:</span>{' '}
+                            <strong>{insp.date}</strong> {insp.timestamp ? `(${insp.timestamp.slice(11, 16)} WIB)` : ''}
+                          </p>
+                        </div>
+
+                        {insp.notes && (
+                          <div className="text-slate-800 bg-amber-50/40 p-2.5 rounded-lg border border-amber-200/60">
+                            <span className="text-[10px] font-bold text-amber-900 uppercase block mb-0.5">
+                              Catatan Pengawasan / Temuan:
+                            </span>
+                            <p className="italic">"{insp.notes}"</p>
+                          </div>
+                        )}
+
+                        {/* Inspection Photo Proof */}
+                        {insp.photoUrl && (
+                          <div className="flex items-center gap-3 p-2 bg-sky-50/60 border border-sky-200/70 rounded-lg">
+                            <img
+                              src={formatGoogleDriveImageUrl(insp.photoUrl)}
+                              alt="Foto Bukti Inspeksi"
+                              className="w-12 h-12 object-cover rounded-md border border-sky-300 shrink-0 cursor-pointer shadow-xs"
+                              onClick={() => setSelectedPhotoPreview(insp.photoUrl!)}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-[11px] font-bold text-sky-950 block">Foto Bukti Inspeksi Bersama</span>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedPhotoPreview(insp.photoUrl!)}
+                                  className="text-[10px] text-sky-700 hover:text-sky-900 font-semibold underline cursor-pointer"
+                                >
+                                  Pratinjau Foto ↗
+                                </button>
+                                {insp.photoUrl.startsWith('http') && (
+                                  <a
+                                    href={insp.photoUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-[10px] text-slate-500 hover:text-slate-800 underline"
+                                  >
+                                    Buka File Asli (Drive)
+                                  </a>
+                                )}
+                              </div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                          </div>
+                        )}
 
-                    <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-100">
-                      <span>Tanggal: {insp.date}</span>
-                      <span className="text-slate-500 font-medium">
-                        {insp.checklistItems?.filter((c) => c.passed).length || 0} dari{' '}
-                        {insp.checklistItems?.length || 0} item standar lolos
-                      </span>
-                    </div>
+                        {/* Checklist Breakdown */}
+                        {insp.checklistItems && insp.checklistItems.length > 0 && (
+                          <div className="pt-1.5 border-t border-slate-100 space-y-1">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                              Rincian Standar Kebersihan:
+                            </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px]">
+                              {insp.checklistItems.map((item, idx) => (
+                                <div
+                                  key={idx}
+                                  className={`px-2 py-1 rounded-md border flex items-center justify-between gap-1.5 ${
+                                    item.passed
+                                      ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900'
+                                      : 'bg-amber-50/60 border-amber-200 text-amber-900'
+                                  }`}
+                                >
+                                  <span className="truncate">{item.label}</span>
+                                  <span className="font-bold shrink-0">{item.passed ? '✓ Lolos' : '✗ Temuan'}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="p-8 text-center bg-white border border-slate-200/80 rounded-xl space-y-2">
+                    <ShieldCheck className="w-8 h-8 text-slate-300 mx-auto" />
+                    <p className="text-slate-600 font-semibold text-xs">
+                      Anda belum memiliki riwayat membuat laporan inspeksi silang.
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Klik tombol "+ Isi Laporan Inspeksi Silang" di bagian atas untuk mulai menginspeksi rekan kerja Anda.
+                    </p>
                   </div>
-                ))}
+                )}
               </div>
-            ) : (
-              <div className="p-6 text-center text-slate-400 bg-white border border-slate-200/80 rounded-xl text-xs">
-                Belum ada catatan inspeksi yang ditujukan untuk Anda.
+            )}
+
+            {/* View 2: Inspeksi yang Saya Terima (Received from Peers & Coordinator) */}
+            {inspectionSubTab === 'received' && (
+              <div className="space-y-3 animate-in fade-in duration-150">
+                {myReceivedInspections.length > 0 ? (
+                  myReceivedInspections.map((insp) => (
+                    <div
+                      key={insp.id}
+                      className="bg-white border border-slate-200/80 rounded-xl p-3.5 sm:p-4 shadow-xs space-y-2.5 text-xs"
+                    >
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900">
+                            {insp.inspectorName} ({insp.inspectorUnit})
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md bg-sky-50 text-sky-800 text-[10px] font-bold border border-sky-200/60">
+                            {insp.inspectorRole === 'kordinator' ? 'Kordinator' : 'Inspeksi Rekan'}
+                          </span>
+                        </div>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold border ${
+                            insp.status === 'Ada Temuan / Perlu Perbaikan'
+                              ? 'bg-amber-50 text-amber-900 border-amber-300'
+                              : 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                          }`}
+                        >
+                          {insp.status || 'Sesuai Standar Kebersihan'}
+                        </span>
+                      </div>
+
+                      <p className="text-slate-700">
+                        <strong>Area Diperiksa:</strong> {insp.area}
+                      </p>
+
+                      {insp.notes && (
+                        <p className="text-slate-800 bg-slate-50 p-2.5 rounded-lg border border-slate-200/60 italic">
+                          "{insp.notes}"
+                        </p>
+                      )}
+
+                      {/* Inspection Photo if attached */}
+                      {insp.photoUrl && (
+                        <div className="flex items-center gap-2.5 p-2 bg-sky-50/60 border border-sky-200/70 rounded-lg">
+                          <img
+                            src={formatGoogleDriveImageUrl(insp.photoUrl)}
+                            alt="Foto Temuan Inspeksi"
+                            className="w-12 h-12 object-cover rounded-md border border-sky-300 shrink-0 cursor-pointer"
+                            onClick={() => setSelectedPhotoPreview(insp.photoUrl!)}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-[11px] font-bold text-sky-950 block">Foto Temuan / Bukti Inspeksi</span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPhotoPreview(insp.photoUrl!)}
+                              className="text-[10px] text-sky-700 hover:text-sky-900 font-semibold underline cursor-pointer"
+                            >
+                              Lihat Foto Lengkap ↗
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Checklist Breakdown */}
+                      {insp.checklistItems && insp.checklistItems.length > 0 && (
+                        <div className="pt-1.5 border-t border-slate-100 space-y-1">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                            Checklist Standar Kebersihan (Toilet & Area):
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px]">
+                            {insp.checklistItems.map((item, idx) => (
+                              <div
+                                key={idx}
+                                className={`px-2 py-1 rounded-md border flex items-center justify-between gap-1.5 ${
+                                  item.passed
+                                    ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900'
+                                    : 'bg-amber-50/60 border-amber-200 text-amber-900'
+                                }`}
+                              >
+                                <span className="truncate">{item.label}</span>
+                                <span className="font-bold shrink-0">{item.passed ? '✓ Lolos' : '✗ Temuan'}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-100">
+                        <span>Tanggal: {insp.date}</span>
+                        <span className="text-slate-500 font-medium">
+                          {insp.checklistItems?.filter((c) => c.passed).length || 0} dari{' '}
+                          {insp.checklistItems?.length || 0} item standar lolos
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-6 text-center text-slate-400 bg-white border border-slate-200/80 rounded-xl text-xs">
+                    Belum ada catatan inspeksi yang ditujukan untuk Anda.
+                  </div>
+                )}
               </div>
             )}
           </div>
