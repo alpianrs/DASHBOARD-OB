@@ -519,9 +519,15 @@ export default function App() {
   };
 
   const handlePullSync = async () => {
-    const res = await GoogleSheetsService.pullFromSheets();
-    refreshAllStateFromStorage();
-    if (!res.success) throw new Error(res.message);
+    try {
+      const res = await GoogleSheetsService.pullFromSheets();
+      refreshAllStateFromStorage();
+      if (!res.success) throw new Error(res.message);
+      showToast('Data terbaru berhasil disinkronkan dari Google Sheets (2-Arah).');
+    } catch (err: any) {
+      showToast(err.message || 'Gagal memuat dari Google Sheets', 'error');
+      throw err;
+    }
   };
 
   const handleResetData = () => {
@@ -559,6 +565,7 @@ export default function App() {
         onOpenSyncModal={() => setIsSyncModalOpen(true)}
         onOpenDinasModal={() => setIsDinasModalOpen(true)}
         onOpenPeerInspectionModal={() => setIsPeerInspectionModalOpen(true)}
+        onQuickPull={handlePullSync}
       />
 
       {/* Main App Body */}

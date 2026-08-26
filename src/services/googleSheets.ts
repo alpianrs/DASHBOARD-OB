@@ -1134,8 +1134,8 @@ export const GoogleSheetsService = {
             }
           }
 
-          if (rTasks && rTasks.length > 0) {
-            const parsedTasks: MasterTask[] = rTasks
+          if (rTasks !== undefined) {
+            const parsedTasks: MasterTask[] = (rTasks || [])
               .filter((row: any[]) => row && row.length > 1 && String(row[1] || '').trim().length > 0)
               .map((row: any[], i: number) => {
                 const rawTitle = String(row[1] || 'Tugas Kebersihan').trim();
@@ -1182,14 +1182,11 @@ export const GoogleSheetsService = {
                   standardPhotoUrl: standardPhotoUrl || undefined,
                 };
               });
-            if (parsedTasks.length > 0) {
-              StorageService.saveMasterTasks(parsedTasks);
-            }
+            StorageService.saveMasterTasks(parsedTasks);
           }
 
           if (rLogs !== undefined) {
             const masterTasks = StorageService.getMasterTasks();
-            const existingLocalLogs = StorageService.getTaskLogs();
             const parsedLogs: TaskLog[] = (rLogs || [])
               .filter((row: any[]) => row && row.length > 0 && row[0])
               .map((row: any[], i: number) => {
@@ -1273,17 +1270,14 @@ export const GoogleSheetsService = {
                 };
               });
 
-            // Merge local and sheet logs by ID to retain all historical test data
-            const logMap = new Map<string, TaskLog>();
-            existingLocalLogs.forEach((l) => logMap.set(l.id, l));
-            parsedLogs.forEach((l) => logMap.set(l.id, l));
-            const mergedLogs = Array.from(logMap.values()).sort((a, b) => {
+            // Exact 2-way sync: Sheet is source of truth. Sort chronologically descending
+            parsedLogs.sort((a, b) => {
               const dateA = a.date || a.timestamp || '';
               const dateB = b.date || b.timestamp || '';
               return dateB.localeCompare(dateA);
             });
 
-            StorageService.saveTaskLogs(mergedLogs);
+            StorageService.saveTaskLogs(parsedLogs);
           }
 
           if (rJobs !== undefined) {
@@ -1536,10 +1530,9 @@ export const GoogleSheetsService = {
       }
 
       // 2. Parse TaskLogs if present (including LateReason, LateReportStatus, PhotoURL)
-      if (valueRanges[2]?.values?.length > 0) {
+      if (valueRanges[2]?.values !== undefined) {
         const masterTasks = StorageService.getMasterTasks();
-        const existingLocalLogs = StorageService.getTaskLogs();
-        const parsedLogs: TaskLog[] = valueRanges[2].values
+        const parsedLogs: TaskLog[] = (valueRanges[2].values || [])
           .filter((row: any[]) => row && row.length > 0 && row[0])
           .map((row: any[], i: number) => {
             const rawTaskVal = String(row[6] || '').trim();
@@ -1588,16 +1581,18 @@ export const GoogleSheetsService = {
             };
           });
 
-        const logMap = new Map<string, TaskLog>();
-        existingLocalLogs.forEach((l) => logMap.set(l.id, l));
-        parsedLogs.forEach((l) => logMap.set(l.id, l));
-        StorageService.saveTaskLogs(Array.from(logMap.values()));
+        parsedLogs.sort((a, b) => {
+          const dateA = a.date || a.timestamp || '';
+          const dateB = b.date || b.timestamp || '';
+          return dateB.localeCompare(dateA);
+        });
+
+        StorageService.saveTaskLogs(parsedLogs);
       }
 
       // 3. Parse JobBareng if present
-      if (valueRanges[3]?.values?.length > 0) {
-        const existingLocalJobs = StorageService.getJobBareng();
-        const parsedJobs: JobBareng[] = valueRanges[3].values
+      if (valueRanges[3]?.values !== undefined) {
+        const parsedJobs: JobBareng[] = (valueRanges[3].values || [])
           .filter((row: any[]) => row && row.length > 0 && row[0])
           .map((row: any[], i: number) => {
             const participantsRaw = row[7] ? String(row[7]).split(',').map((s) => s.trim()).filter(Boolean) : [];
@@ -1623,26 +1618,7 @@ export const GoogleSheetsService = {
             };
           });
 
-        const jobMap = new Map<string, JobBareng>();
-        existingLocalJobs.forEach((j) => jobMap.set(j.id, j));
-        parsedJobs.forEach((j) => {
-          const existing = jobMap.get(j.id);
-          if (existing) {
-            const mergedParticipants = Array.from(new Set([...(existing.participantNames || existing.participantIds || []), ...(j.participantNames || j.participantIds || [])]));
-            const mergedCompleted = Array.from(new Set([...(existing.completedUserNames || existing.completedUserIds || []), ...(j.completedUserNames || j.completedUserIds || [])]));
-            jobMap.set(j.id, {
-              ...existing,
-              ...j,
-              participantNames: mergedParticipants,
-              participantIds: mergedParticipants,
-              completedUserNames: mergedCompleted,
-              completedUserIds: mergedCompleted,
-            });
-          } else {
-            jobMap.set(j.id, j);
-          }
-        });
-        StorageService.saveJobBareng(Array.from(jobMap.values()));
+        StorageService.saveJobBareng(parsedJobs);
       }
 
       // 4. Parse DinasRequests if present

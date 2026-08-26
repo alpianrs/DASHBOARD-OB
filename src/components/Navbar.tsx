@@ -22,6 +22,7 @@ interface NavbarProps {
   onOpenSyncModal: () => void;
   onOpenDinasModal: () => void;
   onOpenPeerInspectionModal: () => void;
+  onQuickPull?: () => Promise<void>;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -32,11 +33,23 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSyncModal,
   onOpenDinasModal,
   onOpenPeerInspectionModal,
+  onQuickPull,
 }) => {
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDateStr, setCurrentDateStr] = useState<string>('');
   const [isPreReadinessTime, setIsPreReadinessTime] = useState<boolean>(true);
   const [hoursLeftPR, setHoursLeftPR] = useState<string>('');
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
+  const handleQuickRefresh = async () => {
+    if (!onQuickPull || isRefreshing) return;
+    try {
+      setIsRefreshing(true);
+      await onQuickPull();
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 600);
+    }
+  };
 
   useEffect(() => {
     const updateTime = () => {
@@ -127,10 +140,23 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right action group */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Quick Pull Refresh Button */}
+          {onQuickPull && (
+            <button
+              onClick={handleQuickRefresh}
+              disabled={isRefreshing}
+              title="Tarik data terbaru dari Google Sheets (2-Arah)"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:border-slate-300 transition-all shadow-xs cursor-pointer active:scale-98 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-sky-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden lg:inline">{isRefreshing ? 'Memuat...' : 'Muat Sheet'}</span>
+            </button>
+          )}
+
           {/* Google Sheets Sync Button */}
           <button
             onClick={onOpenSyncModal}
-            title="Sinkronisasi Google Sheets & Drive"
+            title="Pengaturan & Status Sinkronisasi Google Sheets 2-Arah"
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-emerald-200 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 transition-all shadow-xs cursor-pointer active:scale-98"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
