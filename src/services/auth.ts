@@ -50,9 +50,6 @@ export const loginWithCredentials = (
 };
 
 export const logoutUser = () => {
-  const users = StorageService.getUsers();
-  if (users.length > 0) {
-    StorageService.setActiveUser(users[0]);
-  }
+  StorageService.clearActiveUser();
 };
 

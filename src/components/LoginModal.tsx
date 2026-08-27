@@ -18,10 +18,11 @@ import { GoogleSheetsService } from '../services/googleSheets';
 
 interface LoginModalProps {
   isOpen: boolean;
-  onClose: () => void;
+  onClose?: () => void;
   allUsers: User[];
   onSelectUser: (user: User) => void;
   onRefreshUsers?: () => void;
+  isMandatory?: boolean;
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({
@@ -30,6 +31,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   allUsers,
   onSelectUser,
   onRefreshUsers,
+  isMandatory = false,
 }) => {
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -56,7 +58,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     const user = allUsers.find(
       (u) =>
         u.username.toLowerCase() === cleanUsername &&
-        u.status !== 'Nonaktif'
+        u.status !== 'Nonaktif' &&
+        (u.status as string) !== 'Resign'
     );
 
     if (!user) {
@@ -72,7 +75,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
 
     onSelectUser(user);
-    onClose();
+    if (onClose) {
+      onClose();
+    }
   };
 
   const handleSyncUsersFromSheet = async () => {
@@ -110,12 +115,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               <p className="text-[11px] text-slate-400">Login Sistem via Google Sheet</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {!isMandatory && onClose && (
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Content Body */}

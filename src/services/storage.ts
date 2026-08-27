@@ -341,6 +341,14 @@ export const setStoredItem = <T>(key: string, value: T): void => {
   }
 };
 
+export const removeStoredItem = (key: string): void => {
+  try {
+    localStorage.removeItem(key);
+  } catch (e) {
+    console.error(`Error removing ${key} from localStorage:`, e);
+  }
+};
+
 // Storage Service API
 export const StorageService = {
   getUsers: (): User[] => {
@@ -411,11 +419,18 @@ export const StorageService = {
     }
   },
 
-  getActiveUser: (): User => {
-    return getStoredItem<User>(STORAGE_KEYS.ACTIVE_USER, SEED_USERS[0]); // Default to Admin
+  getActiveUser: (): User | null => {
+    return getStoredItem<User | null>(STORAGE_KEYS.ACTIVE_USER, null);
   },
-  setActiveUser: (user: User): void => {
-    setStoredItem(STORAGE_KEYS.ACTIVE_USER, user);
+  setActiveUser: (user: User | null): void => {
+    if (user) {
+      setStoredItem(STORAGE_KEYS.ACTIVE_USER, user);
+    } else {
+      removeStoredItem(STORAGE_KEYS.ACTIVE_USER);
+    }
+  },
+  clearActiveUser: (): void => {
+    removeStoredItem(STORAGE_KEYS.ACTIVE_USER);
   },
 
   getMasterTasks: (): MasterTask[] => {

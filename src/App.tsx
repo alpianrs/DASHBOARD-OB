@@ -26,7 +26,7 @@ import { SyncStatusModal } from './components/SyncStatusModal';
 
 export default function App() {
   // App Core State
-  const [activeUser, setActiveUser] = useState<User>(() => StorageService.getActiveUser());
+  const [activeUser, setActiveUser] = useState<User | null>(() => StorageService.getActiveUser());
   const [users, setUsers] = useState<User[]>(() => StorageService.getUsers());
   const [masterTasks, setMasterTasks] = useState<MasterTask[]>(() =>
     StorageService.getMasterTasks()
@@ -130,17 +130,20 @@ export default function App() {
     setSyncConfig(StorageService.getSyncConfig());
   };
 
-  // Switch User handler
+  // Switch User / Login handler
   const handleSelectUser = (user: User) => {
     setActiveUser(user);
     StorageService.setActiveUser(user);
+    setIsLoginModalOpen(false);
     showToast(`Berhasil login sebagai ${user.name} (${user.role.toUpperCase()})`);
   };
 
   // Logout handler
   const handleLogout = () => {
-    setIsLoginModalOpen(true);
-    showToast('Silakan login dengan akun Anda', 'info');
+    StorageService.clearActiveUser();
+    setActiveUser(null);
+    setIsLoginModalOpen(false);
+    showToast('Anda telah keluar dari akun.', 'info');
   };
 
   // Start Task Handler
@@ -535,6 +538,46 @@ export default function App() {
     refreshAllStateFromStorage();
     showToast('Data berhasil direset ke sampel Lazuardi GCS.');
   };
+
+  // If no user is logged in (first time open or logged out), render dedicated Login screen
+  if (!activeUser) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 relative overflow-hidden font-sans selection:bg-sky-500 selection:text-white">
+        {/* Background glow effects */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-950/40 via-slate-950 to-slate-950 pointer-events-none" />
+
+        {/* Toast Notification */}
+        {toastMessage && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-200">
+            <div
+              className={`px-4 py-2.5 rounded-xl shadow-lg border text-xs font-bold flex items-center gap-2 backdrop-blur-md ${
+                toastMessage.type === 'error'
+                  ? 'bg-rose-900/90 text-white border-rose-700'
+                  : toastMessage.type === 'info'
+                  ? 'bg-slate-900/90 text-white border-slate-700'
+                  : 'bg-slate-900/90 text-white border-slate-700'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span>{toastMessage.text}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Mandatory Login Form */}
+        <LoginModal
+          isOpen={true}
+          isMandatory={true}
+          allUsers={users}
+          onSelectUser={handleSelectUser}
+          onRefreshUsers={() => {
+            refreshAllStateFromStorage();
+            showToast('Data user diperbarui dari Google Sheet');
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col font-sans selection:bg-sky-500 selection:text-white">
