@@ -91,8 +91,8 @@ export function getJakartaMinute(date: Date = new Date()): number {
 }
 
 /**
- * Checks if an incidental task (JobBareng) has expired based on its date and target time.
- * If date is in the past, or if today and timeTarget has passed, returns true.
+ * Checks if an incidental task (JobBareng) has expired based on its date.
+ * If the day has changed (job date is not today), or status is Selesai/Dibatalkan, returns true.
  */
 export function isJobBarengExpired(job: {
   date?: string;
@@ -105,35 +105,12 @@ export function isJobBarengExpired(job: {
   }
 
   const today = getJakartaDateString();
-  const jobDate = job.date ? job.date.split('T')[0] : (job.createdAt ? job.createdAt.split('T')[0] : today);
+  const rawDate = job.date || job.createdAt;
+  const jobDate = normalizeDateString(rawDate) || today;
 
-  // 1. If job date is before today, it is expired
-  if (jobDate < today) {
+  // 1. If job date is not today (day changed / past date), it is automatically expired so it doesn't pile up
+  if (jobDate !== today) {
     return true;
-  }
-
-  // 2. If job date is today, check if timeTarget has an end time that has passed
-  if (jobDate === today && job.timeTarget) {
-    const raw = job.timeTarget.toLowerCase().replace(/wib/g, '').trim();
-    // Look for end time patterns like "13:00 - 15:30" or "sampai 15:30" or "15:30"
-    const timeMatches = raw.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g);
-    if (timeMatches && timeMatches.length > 0) {
-      // Pick the last matched time as the deadline
-      const deadlineStr = timeMatches[timeMatches.length - 1];
-      const [endHourStr, endMinStr] = deadlineStr.split(':');
-      const endHour = parseInt(endHourStr, 10);
-      const endMin = parseInt(endMinStr, 10);
-
-      const currentHour = getJakartaHour();
-      const currentMin = getJakartaMinute();
-
-      const currentTotalMin = currentHour * 60 + currentMin;
-      const endTotalMin = endHour * 60 + endMin;
-
-      if (currentTotalMin > endTotalMin) {
-        return true;
-      }
-    }
   }
 
   return false;

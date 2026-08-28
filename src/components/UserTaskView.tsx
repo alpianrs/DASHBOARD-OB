@@ -34,7 +34,7 @@ import { StorageService, isTaskAssignedToUser } from '../services/storage';
 import { JobBarengCard } from './JobBarengCard';
 import { formatGoogleDriveImageUrl, getGoogleDriveViewLink } from '../utils/driveHelper';
 import { parseInstructionSteps } from '../utils/instructionHelper';
-import { getJakartaDateString, getJakartaHour, isMasterTaskActive, isJobBarengExpired, isSameDay } from '../utils/dateHelper';
+import { getJakartaDateString, getJakartaHour, isMasterTaskActive, isJobBarengExpired, isSameDay, normalizeDateString } from '../utils/dateHelper';
 
 interface UserTaskViewProps {
   activeUser: User;
@@ -140,9 +140,14 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
     return isUserMatch && Boolean(isDateMatch);
   });
 
-  // Active Insidental / Job Bareng for this user
+  // Active Insidental / Job Bareng for this user (Only for TODAY - automatically hidden when day changes)
   const activeJobs = jobBarengList.filter((j) => {
     if (j.status !== 'Aktif') return false;
+    if (isJobBarengExpired(j)) return false;
+
+    // Strict date check: only show jobs for today
+    const jobDate = normalizeDateString(j.date) || normalizeDateString(j.createdAt) || today;
+    if (jobDate !== today) return false;
     
     // If specific users are assigned
     if (

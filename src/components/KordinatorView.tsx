@@ -37,7 +37,7 @@ import {
 } from '../types';
 import { UserTaskView } from './UserTaskView';
 import { JobBarengCard } from './JobBarengCard';
-import { getJakartaDateString, isSameDay } from '../utils/dateHelper';
+import { getJakartaDateString, isSameDay, normalizeDateString, isJobBarengExpired } from '../utils/dateHelper';
 import {
   getSaturdayOptionsList,
   formatSaturdayDate,
@@ -513,35 +513,48 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
 
           {/* Active Job Bareng Cards Stream */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between px-1">
-              <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-600" />
-                <span>Daftar Job Bareng / Tugas Insidental Aktif ({jobBarengList.filter((j) => j.status === 'Aktif').length})</span>
-              </h4>
-              <span className="text-xs text-slate-500">
-                Klik tombol untuk ikut serta atau menyelesaikan tugas
-              </span>
-            </div>
+            {(() => {
+              const activeJobsToday = jobBarengList.filter((j) => {
+                if (j.status !== 'Aktif') return false;
+                if (isJobBarengExpired(j)) return false;
+                const jDate = normalizeDateString(j.date) || normalizeDateString(j.createdAt) || today;
+                return jDate === today;
+              });
 
-            {jobBarengList.length > 0 ? (
-              jobBarengList.map((job) => (
-                <JobBarengCard
-                  key={job.id}
-                  job={job}
-                  activeUser={activeUser}
-                  onJoinJob={onJoinJobBareng}
-                  onCompleteJob={onCompleteJobBareng}
-                />
-              ))
-            ) : (
-              <div className="p-8 text-center bg-white border border-slate-200/80 rounded-2xl text-slate-400 text-xs space-y-2">
-                <Sparkles className="w-8 h-8 text-slate-300 mx-auto" />
-                <p className="font-medium text-slate-600">Belum ada tugas Job Bareng yang aktif saat ini.</p>
-                <p className="text-[11px] text-slate-400">
-                  Gunakan tombol <strong>"+ Instruksikan Job Bareng Baru"</strong> di atas untuk membagikan tugas bersama ke petugas.
-                </p>
-              </div>
-            )}
+              return (
+                <>
+                  <div className="flex items-center justify-between px-1">
+                    <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-amber-600" />
+                      <span>Daftar Job Bareng Hari Ini ({activeJobsToday.length})</span>
+                    </h4>
+                    <span className="text-xs text-slate-500">
+                      Otomatis diperbarui per hari ({today})
+                    </span>
+                  </div>
+
+                  {activeJobsToday.length > 0 ? (
+                    activeJobsToday.map((job) => (
+                      <JobBarengCard
+                        key={job.id}
+                        job={job}
+                        activeUser={activeUser}
+                        onJoinJob={onJoinJobBareng}
+                        onCompleteJob={onCompleteJobBareng}
+                      />
+                    ))
+                  ) : (
+                    <div className="p-8 text-center bg-white border border-slate-200/80 rounded-2xl text-slate-400 text-xs space-y-2">
+                      <Sparkles className="w-8 h-8 text-slate-300 mx-auto" />
+                      <p className="font-medium text-slate-600">Belum ada tugas Job Bareng aktif untuk hari ini ({today}).</p>
+                      <p className="text-[11px] text-slate-400">
+                        Tugas Job Bareng hari sebelumnya otomatis diarsipkan agar tidak menumpuk. Gunakan tombol <strong>"+ Instruksikan Job Bareng Baru"</strong> jika ada pekerjaan insidental baru hari ini.
+                      </p>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
