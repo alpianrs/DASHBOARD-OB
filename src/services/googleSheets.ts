@@ -1270,14 +1270,14 @@ export const GoogleSheetsService = {
                 };
               });
 
-            // Exact 2-way sync: Sheet is source of truth. Sort chronologically descending
+            // 2-way sync with local data preservation
             parsedLogs.sort((a, b) => {
               const dateA = a.date || a.timestamp || '';
               const dateB = b.date || b.timestamp || '';
               return dateB.localeCompare(dateA);
             });
 
-            StorageService.saveTaskLogs(parsedLogs);
+            StorageService.mergeTaskLogs(parsedLogs);
           }
 
           if (rJobs !== undefined) {
@@ -1306,7 +1306,7 @@ export const GoogleSheetsService = {
                   createdAt: row[9] || now,
                 };
               });
-            StorageService.saveJobBareng(parsedJobs);
+            StorageService.mergeJobBareng(parsedJobs);
           }
 
           if (rDinas !== undefined) {
@@ -1325,7 +1325,7 @@ export const GoogleSheetsService = {
                 approvedAt: row[9] || undefined,
                 createdAt: row[10] || now,
               }));
-            StorageService.saveDinasRequests(parsedDinas);
+            StorageService.mergeDinasRequests(parsedDinas);
           }
 
           if (rPeer !== undefined) {
@@ -1358,7 +1358,7 @@ export const GoogleSheetsService = {
                   timestamp: row[13] || row[11] || now,
                 };
               });
-            StorageService.savePeerInspections(parsedPeer);
+            StorageService.mergePeerInspections(parsedPeer);
           }
 
           if (rWeekly !== undefined) {
@@ -1587,7 +1587,7 @@ export const GoogleSheetsService = {
           return dateB.localeCompare(dateA);
         });
 
-        StorageService.saveTaskLogs(parsedLogs);
+        StorageService.mergeTaskLogs(parsedLogs);
       }
 
       // 3. Parse JobBareng if present
@@ -1618,7 +1618,7 @@ export const GoogleSheetsService = {
             };
           });
 
-        StorageService.saveJobBareng(parsedJobs);
+        StorageService.mergeJobBareng(parsedJobs);
       }
 
       // 4. Parse DinasRequests if present
@@ -1638,7 +1638,7 @@ export const GoogleSheetsService = {
             approvedAt: row[9] || undefined,
             createdAt: row[10] || now,
           }));
-        StorageService.saveDinasRequests(parsedDinas);
+        StorageService.mergeDinasRequests(parsedDinas);
       }
 
       // 5. Parse PeerInspections if present

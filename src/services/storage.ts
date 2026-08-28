@@ -10,6 +10,7 @@ import {
   HolidayConfig,
   UnitType,
 } from '../types';
+import { isSameDay } from '../utils/dateHelper';
 
 const STORAGE_KEYS = {
   USERS: 'lz_fm_users',
@@ -502,6 +503,71 @@ export const StorageService = {
   saveTaskLogs: (logs: TaskLog[]): void => {
     setStoredItem(STORAGE_KEYS.TASK_LOGS, logs);
   },
+  mergeTaskLogs: (remoteLogs: TaskLog[]): TaskLog[] => {
+    const localLogs = StorageService.getTaskLogs();
+    const mergedMap = new Map<string, TaskLog>();
+
+    // 1. First index remote logs
+    remoteLogs.forEach((rLog) => {
+      if (rLog && (rLog.id || rLog.taskId)) {
+        mergedMap.set(rLog.id, { ...rLog });
+      }
+    });
+
+    // 2. Merge local logs without losing newly completed work
+    localLogs.forEach((lLog) => {
+      let matchedKey: string | null = null;
+      if (mergedMap.has(lLog.id)) {
+        matchedKey = lLog.id;
+      } else {
+        for (const [rId, rLog] of mergedMap.entries()) {
+          const isUserMatch =
+            (lLog.userId && rLog.userId && lLog.userId === rLog.userId) ||
+            (lLog.userName && rLog.userName && lLog.userName.trim().toLowerCase() === rLog.userName.trim().toLowerCase());
+          const isTaskMatch =
+            (lLog.taskId && rLog.taskId && lLog.taskId === rLog.taskId) ||
+            (lLog.taskTitle && rLog.taskTitle && lLog.taskTitle.trim().toLowerCase() === rLog.taskTitle.trim().toLowerCase());
+          const isDateMatch = isSameDay(lLog.date, rLog.date) || isSameDay(lLog.timestamp, rLog.timestamp);
+
+          if (isUserMatch && isTaskMatch && isDateMatch) {
+            matchedKey = rId;
+            break;
+          }
+        }
+      }
+
+      if (matchedKey) {
+        const rLog = mergedMap.get(matchedKey)!;
+        const merged: TaskLog = {
+          ...rLog,
+          photoUrl: (lLog.photoUrl && lLog.photoUrl.trim().length > 0) ? lLog.photoUrl : rLog.photoUrl,
+          driveFileId: lLog.driveFileId || rLog.driveFileId,
+          notes: lLog.notes || rLog.notes,
+          lateReason: lLog.lateReason || rLog.lateReason,
+          isLate: lLog.isLate || rLog.isLate,
+          status: (lLog.status === 'Selesai' || lLog.status === 'Terlambat') ? lLog.status : rLog.status,
+          kordinatorScore: rLog.kordinatorScore ?? lLog.kordinatorScore,
+          kordinatorNotes: rLog.kordinatorNotes ?? lLog.kordinatorNotes,
+          peerInspectorName: rLog.peerInspectorName ?? lLog.peerInspectorName,
+          peerScore: rLog.peerScore ?? lLog.peerScore,
+          peerNotes: rLog.peerNotes ?? lLog.peerNotes,
+        };
+        mergedMap.set(matchedKey, merged);
+      } else {
+        // Retain local log that has not reached the remote sheet yet!
+        mergedMap.set(lLog.id, lLog);
+      }
+    });
+
+    const result = Array.from(mergedMap.values()).sort((a, b) => {
+      const dateA = a.date || a.timestamp || '';
+      const dateB = b.date || b.timestamp || '';
+      return dateB.localeCompare(dateA);
+    });
+
+    StorageService.saveTaskLogs(result);
+    return result;
+  },
   addTaskLog: (log: TaskLog): void => {
     const logs = StorageService.getTaskLogs();
     const existingIndex = logs.findIndex(
@@ -544,6 +610,48 @@ export const StorageService = {
   saveJobBareng: (jobs: JobBareng[]): void => {
     setStoredItem(STORAGE_KEYS.JOB_BARENG, jobs);
   },
+  mergeJobBareng: (remoteJobs: JobBareng[]): JobBareng[] => {
+    const localJobs = StorageService.getJobBareng();
+    const jobMap = new Map<string, JobBareng>();
+
+    remoteJobs.forEach((rJob) => {
+      if (rJob && rJob.id) {
+        jobMap.set(rJob.id, { ...rJob });
+      }
+    });
+
+    localJobs.forEach((lJob) => {
+      if (jobMap.has(lJob.id)) {
+        const rJob = jobMap.get(lJob.id)!;
+        const mergedParticipants = Array.from(
+          new Set([...(rJob.participantIds || []), ...(lJob.participantIds || [])])
+        );
+        const mergedParticipantNames = Array.from(
+          new Set([...(rJob.participantNames || []), ...(lJob.participantNames || [])])
+        );
+        const mergedCompleted = Array.from(
+          new Set([...(rJob.completedUserIds || []), ...(lJob.completedUserIds || [])])
+        );
+        const mergedCompletedNames = Array.from(
+          new Set([...(rJob.completedUserNames || []), ...(lJob.completedUserNames || [])])
+        );
+        jobMap.set(lJob.id, {
+          ...rJob,
+          participantIds: mergedParticipants,
+          participantNames: mergedParticipantNames,
+          completedUserIds: mergedCompleted,
+          completedUserNames: mergedCompletedNames,
+          status: lJob.status === 'Selesai' ? 'Selesai' : rJob.status,
+        });
+      } else {
+        jobMap.set(lJob.id, lJob);
+      }
+    });
+
+    const result = Array.from(jobMap.values());
+    StorageService.saveJobBareng(result);
+    return result;
+  },
   addJobBareng: (job: JobBareng): void => {
     const jobs = StorageService.getJobBareng();
     jobs.unshift(job);
@@ -569,6 +677,15 @@ export const StorageService = {
   saveDinasRequests: (requests: DinasRequest[]): void => {
     setStoredItem(STORAGE_KEYS.DINAS_REQUESTS, requests);
   },
+  mergeDinasRequests: (remoteRequests: DinasRequest[]): DinasRequest[] => {
+    const local = StorageService.getDinasRequests();
+    const map = new Map<string, DinasRequest>();
+    remoteRequests.forEach((r) => { if (r && r.id) map.set(r.id, r); });
+    local.forEach((l) => { if (!map.has(l.id)) map.set(l.id, l); });
+    const result = Array.from(map.values()).sort((a, b) => (b.date || b.createdAt || '').localeCompare(a.date || a.createdAt || ''));
+    StorageService.saveDinasRequests(result);
+    return result;
+  },
   addDinasRequest: (request: DinasRequest): void => {
     const requests = StorageService.getDinasRequests();
     requests.unshift(request);
@@ -593,6 +710,15 @@ export const StorageService = {
   },
   savePeerInspections: (inspections: PeerInspection[]): void => {
     setStoredItem(STORAGE_KEYS.PEER_INSPECTIONS, inspections);
+  },
+  mergePeerInspections: (remoteInspections: PeerInspection[]): PeerInspection[] => {
+    const local = StorageService.getPeerInspections();
+    const map = new Map<string, PeerInspection>();
+    remoteInspections.forEach((r) => { if (r && r.id) map.set(r.id, r); });
+    local.forEach((l) => { if (!map.has(l.id)) map.set(l.id, l); });
+    const result = Array.from(map.values()).sort((a, b) => (b.date || b.timestamp || '').localeCompare(a.date || a.timestamp || ''));
+    StorageService.savePeerInspections(result);
+    return result;
   },
   addPeerInspection: (inspection: PeerInspection): void => {
     const list = StorageService.getPeerInspections();

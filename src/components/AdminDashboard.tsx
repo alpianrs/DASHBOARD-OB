@@ -82,6 +82,8 @@ import {
   getJakartaHour,
   formatJakartaDisplayDate,
   isMasterTaskActive,
+  isSameDay,
+  normalizeDateString,
 } from '../utils/dateHelper';
 import {
   getSaturdayOptionsList,
@@ -316,26 +318,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  // Helper to extract YYYY-MM-DD cleanly from any format
-  const normalizeLogDate = (dateVal?: string, timestampVal?: string): string => {
-    const raw = (dateVal || timestampVal || '').trim();
-    if (!raw) return '';
-    if (raw.includes('T')) return raw.split('T')[0];
-    if (raw.includes('/')) {
-      const parts = raw.split('/');
-      if (parts.length === 3) {
-        if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-        if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-      }
-    }
-    return raw;
-  };
-
   // Filter Task Logs according to Date, Unit, User, and Status controls
   const filteredTaskLogs = taskLogs.filter((log) => {
-    const logDate = normalizeLogDate(log.date, log.timestamp);
+    const logDate = normalizeDateString(log.date) || normalizeDateString(log.timestamp);
     if (dateFilterMode === 'today') {
-      if (logDate !== todayStr && !log.timestamp?.startsWith(todayStr)) return false;
+      if (!isSameDay(log.date, todayStr) && !isSameDay(log.timestamp, todayStr) && logDate !== todayStr) return false;
     } else if (dateFilterMode === 'custom') {
       if (startDate && logDate < startDate) return false;
       if (endDate && logDate > endDate) return false;
@@ -417,9 +404,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (!isPreReadiness) return false;
 
     // Date filter
-    const logDate = normalizeLogDate(log.date, log.timestamp);
+    const logDate = normalizeDateString(log.date) || normalizeDateString(log.timestamp);
     if (dateFilterMode === 'today') {
-      if (logDate !== todayStr && !log.timestamp?.startsWith(todayStr)) return false;
+      if (!isSameDay(log.date, todayStr) && !isSameDay(log.timestamp, todayStr) && logDate !== todayStr) return false;
     } else if (dateFilterMode === 'custom') {
       if (startDate && logDate < startDate) return false;
       if (endDate && logDate > endDate) return false;

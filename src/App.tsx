@@ -214,30 +214,37 @@ export default function App() {
     }
   };
 
-  // Photo Captured & Task Completed Handler
+  // Photo Captured & Task Completed Handler (Optimistic UI - Instant completion)
   const handlePhotoCaptured = async (photoDataUrl: string, notes: string) => {
     const today = getJakartaDateString();
     const timestamp = new Date().toISOString();
+    const targetTask = activeTaskTarget;
+    const targetJob = activeJobBarengTarget;
+    const isLate = isLateTaskProgress;
+    const status = isLate ? 'Terlambat' : 'Selesai';
+    const reason = pendingLateReason || undefined;
 
-    // 1. Upload photo to Drive asynchronously
+    // Reset modals and active targets immediately
+    setActiveTaskTarget(null);
+    setActiveJobBarengTarget(null);
+    setPendingLateReason(null);
+
     const filename = `LZ_PROOF_${activeUser.unit}_${activeUser.name.replace(/\s+/g, '_')}_${Date.now()}.jpg`;
-    const driveUpload = await GoogleSheetsService.uploadPhotoToDrive(photoDataUrl, filename);
 
-    if (activeJobBarengTarget) {
-      // Completed a Job Bareng
+    if (targetJob) {
+      // 1. Optimistic immediate local save for Job Bareng
       const updatedJob: JobBareng = {
-        ...activeJobBarengTarget,
+        ...targetJob,
         completedUserIds: Array.from(
-          new Set([...activeJobBarengTarget.completedUserIds, activeUser.id])
+          new Set([...targetJob.completedUserIds, activeUser.id])
         ),
         completedUserNames: Array.from(
-          new Set([...(activeJobBarengTarget.completedUserNames || []), activeUser.name])
+          new Set([...(targetJob.completedUserNames || []), activeUser.name])
         ),
       };
       StorageService.updateJobBareng(updatedJob);
       setJobBarengList(StorageService.getJobBareng());
 
-      // Create a TaskLog entry for Job Bareng
       const newLog: TaskLog = {
         id: `tl-${Date.now()}`,
         timestamp,
@@ -246,40 +253,48 @@ export default function App() {
         userName: activeUser.name,
         userRole: activeUser.role,
         unit: activeUser.unit,
-        taskId: activeJobBarengTarget.id,
-        taskTitle: `[JOB BARENG] ${activeJobBarengTarget.title}`,
+        taskId: targetJob.id,
+        taskTitle: `[JOB BARENG] ${targetJob.title}`,
         category: 'Job Bareng',
         timingType: 'anytime',
         status: 'Selesai',
         isLate: false,
-        photoUrl: driveUpload.driveUrl,
-        driveFileId: driveUpload.fileId,
+        photoUrl: photoDataUrl, // Immediate local preview
         notes: notes || 'Pekerjaan Job Bareng bersama selesai.',
       };
 
       StorageService.addTaskLog(newLog);
       setTaskLogs(StorageService.getTaskLogs());
-      setActiveJobBarengTarget(null);
 
-      // Trigger real-time direct append to Google Sheets TaskLogs
-      GoogleSheetsService.logTaskToSheets(newLog).catch(console.warn);
-
-      // Trigger Confetti
       confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
-      showToast('Berhasil menyelesaikan Job Bareng! Tercatat di Google Sheet.');
-    } else if (activeTaskTarget) {
-      // Regular / Master Task Completed
-      const isLate = isLateTaskProgress;
-      const status = isLate ? 'Terlambat' : 'Selesai';
-      const reason = pendingLateReason || undefined;
+      showToast('Berhasil menyelesaikan Job Bareng! Tersimpan & sedang disinkronkan.');
 
+      // Background Drive & Sheet sync
+      (async () => {
+        try {
+          const driveUpload = await GoogleSheetsService.uploadPhotoToDrive(photoDataUrl, filename);
+          if (driveUpload.driveUrl && driveUpload.driveUrl.startsWith('http')) {
+            newLog.photoUrl = driveUpload.driveUrl;
+            newLog.driveFileId = driveUpload.fileId;
+            StorageService.updateTaskLog(newLog);
+            setTaskLogs(StorageService.getTaskLogs());
+          }
+          await GoogleSheetsService.logTaskToSheets(newLog);
+          await GoogleSheetsService.pushAllToSheets();
+        } catch (err) {
+          console.warn('Background sync error for job bareng log:', err);
+          GoogleSheetsService.logTaskToSheets(newLog).catch(console.warn);
+        }
+      })();
+    } else if (targetTask) {
+      // 2. Optimistic immediate local save for Regular/Master Task
       const currentLogs = StorageService.getTaskLogs();
       const existingLogIdx = currentLogs.findIndex(
         (l) =>
-          (l.taskId === activeTaskTarget.id ||
-            (l.taskTitle && activeTaskTarget.title && l.taskTitle.trim().toLowerCase() === activeTaskTarget.title.trim().toLowerCase())) &&
+          (l.taskId === targetTask.id ||
+            (l.taskTitle && targetTask.title && l.taskTitle.trim().toLowerCase() === targetTask.title.trim().toLowerCase())) &&
           (l.userId === activeUser.id || (l.userName && l.userName.trim().toLowerCase() === activeUser.name.trim().toLowerCase())) &&
-          l.date === today
+          (l.date === today || (l.timestamp && l.timestamp.startsWith(today)))
       );
 
       let targetLog: TaskLog;
@@ -287,8 +302,7 @@ export default function App() {
       if (existingLogIdx >= 0) {
         targetLog = {
           ...currentLogs[existingLogIdx],
-          photoUrl: driveUpload.driveUrl,
-          driveFileId: driveUpload.fileId,
+          photoUrl: photoDataUrl,
           notes: notes
             ? `${currentLogs[existingLogIdx].notes ? currentLogs[existingLogIdx].notes + ' | ' : ''}${notes}`
             : currentLogs[existingLogIdx].notes,
@@ -306,15 +320,14 @@ export default function App() {
           userName: activeUser.name,
           userRole: activeUser.role,
           unit: activeUser.unit,
-          taskId: activeTaskTarget.id,
-          taskTitle: activeTaskTarget.title,
-          category: activeTaskTarget.category,
-          timingType: activeTaskTarget.timingType,
+          taskId: targetTask.id,
+          taskTitle: targetTask.title,
+          category: targetTask.category,
+          timingType: targetTask.timingType,
           status,
           isLate,
           lateReason: reason,
-          photoUrl: driveUpload.driveUrl,
-          driveFileId: driveUpload.fileId,
+          photoUrl: photoDataUrl,
           notes,
         };
         StorageService.addTaskLog(targetLog);
@@ -322,19 +335,27 @@ export default function App() {
 
       setTaskLogs(StorageService.getTaskLogs());
 
-      // Trigger real-time direct append to Google Sheets TaskLogs
-      GoogleSheetsService.logTaskToSheets(targetLog).catch(console.warn);
-
-      // Confetti celebration
       confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
-      showToast(`Pekerjaan "${activeTaskTarget.title}" tersimpan & terekam di Google Sheet!`);
+      showToast(`Pekerjaan "${targetTask.title}" selesai & tersimpan!`);
+
+      // Background Drive & Sheet sync
+      (async () => {
+        try {
+          const driveUpload = await GoogleSheetsService.uploadPhotoToDrive(photoDataUrl, filename);
+          if (driveUpload.driveUrl && driveUpload.driveUrl.startsWith('http')) {
+            targetLog.photoUrl = driveUpload.driveUrl;
+            targetLog.driveFileId = driveUpload.fileId;
+            StorageService.updateTaskLog(targetLog);
+            setTaskLogs(StorageService.getTaskLogs());
+          }
+          await GoogleSheetsService.logTaskToSheets(targetLog);
+          await GoogleSheetsService.pushAllToSheets();
+        } catch (err) {
+          console.warn('Background sync error for task log:', err);
+          GoogleSheetsService.logTaskToSheets(targetLog).catch(console.warn);
+        }
+      })();
     }
-
-    setActiveTaskTarget(null);
-    setPendingLateReason(null);
-
-    // Auto push sync to Google Sheets (Full Batch Backup)
-    GoogleSheetsService.pushAllToSheets().catch(console.warn);
   };
 
   // Join Job Bareng

@@ -34,7 +34,7 @@ import { StorageService, isTaskAssignedToUser } from '../services/storage';
 import { JobBarengCard } from './JobBarengCard';
 import { formatGoogleDriveImageUrl, getGoogleDriveViewLink } from '../utils/driveHelper';
 import { parseInstructionSteps } from '../utils/instructionHelper';
-import { getJakartaDateString, getJakartaHour, isMasterTaskActive, isJobBarengExpired } from '../utils/dateHelper';
+import { getJakartaDateString, getJakartaHour, isMasterTaskActive, isJobBarengExpired, isSameDay } from '../utils/dateHelper';
 
 interface UserTaskViewProps {
   activeUser: User;
@@ -128,15 +128,15 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
   // Exclusively display tasks assigned to this user
   const userMasterTasks = myAssignedTasks;
 
-  // Today's logs for this active user (strictly matching by userId/userName AND today's date)
+  // Today's logs for this active user (strictly matching by userId/userName AND today's date with format tolerance)
   const userTodayLogs = taskLogs.filter((l) => {
     const isUserMatch =
       l.userId === activeUser.id ||
       (l.userName && activeUser.name && l.userName.trim().toLowerCase() === activeUser.name.trim().toLowerCase()) ||
       (activeUser.username && l.userId === activeUser.username);
     const isDateMatch =
-      (l.date && l.date.trim() === today) ||
-      (l.timestamp && l.timestamp.startsWith(today));
+      isSameDay(l.date, today) ||
+      (l.timestamp && isSameDay(l.timestamp, today));
     return isUserMatch && Boolean(isDateMatch);
   });
 
@@ -216,7 +216,7 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
 
   // Inspections done by active user today
   const todaySubmittedInspections = mySubmittedInspections.filter(
-    (p) => p.date === today || p.timestamp?.startsWith(today)
+    (p) => isSameDay(p.date, today) || (p.timestamp && isSameDay(p.timestamp, today))
   );
 
   // Access control for evaluation scores (Only Admin and Coordinator can view scores)

@@ -139,3 +139,58 @@ export function isJobBarengExpired(job: {
   return false;
 }
 
+/**
+ * Normalizes any date input (string, Date, timestamp) into YYYY-MM-DD format.
+ * Handles DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD, ISO timestamps, and Date objects.
+ */
+export function normalizeDateString(dateInput?: string | Date | null): string {
+  if (!dateInput) return '';
+  if (dateInput instanceof Date) {
+    return getJakartaDateString(dateInput);
+  }
+  const s = String(dateInput).trim();
+  if (!s) return '';
+
+  // If ISO string like 2026-08-28T...
+  if (s.includes('T')) {
+    return s.split('T')[0];
+  }
+
+  // If slash separated (e.g. 28/08/2026 or 2026/08/28 or 8/28/2026)
+  if (s.includes('/')) {
+    const parts = s.split('/').map((p) => p.trim());
+    if (parts.length === 3) {
+      if (parts[2].length === 4) {
+        // DD/MM/YYYY or MM/DD/YYYY -> DD/MM/YYYY
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      } else if (parts[0].length === 4) {
+        // YYYY/MM/DD
+        return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      }
+    }
+  }
+
+  // If already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return s;
+  }
+
+  // If DD-MM-YYYY
+  if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
+    const parts = s.split('-');
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+
+  return s;
+}
+
+/**
+ * Compares two dates ignoring formatting differences or timestamp details.
+ */
+export function isSameDay(date1?: string | Date | null, date2?: string | Date | null): boolean {
+  if (!date1 || !date2) return false;
+  const d1 = normalizeDateString(date1);
+  const d2 = normalizeDateString(date2);
+  return d1 !== '' && d1 === d2;
+}
+

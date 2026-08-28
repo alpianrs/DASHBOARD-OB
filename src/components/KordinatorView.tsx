@@ -37,7 +37,7 @@ import {
 } from '../types';
 import { UserTaskView } from './UserTaskView';
 import { JobBarengCard } from './JobBarengCard';
-import { getJakartaDateString } from '../utils/dateHelper';
+import { getJakartaDateString, isSameDay } from '../utils/dateHelper';
 import {
   getSaturdayOptionsList,
   formatSaturdayDate,
@@ -135,7 +135,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
 
   // Today logs (WIB timezone)
   const today = getJakartaDateString();
-  const todayLogs = taskLogs.filter((l) => l.date === today || (l.timestamp && l.timestamp.startsWith(today)));
+  const todayLogs = taskLogs.filter((l) => isSameDay(l.date, today) || (l.timestamp && isSameDay(l.timestamp, today)));
 
   const filteredLogs = selectedUnitFilter === 'Semua Unit'
     ? todayLogs
