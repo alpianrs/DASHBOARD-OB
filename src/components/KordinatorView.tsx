@@ -515,7 +515,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
           <div className="space-y-3">
             {(() => {
               const activeJobsToday = jobBarengList.filter((j) => {
-                if (j.status !== 'Aktif') return false;
+                if (j.status === 'Dibatalkan') return false;
                 if (isJobBarengExpired(j)) return false;
                 const jDate = normalizeDateString(j.date) || normalizeDateString(j.createdAt) || today;
                 return jDate === today;

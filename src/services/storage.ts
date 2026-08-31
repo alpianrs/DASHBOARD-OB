@@ -544,8 +544,8 @@ export const StorageService = {
           driveFileId: lLog.driveFileId || rLog.driveFileId,
           notes: lLog.notes || rLog.notes,
           lateReason: lLog.lateReason || rLog.lateReason,
-          isLate: lLog.isLate || rLog.isLate,
-          status: (lLog.status === 'Selesai' || lLog.status === 'Terlambat') ? lLog.status : rLog.status,
+          isLate: lLog.isLate ?? rLog.isLate,
+          status: (lLog.status === 'Selesai' || lLog.status === 'Terlambat') ? lLog.status : (rLog.status || lLog.status),
           kordinatorScore: rLog.kordinatorScore ?? lLog.kordinatorScore,
           kordinatorNotes: rLog.kordinatorNotes ?? lLog.kordinatorNotes,
           peerInspectorName: rLog.peerInspectorName ?? lLog.peerInspectorName,
@@ -575,7 +575,7 @@ export const StorageService = {
         l.id === log.id ||
         ((l.userId === log.userId || (l.userName && log.userName && l.userName.trim().toLowerCase() === log.userName.trim().toLowerCase())) &&
           (l.taskId === log.taskId || (l.taskTitle && log.taskTitle && l.taskTitle.trim().toLowerCase() === log.taskTitle.trim().toLowerCase())) &&
-          l.date === log.date)
+          (isSameDay(l.date, log.date) || isSameDay(l.timestamp, log.timestamp)))
     );
     if (existingIndex !== -1) {
       logs[existingIndex] = { ...logs[existingIndex], ...log };
@@ -641,7 +641,7 @@ export const StorageService = {
           participantNames: mergedParticipantNames,
           completedUserIds: mergedCompleted,
           completedUserNames: mergedCompletedNames,
-          status: lJob.status === 'Selesai' ? 'Selesai' : rJob.status,
+          status: lJob.status === 'Dibatalkan' || rJob.status === 'Dibatalkan' ? 'Dibatalkan' : (lJob.status || rJob.status || 'Aktif'),
         });
       } else {
         jobMap.set(lJob.id, lJob);

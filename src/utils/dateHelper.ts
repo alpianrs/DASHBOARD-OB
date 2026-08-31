@@ -92,7 +92,8 @@ export function getJakartaMinute(date: Date = new Date()): number {
 
 /**
  * Checks if an incidental task (JobBareng) has expired based on its date.
- * If the day has changed (job date is not today), or status is Selesai/Dibatalkan, returns true.
+ * A Job Bareng stays visible throughout the entire day it is scheduled for,
+ * and only expires when the date changes (job date is not today) or if explicitly canceled.
  */
 export function isJobBarengExpired(job: {
   date?: string;
@@ -100,7 +101,7 @@ export function isJobBarengExpired(job: {
   createdAt?: string;
   status?: string;
 }): boolean {
-  if (job.status === 'Selesai' || job.status === 'Dibatalkan') {
+  if (job.status === 'Dibatalkan') {
     return true;
   }
 
@@ -108,7 +109,7 @@ export function isJobBarengExpired(job: {
   const rawDate = job.date || job.createdAt;
   const jobDate = normalizeDateString(rawDate) || today;
 
-  // 1. If job date is not today (day changed / past date), it is automatically expired so it doesn't pile up
+  // If job date is not today (day changed / past date), it is automatically expired so it doesn't pile up
   if (jobDate !== today) {
     return true;
   }
@@ -125,37 +126,45 @@ export function normalizeDateString(dateInput?: string | Date | null): string {
   if (dateInput instanceof Date) {
     return getJakartaDateString(dateInput);
   }
-  const s = String(dateInput).trim();
+  let s = String(dateInput).trim();
   if (!s) return '';
 
-  // If ISO string like 2026-08-28T...
+  // 1. Strip time portion if present (e.g., "2026-08-31T07:15:00" or "31/08/2026 07:15:00")
   if (s.includes('T')) {
-    return s.split('T')[0];
+    s = s.split('T')[0].trim();
+  } else if (s.includes(' ')) {
+    s = s.split(' ')[0].trim();
   }
 
-  // If slash separated (e.g. 28/08/2026 or 2026/08/28 or 8/28/2026)
+  // 2. If slash separated (e.g. 28/08/2026 or 2026/08/28 or 8/28/2026 or 31/8/2026)
   if (s.includes('/')) {
     const parts = s.split('/').map((p) => p.trim());
     if (parts.length === 3) {
       if (parts[2].length === 4) {
-        // DD/MM/YYYY or MM/DD/YYYY -> DD/MM/YYYY
+        // DD/MM/YYYY or MM/DD/YYYY -> YYYY-MM-DD
         return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
       } else if (parts[0].length === 4) {
-        // YYYY/MM/DD
+        // YYYY/MM/DD -> YYYY-MM-DD
         return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
       }
     }
   }
 
-  // If already YYYY-MM-DD
+  // 3. If already YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
     return s;
   }
 
-  // If DD-MM-YYYY
-  if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
-    const parts = s.split('-');
-    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  // 4. If DD-MM-YYYY (e.g. 31-08-2026 or 1-8-2026)
+  if (s.includes('-')) {
+    const parts = s.split('-').map((p) => p.trim());
+    if (parts.length === 3) {
+      if (parts[2].length === 4) {
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      } else if (parts[0].length === 4) {
+        return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      }
+    }
   }
 
   return s;

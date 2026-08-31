@@ -76,19 +76,35 @@ export const JobBarengCard: React.FC<JobBarengCardProps> = ({
         {/* List of participant names */}
         {((job.participantNames && job.participantNames.length > 0) || (job.participantIds && job.participantIds.length > 0)) && (
           <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl p-2.5 text-[11px] text-slate-300">
-            <span className="font-semibold text-slate-400 block mb-1">Partisipan Bergabung:</span>
+            <span className="font-semibold text-slate-400 block mb-1">
+              Partisipan Bergabung ({Math.max(job.participantIds.length, job.participantNames?.length || 0)} Petugas):
+            </span>
             <div className="flex flex-wrap gap-1.5">
               {(job.participantNames && job.participantNames.length > 0
                 ? job.participantNames
                 : job.participantIds
-              ).map((nameOrId, idx) => (
-                <span
-                  key={idx}
-                  className="px-2 py-0.5 rounded-md bg-slate-700/80 text-white font-medium text-[11px] border border-slate-600/50"
-                >
-                  {nameOrId}
-                </span>
-              ))}
+              ).map((nameOrId, idx) => {
+                const isUserDone =
+                  job.completedUserNames?.some((n) => n.toLowerCase().trim() === nameOrId.toLowerCase().trim()) ||
+                  job.completedUserIds?.some((id) => id.toLowerCase().trim() === nameOrId.toLowerCase().trim());
+                return (
+                  <span
+                    key={idx}
+                    className={`px-2 py-0.5 rounded-md font-medium text-[11px] border flex items-center gap-1 ${
+                      isUserDone
+                        ? 'bg-emerald-900/70 text-emerald-200 border-emerald-600/60'
+                        : 'bg-slate-700/80 text-slate-200 border-slate-600/50'
+                    }`}
+                  >
+                    {isUserDone ? (
+                      <CheckCircle className="w-3 h-3 text-emerald-400" />
+                    ) : (
+                      <Clock className="w-3 h-3 text-sky-400" />
+                    )}
+                    <span>{nameOrId}</span>
+                  </span>
+                );
+              })}
             </div>
           </div>
         )}
@@ -104,9 +120,17 @@ export const JobBarengCard: React.FC<JobBarengCardProps> = ({
               <span>Ikut Serta Tugas Insidental Ini</span>
             </button>
           ) : hasCompleted ? (
-            <div className="w-full py-2.5 px-4 bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 rounded-xl font-bold text-xs flex items-center justify-center gap-2">
-              <CheckCircle className="w-4 h-4 text-emerald-400" />
-              <span>Anda Telah Menyelesaikan Tugas Insidental Ini</span>
+            <div className="w-full flex items-center justify-between gap-2 p-2.5 bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 rounded-xl text-xs">
+              <div className="flex items-center gap-2 font-bold">
+                <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Anda Telah Berpartisipasi & Selesai Hari Ini</span>
+              </div>
+              <button
+                onClick={() => onCompleteJob(job)}
+                className="py-1 px-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg font-bold text-[11px] transition cursor-pointer shrink-0"
+              >
+                Foto Tambahan
+              </button>
             </div>
           ) : (
             <div className="flex items-center gap-2 w-full">

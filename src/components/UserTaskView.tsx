@@ -133,16 +133,18 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
     const isUserMatch =
       l.userId === activeUser.id ||
       (l.userName && activeUser.name && l.userName.trim().toLowerCase() === activeUser.name.trim().toLowerCase()) ||
-      (activeUser.username && l.userId === activeUser.username);
+      (activeUser.username && l.userId === activeUser.username) ||
+      (activeUser.username && l.userName && l.userName.trim().toLowerCase() === activeUser.username.trim().toLowerCase()) ||
+      (activeUser.id && l.userName && l.userName.trim().toLowerCase() === activeUser.id.trim().toLowerCase());
     const isDateMatch =
       isSameDay(l.date, today) ||
       (l.timestamp && isSameDay(l.timestamp, today));
     return isUserMatch && Boolean(isDateMatch);
   });
 
-  // Active Insidental / Job Bareng for this user (Only for TODAY - automatically hidden when day changes)
+  // Active Insidental / Job Bareng for this user (Visible throughout TODAY until the day changes)
   const activeJobs = jobBarengList.filter((j) => {
-    if (j.status !== 'Aktif') return false;
+    if (j.status === 'Dibatalkan') return false;
     if (isJobBarengExpired(j)) return false;
 
     // Strict date check: only show jobs for today
@@ -243,10 +245,21 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
         (l.taskTitle && task.title && l.taskTitle.trim().toLowerCase() === task.title.trim().toLowerCase()) ||
         (l.taskId && task.title && l.taskId.trim().toLowerCase() === task.title.trim().toLowerCase()) ||
         (l.taskId && task.id && l.taskId.trim() === task.id.trim())
+    ) || taskLogs.find(
+      (l) =>
+        (isSameDay(l.date, today) || (l.timestamp && isSameDay(l.timestamp, today))) &&
+        (l.userId === activeUser.id ||
+          (l.userName && activeUser.name && l.userName.trim().toLowerCase() === activeUser.name.trim().toLowerCase()) ||
+          (activeUser.username && l.userId === activeUser.username) ||
+          (activeUser.username && l.userName && l.userName.trim().toLowerCase() === activeUser.username.trim().toLowerCase())) &&
+        (l.taskId === task.id ||
+          (l.taskTitle && task.title && l.taskTitle.trim().toLowerCase() === task.title.trim().toLowerCase()))
     );
+
     const isCompleted =
       existingLog?.status === 'Selesai' ||
       existingLog?.status === 'Terlambat' ||
+      Boolean(existingLog?.photoUrl && existingLog.photoUrl.trim().length > 0) ||
       Boolean(existingLog?.lateReason && existingLog.lateReason.trim().length > 0);
     const isLate =
       existingLog?.isLate ||

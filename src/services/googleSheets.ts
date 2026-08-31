@@ -10,6 +10,7 @@ import {
   WeeklyScore,
 } from '../types';
 import { parseInstructionSteps } from '../utils/instructionHelper';
+import { normalizeDateString, getJakartaDateString } from '../utils/dateHelper';
 
 const SPREADSHEET_ID = '1McKt_ubKY3NmUivMTgep2C6tipg34rq51FZRVbVhtXU';
 const DRIVE_FOLDER_ID = '1MURpjYWLXdg8mOtjO2ucl2tESHYVWfZO';
@@ -1201,37 +1202,8 @@ export const GoogleSheetsService = {
                   resolvedTaskTitle = matchedTask.title;
                 }
 
-                // Robust date parsing
-                let parsedDate = '';
-                const rawDate = row[2];
-                if (rawDate instanceof Date) {
-                  parsedDate = rawDate.toISOString().split('T')[0];
-                } else if (typeof rawDate === 'string' && rawDate.trim().length > 0) {
-                  const s = rawDate.trim();
-                  if (s.includes('T')) {
-                    parsedDate = s.split('T')[0];
-                  } else if (s.includes('/')) {
-                    const parts = s.split('/');
-                    if (parts.length === 3) {
-                      if (parts[2].length === 4) {
-                        parsedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                      } else if (parts[0].length === 4) {
-                        parsedDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-                      } else {
-                        parsedDate = s;
-                      }
-                    } else {
-                      parsedDate = s;
-                    }
-                  } else {
-                    parsedDate = s;
-                  }
-                } else if (row[1]) {
-                  const ts = String(row[1]).trim();
-                  parsedDate = ts.includes('T') ? ts.split('T')[0] : ts;
-                } else {
-                  parsedDate = now.split('T')[0];
-                }
+                // Robust date parsing using dateHelper
+                const parsedDate = normalizeDateString(row[2]) || normalizeDateString(row[1]) || getJakartaDateString();
 
                 const hasLateReportCol = row.length >= 20;
                 const isLateVal = String(row[10] || '').toUpperCase() === 'YA' || String(row[9] || '').toLowerCase() === 'terlambat';
@@ -1292,7 +1264,7 @@ export const GoogleSheetsService = {
                   id: row[0] || `jb-${i}`,
                   title: row[1] || 'Job Bareng',
                   description: row[2] || '',
-                  date: row[3] || now.split('T')[0],
+                  date: normalizeDateString(row[3]) || getJakartaDateString(),
                   targetUnit: row[4] || 'Semua Unit',
                   targetArea: row[5] || 'Area Terkait',
                   status: (row[6] || 'Aktif') as any,
@@ -1314,7 +1286,7 @@ export const GoogleSheetsService = {
               .filter((row: any[]) => row && row.length > 0 && row[0])
               .map((row: any[], i: number) => ({
                 id: row[0] || `dr-${i}`,
-                date: row[1] || now.split('T')[0],
+                date: normalizeDateString(row[1]) || getJakartaDateString(),
                 userId: row[2] || '',
                 userName: row[3] || '',
                 unit: row[4] || 'TK',
@@ -1342,7 +1314,7 @@ export const GoogleSheetsService = {
                 }
                 return {
                   id: row[0] || `pi-${i}`,
-                  date: row[1] || now.split('T')[0],
+                  date: normalizeDateString(row[1]) || getJakartaDateString(),
                   inspectorId: row[2] || '',
                   inspectorName: row[3] || '',
                   inspectorRole: 'user',
@@ -1560,7 +1532,7 @@ export const GoogleSheetsService = {
             return {
               id: row[0] || `tl-sheet-${i}`,
               timestamp: row[1] || now,
-              date: row[2] || now.split('T')[0],
+              date: normalizeDateString(row[2]) || normalizeDateString(row[1]) || getJakartaDateString(),
               userId: row[3] || '',
               userName: row[4] || '',
               unit: row[5] || 'TK',
@@ -1603,7 +1575,7 @@ export const GoogleSheetsService = {
               id: row[0] || `jb-${i}`,
               title: row[1] || 'Job Bareng',
               description: row[2] || '',
-              date: row[3] || now.split('T')[0],
+              date: normalizeDateString(row[3]) || getJakartaDateString(),
               targetUnit: row[4] || 'Semua Unit',
               targetArea: row[5] || 'Area Terkait',
               status: (row[6] || 'Aktif') as any,
@@ -1627,7 +1599,7 @@ export const GoogleSheetsService = {
           .filter((row: any[]) => row && row.length > 0 && row[0])
           .map((row: any[], i: number) => ({
             id: row[0] || `dr-${i}`,
-            date: row[1] || now.split('T')[0],
+            date: normalizeDateString(row[1]) || getJakartaDateString(),
             userId: row[2] || '',
             userName: row[3] || '',
             unit: row[4] || 'TK',
@@ -1656,7 +1628,7 @@ export const GoogleSheetsService = {
             }
             return {
               id: row[0] || `pi-${i}`,
-              date: row[1] || now.split('T')[0],
+              date: normalizeDateString(row[1]) || getJakartaDateString(),
               inspectorId: row[2] || '',
               inspectorName: row[3] || '',
               inspectorRole: 'user',

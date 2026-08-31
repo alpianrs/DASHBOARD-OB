@@ -12,7 +12,7 @@ import {
 } from './types';
 import { StorageService } from './services/storage';
 import { GoogleSheetsService } from './services/googleSheets';
-import { getJakartaDateString } from './utils/dateHelper';
+import { getJakartaDateString, isSameDay } from './utils/dateHelper';
 import { Navbar } from './components/Navbar';
 import { UserTaskView } from './components/UserTaskView';
 import { KordinatorView } from './components/KordinatorView';
@@ -294,7 +294,7 @@ export default function App() {
           (l.taskId === targetTask.id ||
             (l.taskTitle && targetTask.title && l.taskTitle.trim().toLowerCase() === targetTask.title.trim().toLowerCase())) &&
           (l.userId === activeUser.id || (l.userName && l.userName.trim().toLowerCase() === activeUser.name.trim().toLowerCase())) &&
-          (l.date === today || (l.timestamp && l.timestamp.startsWith(today)))
+          (isSameDay(l.date, today) || isSameDay(l.timestamp, today))
       );
 
       let targetLog: TaskLog;
