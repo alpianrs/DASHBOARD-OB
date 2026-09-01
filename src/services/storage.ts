@@ -323,28 +323,83 @@ const SEED_DINAS_REQUESTS: DinasRequest[] = [];
 const SEED_PEER_INSPECTIONS: PeerInspection[] = [];
 const SEED_WEEKLY_SCORES: WeeklyScore[] = [];
 
+// In-memory fallback cache in case localStorage is blocked or exceeds quota
+const memoryFallbackCache = new Map<string, any>();
+
 // Storage Helper Functions
 export const getStoredItem = <T>(key: string, defaultValue: T): T => {
   try {
-    const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : defaultValue;
+    const item = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+    if (item) {
+      return JSON.parse(item);
+    }
+    if (memoryFallbackCache.has(key)) {
+      return memoryFallbackCache.get(key);
+    }
+    return defaultValue;
   } catch (e) {
     console.error(`Error reading ${key} from localStorage:`, e);
-    return defaultValue;
+    return memoryFallbackCache.has(key) ? memoryFallbackCache.get(key) : defaultValue;
+  }
+};
+
+// Clean up heavy base64 data URLs from old task logs to free localStorage space
+const freeLocalStorageSpace = () => {
+  try {
+    const rawLogs = localStorage.getItem(STORAGE_KEYS.TASK_LOGS);
+    if (!rawLogs) return;
+    const logs: TaskLog[] = JSON.parse(rawLogs);
+    if (!Array.isArray(logs) || logs.length === 0) return;
+
+    // Prune base64 photos on logs older than the top 5 most recent
+    let modified = false;
+    const pruned = logs.map((log, index) => {
+      if (index >= 5 && log.photoUrl && log.photoUrl.startsWith('data:')) {
+        modified = true;
+        return {
+          ...log,
+          photoUrl: log.driveFileId ? `https://drive.google.com/file/d/${log.driveFileId}/view` : '',
+        };
+      }
+      return log;
+    });
+
+    if (modified) {
+      localStorage.setItem(STORAGE_KEYS.TASK_LOGS, JSON.stringify(pruned));
+    }
+  } catch (err) {
+    console.warn('Could not free localStorage space:', err);
   }
 };
 
 export const setStoredItem = <T>(key: string, value: T): void => {
+  // Always update memory fallback first
+  memoryFallbackCache.set(key, value);
+
   try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    console.error(`Error writing ${key} to localStorage:`, e);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
+  } catch (e: any) {
+    console.warn(`LocalStorage write error for ${key}, attempting cleanup & retry:`, e);
+    // If QuotaExceededError or storage full, free space and retry
+    try {
+      freeLocalStorageSpace();
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(key, JSON.stringify(value));
+      }
+    } catch (retryErr) {
+      console.error(`Persistent storage failed for ${key}, using in-memory cache fallback:`, retryErr);
+    }
   }
 };
 
 export const removeStoredItem = (key: string): void => {
+  memoryFallbackCache.delete(key);
   try {
-    localStorage.removeItem(key);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(key);
+    }
   } catch (e) {
     console.error(`Error removing ${key} from localStorage:`, e);
   }
@@ -525,8 +580,7 @@ export const StorageService = {
             (lLog.userId && rLog.userId && lLog.userId === rLog.userId) ||
             (lLog.userName && rLog.userName && lLog.userName.trim().toLowerCase() === rLog.userName.trim().toLowerCase());
           const isTaskMatch =
-            (lLog.taskId && rLog.taskId && lLog.taskId === rLog.taskId) ||
-            (lLog.taskTitle && rLog.taskTitle && lLog.taskTitle.trim().toLowerCase() === rLog.taskTitle.trim().toLowerCase());
+            lLog.taskId && rLog.taskId && lLog.taskId.trim() === rLog.taskId.trim();
           const isDateMatch = isSameDay(lLog.date, rLog.date) || isSameDay(lLog.timestamp, rLog.timestamp);
 
           if (isUserMatch && isTaskMatch && isDateMatch) {
@@ -574,7 +628,7 @@ export const StorageService = {
       (l) =>
         l.id === log.id ||
         ((l.userId === log.userId || (l.userName && log.userName && l.userName.trim().toLowerCase() === log.userName.trim().toLowerCase())) &&
-          (l.taskId === log.taskId || (l.taskTitle && log.taskTitle && l.taskTitle.trim().toLowerCase() === log.taskTitle.trim().toLowerCase())) &&
+          (l.taskId && log.taskId && l.taskId.trim() === log.taskId.trim()) &&
           (isSameDay(l.date, log.date) || isSameDay(l.timestamp, log.timestamp)))
     );
     if (existingIndex !== -1) {

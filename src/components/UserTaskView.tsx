@@ -85,18 +85,50 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
   const isDinasToday = !!activeDinasToday;
 
   // Robust normalization helpers for tasks
-  const normalizeCategory = (cat?: string): 'Harian' | 'Mingguan' | 'Bulanan' | 'Job Bareng' => {
+  const normalizeCategory = (cat?: string, taskObj?: MasterTask): 'Harian' | 'Mingguan' | 'Bulanan' | 'Job Bareng' => {
     const c = (cat || '').trim().toLowerCase();
-    if (c.includes('job') || c.includes('bareng')) return 'Job Bareng';
-    if (c.includes('minggu')) return 'Mingguan';
-    if (c.includes('bulan')) return 'Bulanan';
+    const id = (taskObj?.id || '').toLowerCase();
+    if (c.includes('job') || c.includes('bareng') || id.includes('jb-') || id.includes('-jb')) return 'Job Bareng';
+    if (c.includes('minggu') || id.includes('wk-') || id.includes('-wk')) return 'Mingguan';
+    if (c.includes('bulan') || id.includes('mo-') || id.includes('-mo')) return 'Bulanan';
     return 'Harian'; // Default fallback so no task gets lost
   };
 
-  const normalizeTiming = (timing?: string): 'pre_readiness' | 'clock_out' | 'anytime' => {
+  const normalizeTiming = (timing?: string, taskObj?: MasterTask): 'pre_readiness' | 'clock_out' | 'anytime' => {
     const t = (timing || '').trim().toLowerCase();
-    if (t.includes('pre') || t.includes('pagi')) return 'pre_readiness';
-    if (t.includes('clock') || t.includes('out') || t.includes('sore') || t.includes('tutup') || t.includes('pulang')) return 'clock_out';
+    const id = (taskObj?.id || '').toLowerCase();
+    const title = (taskObj?.title || '').toLowerCase();
+
+    if (
+      id.includes('co-') ||
+      id.includes('-co') ||
+      id.includes('clock') ||
+      id.includes('out') ||
+      t.includes('clock') ||
+      t.includes('out') ||
+      t.includes('sore') ||
+      t.includes('tutup') ||
+      t.includes('pulang') ||
+      title.includes('clock out') ||
+      title.includes('clock-out') ||
+      title.includes('penutupan') ||
+      title.includes('sore')
+    ) {
+      return 'clock_out';
+    }
+    if (
+      id.includes('pr-') ||
+      id.includes('-pr') ||
+      id.includes('pre') ||
+      t.includes('pre') ||
+      t.includes('pagi') ||
+      t.includes('readiness') ||
+      title.includes('pre-readiness') ||
+      title.includes('pre readiness') ||
+      title.includes('pagi')
+    ) {
+      return 'pre_readiness';
+    }
     return 'anytime';
   };
 
@@ -190,22 +222,36 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
 
   // Categorized tasks with fallback normalization
   const preReadinessTasks = userMasterTasks.filter(
-    (t) => normalizeCategory(t.category) === 'Harian' && normalizeTiming(t.timingType) === 'pre_readiness'
+    (t) => normalizeCategory(t.category, t) === 'Harian' && normalizeTiming(t.timingType, t) === 'pre_readiness'
   );
   const clockOutTasks = userMasterTasks.filter(
-    (t) => normalizeCategory(t.category) === 'Harian' && normalizeTiming(t.timingType) === 'clock_out'
+    (t) => normalizeCategory(t.category, t) === 'Harian' && normalizeTiming(t.timingType, t) === 'clock_out'
   );
   const anytimeDailyTasks = userMasterTasks.filter(
-    (t) => normalizeCategory(t.category) === 'Harian' && normalizeTiming(t.timingType) === 'anytime'
+    (t) => normalizeCategory(t.category, t) === 'Harian' && normalizeTiming(t.timingType, t) === 'anytime'
   );
-  const jobBarengTasks = userMasterTasks.filter((t) => normalizeCategory(t.category) === 'Job Bareng');
-  const weeklyTasks = userMasterTasks.filter((t) => normalizeCategory(t.category) === 'Mingguan');
-  const monthlyTasks = userMasterTasks.filter((t) => normalizeCategory(t.category) === 'Bulanan');
+  const jobBarengTasks = userMasterTasks.filter((t) => normalizeCategory(t.category, t) === 'Job Bareng');
+  const weeklyTasks = userMasterTasks.filter((t) => normalizeCategory(t.category, t) === 'Mingguan');
+  const monthlyTasks = userMasterTasks.filter((t) => normalizeCategory(t.category, t) === 'Bulanan');
 
-  // Stats calculation
+  // Stats calculation (Strictly matched by Task ID)
   const totalDailyTasksCount = preReadinessTasks.length + clockOutTasks.length + anytimeDailyTasks.length + jobBarengTasks.length;
-  const completedTodayCount = userTodayLogs.filter((l) => l.status === 'Selesai' || l.status === 'Terlambat').length;
-  const lateTodayCount = userTodayLogs.filter((l) => l.isLate).length;
+  const completedTodayCount = userMasterTasks.filter((task) => {
+    return userTodayLogs.some(
+      (l) =>
+        (l.taskId === task.id || (l.taskId && task.id && l.taskId.trim() === task.id.trim())) &&
+        (l.status === 'Selesai' ||
+          l.status === 'Terlambat' ||
+          Boolean(l.photoUrl && l.photoUrl.trim().length > 0) ||
+          Boolean(l.lateReason && l.lateReason.trim().length > 0))
+    );
+  }).length;
+  const lateTodayCount = userMasterTasks.filter((task) => {
+    const l = userTodayLogs.find(
+      (log) => log.taskId === task.id || (log.taskId && task.id && log.taskId.trim() === task.id.trim())
+    );
+    return Boolean(l?.isLate || l?.status === 'Terlambat' || (l?.lateReason && l.lateReason.trim().length > 0));
+  }).length;
   const completionPercentage =
     totalDailyTasksCount > 0
       ? Math.round((completedTodayCount / totalDailyTasksCount) * 100)
@@ -239,21 +285,18 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
   };
 
   const renderTaskItem = (task: MasterTask, isPreReadinessSection = false) => {
+    // STRICT TASK ID MATCHING ONLY: A task is completed ONLY if a log exists with matching task.id
     const existingLog = userTodayLogs.find(
-      (l) =>
-        l.taskId === task.id ||
-        (l.taskTitle && task.title && l.taskTitle.trim().toLowerCase() === task.title.trim().toLowerCase()) ||
-        (l.taskId && task.title && l.taskId.trim().toLowerCase() === task.title.trim().toLowerCase()) ||
-        (l.taskId && task.id && l.taskId.trim() === task.id.trim())
+      (l) => l.taskId === task.id || (l.taskId && task.id && l.taskId.trim() === task.id.trim())
     ) || taskLogs.find(
       (l) =>
         (isSameDay(l.date, today) || (l.timestamp && isSameDay(l.timestamp, today))) &&
         (l.userId === activeUser.id ||
           (l.userName && activeUser.name && l.userName.trim().toLowerCase() === activeUser.name.trim().toLowerCase()) ||
           (activeUser.username && l.userId === activeUser.username) ||
-          (activeUser.username && l.userName && l.userName.trim().toLowerCase() === activeUser.username.trim().toLowerCase())) &&
-        (l.taskId === task.id ||
-          (l.taskTitle && task.title && l.taskTitle.trim().toLowerCase() === task.title.trim().toLowerCase()))
+          (activeUser.username && l.userName && l.userName.trim().toLowerCase() === activeUser.username.trim().toLowerCase()) ||
+          (activeUser.id && l.userName && l.userName.trim().toLowerCase() === activeUser.id.trim().toLowerCase())) &&
+        (l.taskId === task.id || (l.taskId && task.id && l.taskId.trim() === task.id.trim()))
     );
 
     const isCompleted =
@@ -261,11 +304,13 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
       existingLog?.status === 'Terlambat' ||
       Boolean(existingLog?.photoUrl && existingLog.photoUrl.trim().length > 0) ||
       Boolean(existingLog?.lateReason && existingLog.lateReason.trim().length > 0);
+
+    const isPreReadinessTask = normalizeTiming(task.timingType, task) === 'pre_readiness';
     const isLate =
       existingLog?.isLate ||
       existingLog?.status === 'Terlambat' ||
       Boolean(existingLog?.lateReason && existingLog.lateReason.trim().length > 0) ||
-      (isPreReadinessSection && isPastPreReadiness);
+      (isPreReadinessTask && isPastPreReadiness);
 
     return (
       <div
@@ -306,6 +351,10 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
             {/* Task Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-mono font-bold text-[10px] border border-slate-200">
+                  #{task.id}
+                </span>
+
                 <h4
                   className={`text-xs sm:text-sm font-bold tracking-tight ${
                     isCompleted && isLate
@@ -331,7 +380,7 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
                   )
                 )}
 
-                {!isCompleted && isPreReadinessSection && isPastPreReadiness && (
+                {!isCompleted && isPreReadinessTask && isPastPreReadiness && (
                   <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[10px] inline-flex items-center gap-1 shadow-2xs animate-pulse">
                     <Clock className="w-3 h-3 text-amber-700" /> Lewat Batas 09:00 (Wajib Alasan Telat)
                   </span>
@@ -484,15 +533,15 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
               </div>
             ) : (
               <button
-                onClick={() => onStartTask(task, isPreReadinessSection && isPastPreReadiness)}
+                onClick={() => onStartTask(task, isPreReadinessTask && isPastPreReadiness)}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-95 ${
-                  isPreReadinessSection && isPastPreReadiness
+                  isPreReadinessTask && isPastPreReadiness
                     ? 'bg-amber-600 hover:bg-amber-500 text-white'
                     : 'bg-slate-900 hover:bg-slate-800 text-white'
                 }`}
               >
                 <Camera className="w-3.5 h-3.5" />
-                <span>{isPreReadinessSection && isPastPreReadiness ? 'Kerjakan (Telat)' : 'Kerjakan'}</span>
+                <span>{isPreReadinessTask && isPastPreReadiness ? 'Kerjakan (Telat)' : 'Kerjakan'}</span>
               </button>
             )}
           </div>

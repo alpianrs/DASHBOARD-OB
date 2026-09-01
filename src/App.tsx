@@ -287,12 +287,11 @@ export default function App() {
         }
       })();
     } else if (targetTask) {
-      // 2. Optimistic immediate local save for Regular/Master Task
+      // 2. Optimistic immediate local save for Regular/Master Task (Strictly by targetTask.id)
       const currentLogs = StorageService.getTaskLogs();
       const existingLogIdx = currentLogs.findIndex(
         (l) =>
-          (l.taskId === targetTask.id ||
-            (l.taskTitle && targetTask.title && l.taskTitle.trim().toLowerCase() === targetTask.title.trim().toLowerCase())) &&
+          (l.taskId === targetTask.id || (l.taskId && targetTask.id && l.taskId.trim() === targetTask.id.trim())) &&
           (l.userId === activeUser.id || (l.userName && l.userName.trim().toLowerCase() === activeUser.name.trim().toLowerCase())) &&
           (isSameDay(l.date, today) || isSameDay(l.timestamp, today))
       );

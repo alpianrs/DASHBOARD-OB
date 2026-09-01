@@ -638,6 +638,16 @@ export const GoogleSheetsService = {
       ? 'DINAS LUAR'
       : 'TEPAT WAKTU';
 
+    const logTaskDisplay = log.taskId ? `[${log.taskId}] ${log.taskTitle || ''}` : (log.taskTitle || '');
+
+    // Format safe photo URL for Google Sheet cell (cells cannot exceed 50,000 characters)
+    let safePhotoUrl = log.photoUrl || '';
+    if (safePhotoUrl.startsWith('data:')) {
+      safePhotoUrl = log.driveFileId
+        ? `https://drive.google.com/file/d/${log.driveFileId}/view`
+        : '[Bukti Foto Tersimpan di Perangkat]';
+    }
+
     const logRow = [
       log.id,
       log.timestamp,
@@ -645,14 +655,14 @@ export const GoogleSheetsService = {
       log.userId,
       log.userName,
       log.unit,
-      log.taskTitle,
+      logTaskDisplay,
       log.category,
       log.timingType,
       log.status,
       isLate ? 'YA' : 'TIDAK',
       log.lateReason || '',
       lateReportStatus,
-      log.photoUrl || '',
+      safePhotoUrl,
       log.notes || '',
       log.kordinatorScore || '',
       log.kordinatorNotes || '',
@@ -865,6 +875,14 @@ export const GoogleSheetsService = {
           : l.status === 'Dinas Luar'
           ? 'DINAS LUAR'
           : 'TEPAT WAKTU';
+        const logTaskDisplay = l.taskId ? `[${l.taskId}] ${l.taskTitle || ''}` : (l.taskTitle || '');
+
+        let safePhotoUrl = l.photoUrl || '';
+        if (safePhotoUrl.startsWith('data:')) {
+          safePhotoUrl = l.driveFileId
+            ? `https://drive.google.com/file/d/${l.driveFileId}/view`
+            : '[Bukti Foto Tersimpan di Perangkat]';
+        }
 
         return [
           l.id,
@@ -873,14 +891,14 @@ export const GoogleSheetsService = {
           l.userId,
           l.userName,
           l.unit,
-          l.taskTitle,
+          logTaskDisplay,
           l.category,
           l.timingType,
           l.status,
           isLate ? 'YA' : 'TIDAK',
           l.lateReason || '',
           lateReportStatus,
-          l.photoUrl || '',
+          safePhotoUrl,
           l.notes || '',
           l.kordinatorScore || '',
           l.kordinatorNotes || '',
@@ -1139,28 +1157,59 @@ export const GoogleSheetsService = {
             const parsedTasks: MasterTask[] = (rTasks || [])
               .filter((row: any[]) => row && row.length > 1 && String(row[1] || '').trim().length > 0)
               .map((row: any[], i: number) => {
+                const rawId = String(row[0] || '').trim();
                 const rawTitle = String(row[1] || 'Tugas Kebersihan').trim();
                 const rawUnit = String(row[2] || 'Semua Unit').trim();
                 const rawCategory = String(row[3] || 'Harian').trim();
-                const rawTiming = String(row[4] || 'pre_readiness').trim().toLowerCase();
+                const rawTiming = String(row[4] || '').trim().toLowerCase();
                 const rawInstructions = String(row[5] || '');
                 const isJobBareng = rawCategory.toLowerCase().includes('job bareng') || rawInstructions.toLowerCase().includes('job bareng');
 
-                // Normalize timingType
+                // Normalize timingType: Priority to Task ID, then TimingType column, then Title
                 let timingType: 'pre_readiness' | 'clock_out' | 'anytime' = 'anytime';
-                if (rawTiming.includes('pre') || rawTiming.includes('pagi')) {
-                  timingType = 'pre_readiness';
-                } else if (rawTiming.includes('clock') || rawTiming.includes('out') || rawTiming.includes('sore')) {
+                const lowerId = rawId.toLowerCase();
+                const lowerTitle = rawTitle.toLowerCase();
+                const lowerTiming = rawTiming.toLowerCase();
+
+                if (isJobBareng) {
+                  timingType = 'anytime';
+                } else if (
+                  lowerId.includes('clock') ||
+                  lowerId.includes('co-') ||
+                  lowerId.includes('-co') ||
+                  lowerTiming.includes('clock') ||
+                  lowerTiming.includes('out') ||
+                  lowerTiming.includes('sore') ||
+                  lowerTiming.includes('penutupan') ||
+                  lowerTitle.includes('clock out') ||
+                  lowerTitle.includes('clock-out') ||
+                  lowerTitle.includes('penutupan') ||
+                  lowerTitle.includes('sore')
+                ) {
                   timingType = 'clock_out';
+                } else if (
+                  lowerId.includes('pre') ||
+                  lowerId.includes('pr-') ||
+                  lowerId.includes('-pr') ||
+                  lowerTiming.includes('pre') ||
+                  lowerTiming.includes('pagi') ||
+                  lowerTiming.includes('readiness') ||
+                  lowerTitle.includes('pre-readiness') ||
+                  lowerTitle.includes('pre readiness') ||
+                  lowerTitle.includes('pagi')
+                ) {
+                  timingType = 'pre_readiness';
+                } else {
+                  timingType = 'anytime';
                 }
 
                 // Normalize category
                 let category: 'Harian' | 'Mingguan' | 'Bulanan' | 'Job Bareng' = 'Harian';
                 if (isJobBareng) {
                   category = 'Job Bareng';
-                } else if (rawCategory.toLowerCase().includes('mingguan')) {
+                } else if (rawCategory.toLowerCase().includes('mingguan') || lowerId.includes('wk-') || lowerId.includes('-wk')) {
                   category = 'Mingguan';
-                } else if (rawCategory.toLowerCase().includes('bulanan')) {
+                } else if (rawCategory.toLowerCase().includes('bulanan') || lowerId.includes('mo-') || lowerId.includes('-mo')) {
                   category = 'Bulanan';
                 }
 
@@ -1169,8 +1218,14 @@ export const GoogleSheetsService = {
                 const rawAssignee = String(row[9] || '').trim();
                 const standardPhotoUrl = String(row[10] || '').trim();
 
+                const fallbackId = timingType === 'pre_readiness' 
+                  ? `mt-pr-${String(i + 1).padStart(2, '0')}` 
+                  : timingType === 'clock_out' 
+                  ? `mt-co-${String(i + 1).padStart(2, '0')}` 
+                  : `mt-at-${String(i + 1).padStart(2, '0')}`;
+
                 return {
-                  id: row[0] || `mt-sheet-${i}`,
+                  id: rawId || fallbackId,
                   title: rawTitle,
                   unit: isJobBareng ? 'Semua Unit' : (rawUnit || 'Semua Unit'),
                   category,
@@ -1192,14 +1247,55 @@ export const GoogleSheetsService = {
               .filter((row: any[]) => row && row.length > 0 && row[0])
               .map((row: any[], i: number) => {
                 const rawTaskVal = String(row[6] || '').trim();
-                let resolvedTaskId = rawTaskVal;
+                let resolvedTaskId = '';
                 let resolvedTaskTitle = rawTaskVal;
-                const matchedTask = masterTasks.find(
-                  (t) => t.id === rawTaskVal || t.title.toLowerCase() === rawTaskVal.toLowerCase()
-                );
-                if (matchedTask) {
-                  resolvedTaskId = matchedTask.id;
-                  resolvedTaskTitle = matchedTask.title;
+
+                // 1. If stored in format "[mt-xxx] Title"
+                const idPrefixMatch = rawTaskVal.match(/^\[([^\]]+)\]\s*(.*)$/);
+                if (idPrefixMatch) {
+                  resolvedTaskId = idPrefixMatch[1].trim();
+                  resolvedTaskTitle = idPrefixMatch[2].trim() || rawTaskVal;
+                }
+
+                // 2. Strict ID matching first
+                if (resolvedTaskId) {
+                  const directMatch = masterTasks.find(
+                    (t) => t.id && t.id.toLowerCase() === resolvedTaskId.toLowerCase()
+                  );
+                  if (directMatch) {
+                    resolvedTaskId = directMatch.id;
+                    resolvedTaskTitle = directMatch.title || resolvedTaskTitle;
+                  }
+                } else {
+                  // Check if rawTaskVal is directly an exact ID
+                  const directIdMatch = masterTasks.find(
+                    (t) => t.id && t.id.toLowerCase() === rawTaskVal.toLowerCase()
+                  );
+                  if (directIdMatch) {
+                    resolvedTaskId = directIdMatch.id;
+                    resolvedTaskTitle = directIdMatch.title;
+                  } else {
+                    // Fallback title match - MUST respect timingType so Clock Out NEVER cross-matches Pre-Readiness!
+                    const logTiming = String(row[8] || '').toLowerCase();
+                    const matchedTask = masterTasks.find((t) => {
+                      const isTitleMatch =
+                        t.title &&
+                        resolvedTaskTitle &&
+                        t.title.trim().toLowerCase() === resolvedTaskTitle.toLowerCase();
+                      if (!isTitleMatch) return false;
+                      if (logTiming && logTiming !== 'anytime') {
+                        return t.timingType === logTiming;
+                      }
+                      return true;
+                    });
+
+                    if (matchedTask) {
+                      resolvedTaskId = matchedTask.id;
+                      resolvedTaskTitle = matchedTask.title;
+                    } else {
+                      resolvedTaskId = rawTaskVal;
+                    }
+                  }
                 }
 
                 // Robust date parsing using dateHelper
@@ -1454,26 +1550,59 @@ export const GoogleSheetsService = {
         const remoteTasks: MasterTask[] = valueRanges[1].values
           .filter((row: any[]) => row && row.length > 1 && String(row[1] || '').trim().length > 0)
           .map((row: any[], i: number) => {
+            const rawId = String(row[0] || '').trim();
             const rawTitle = String(row[1] || 'Tugas Kebersihan').trim();
             const rawUnit = String(row[2] || 'Semua Unit').trim();
             const rawCategory = String(row[3] || 'Harian').trim();
-            const rawTiming = String(row[4] || 'pre_readiness').trim().toLowerCase();
+            const rawTiming = String(row[4] || '').trim().toLowerCase();
             const rawInstructions = String(row[5] || '');
             const isJobBareng = rawCategory.toLowerCase().includes('job bareng') || rawInstructions.toLowerCase().includes('job bareng');
 
+            // Normalize timingType: Priority to Task ID, then TimingType column, then Title
             let timingType: 'pre_readiness' | 'clock_out' | 'anytime' = 'anytime';
-            if (rawTiming.includes('pre') || rawTiming.includes('pagi')) {
-              timingType = 'pre_readiness';
-            } else if (rawTiming.includes('clock') || rawTiming.includes('out') || rawTiming.includes('sore')) {
+            const lowerId = rawId.toLowerCase();
+            const lowerTitle = rawTitle.toLowerCase();
+            const lowerTiming = rawTiming.toLowerCase();
+
+            if (isJobBareng) {
+              timingType = 'anytime';
+            } else if (
+              lowerId.includes('clock') ||
+              lowerId.includes('co-') ||
+              lowerId.includes('-co') ||
+              lowerTiming.includes('clock') ||
+              lowerTiming.includes('out') ||
+              lowerTiming.includes('sore') ||
+              lowerTiming.includes('penutupan') ||
+              lowerTitle.includes('clock out') ||
+              lowerTitle.includes('clock-out') ||
+              lowerTitle.includes('penutupan') ||
+              lowerTitle.includes('sore')
+            ) {
               timingType = 'clock_out';
+            } else if (
+              lowerId.includes('pre') ||
+              lowerId.includes('pr-') ||
+              lowerId.includes('-pr') ||
+              lowerTiming.includes('pre') ||
+              lowerTiming.includes('pagi') ||
+              lowerTiming.includes('readiness') ||
+              lowerTitle.includes('pre-readiness') ||
+              lowerTitle.includes('pre readiness') ||
+              lowerTitle.includes('pagi')
+            ) {
+              timingType = 'pre_readiness';
+            } else {
+              timingType = 'anytime';
             }
 
+            // Normalize category
             let category: 'Harian' | 'Mingguan' | 'Bulanan' | 'Job Bareng' = 'Harian';
             if (isJobBareng) {
               category = 'Job Bareng';
-            } else if (rawCategory.toLowerCase().includes('mingguan')) {
+            } else if (rawCategory.toLowerCase().includes('mingguan') || lowerId.includes('wk-') || lowerId.includes('-wk')) {
               category = 'Mingguan';
-            } else if (rawCategory.toLowerCase().includes('bulanan')) {
+            } else if (rawCategory.toLowerCase().includes('bulanan') || lowerId.includes('mo-') || lowerId.includes('-mo')) {
               category = 'Bulanan';
             }
 
@@ -1482,8 +1611,14 @@ export const GoogleSheetsService = {
             const rawAssignee = String(row[9] || '').trim();
             const standardPhotoUrl = String(row[10] || '').trim();
 
+            const fallbackId = timingType === 'pre_readiness' 
+              ? `mt-pr-${String(i + 1).padStart(2, '0')}` 
+              : timingType === 'clock_out' 
+              ? `mt-co-${String(i + 1).padStart(2, '0')}` 
+              : `mt-at-${String(i + 1).padStart(2, '0')}`;
+
             return {
-              id: row[0] || `mt-sheet-${i}`,
+              id: rawId || fallbackId,
               title: rawTitle,
               unit: isJobBareng ? 'Semua Unit' : (rawUnit || 'Semua Unit'),
               category,
@@ -1508,14 +1643,55 @@ export const GoogleSheetsService = {
           .filter((row: any[]) => row && row.length > 0 && row[0])
           .map((row: any[], i: number) => {
             const rawTaskVal = String(row[6] || '').trim();
-            let resolvedTaskId = rawTaskVal;
+            let resolvedTaskId = '';
             let resolvedTaskTitle = rawTaskVal;
-            const matchedTask = masterTasks.find(
-              (t) => t.id === rawTaskVal || t.title.toLowerCase() === rawTaskVal.toLowerCase()
-            );
-            if (matchedTask) {
-              resolvedTaskId = matchedTask.id;
-              resolvedTaskTitle = matchedTask.title;
+
+            // 1. If stored in format "[mt-xxx] Title"
+            const idPrefixMatch = rawTaskVal.match(/^\[([^\]]+)\]\s*(.*)$/);
+            if (idPrefixMatch) {
+              resolvedTaskId = idPrefixMatch[1].trim();
+              resolvedTaskTitle = idPrefixMatch[2].trim() || rawTaskVal;
+            }
+
+            // 2. Strict ID matching first
+            if (resolvedTaskId) {
+              const directMatch = masterTasks.find(
+                (t) => t.id && t.id.toLowerCase() === resolvedTaskId.toLowerCase()
+              );
+              if (directMatch) {
+                resolvedTaskId = directMatch.id;
+                resolvedTaskTitle = directMatch.title || resolvedTaskTitle;
+              }
+            } else {
+              // Check if rawTaskVal is directly an exact ID
+              const directIdMatch = masterTasks.find(
+                (t) => t.id && t.id.toLowerCase() === rawTaskVal.toLowerCase()
+              );
+              if (directIdMatch) {
+                resolvedTaskId = directIdMatch.id;
+                resolvedTaskTitle = directIdMatch.title;
+              } else {
+                // Fallback title match - MUST respect timingType so Clock Out NEVER cross-matches Pre-Readiness!
+                const logTiming = String(row[8] || '').toLowerCase();
+                const matchedTask = masterTasks.find((t) => {
+                  const isTitleMatch =
+                    t.title &&
+                    resolvedTaskTitle &&
+                    t.title.trim().toLowerCase() === resolvedTaskTitle.toLowerCase();
+                  if (!isTitleMatch) return false;
+                  if (logTiming && logTiming !== 'anytime') {
+                    return t.timingType === logTiming;
+                  }
+                  return true;
+                });
+
+                if (matchedTask) {
+                  resolvedTaskId = matchedTask.id;
+                  resolvedTaskTitle = matchedTask.title;
+                } else {
+                  resolvedTaskId = rawTaskVal;
+                }
+              }
             }
 
             const hasLateReportCol = row.length >= 20;
