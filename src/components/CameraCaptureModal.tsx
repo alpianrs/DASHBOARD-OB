@@ -9,7 +9,6 @@ import {
   SwitchCamera,
   ArrowLeft,
   Zap,
-  Upload,
 } from 'lucide-react';
 import { User, MasterTask } from '../types';
 
@@ -37,7 +36,6 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Start Camera
   const startCamera = async (mode: 'environment' | 'user') => {
@@ -63,7 +61,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     } catch (err: any) {
       console.error('Camera access error:', err);
       setCameraError(
-        'Tidak dapat membuka kamera otomatis (Izin browser belum aktif atau kamera sedang digunakan). Silakan gunakan tombol "Ambil Foto via Kamera HP" di bawah.'
+        'Tidak dapat membuka kamera. Pastikan izin akses kamera telah diaktifkan pada browser/perangkat Anda.'
       );
     }
   };
@@ -189,52 +187,6 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     return canvas.toDataURL('image/jpeg', 0.68);
   };
 
-  // Handle native file camera input fallback
-  const handleNativeFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = canvasRef.current || document.createElement('canvas');
-        const MAX_DIM = 800;
-        let w = img.width;
-        let h = img.height;
-
-        if (w > h) {
-          if (w > MAX_DIM) {
-            h = Math.round((h * MAX_DIM) / w);
-            w = MAX_DIM;
-          }
-        } else {
-          if (h > MAX_DIM) {
-            w = Math.round((w * MAX_DIM) / h);
-            h = MAX_DIM;
-          }
-        }
-
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, w, h);
-          applyWatermarkToCanvas(ctx, w, h);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.68);
-          setCapturedImage(dataUrl);
-
-          if (stream) {
-            stream.getTracks().forEach((track) => track.stop());
-            setStream(null);
-          }
-        }
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  };
-
   // Capture only (to preview & add notes)
   const handleCapture = () => {
     const dataUrl = generateWatermarkedImage();
@@ -282,16 +234,6 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
-        {/* Hidden Native File Picker for Camera/Gallery Fallback */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handleNativeFileInput}
-          className="hidden"
-        />
-
         {/* Top Header with Back / Cancel Button */}
         <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -346,29 +288,19 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
               <AlertCircle className="w-10 h-10 mx-auto text-rose-400" />
               <p className="text-xs font-medium leading-relaxed">{cameraError}</p>
               
-              <div className="pt-2 space-y-2">
+              <div className="pt-2 flex justify-center gap-2">
                 <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-2 shadow-lg transition cursor-pointer"
+                  onClick={() => startCamera(facingMode)}
+                  className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs font-semibold text-white hover:bg-slate-700 cursor-pointer"
                 >
-                  <Camera className="w-4 h-4" />
-                  <span>📷 Buka Kamera HP / Pilih Foto</span>
+                  Coba Lagi
                 </button>
-
-                <div className="flex justify-center gap-2">
-                  <button
-                    onClick={() => startCamera(facingMode)}
-                    className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs font-semibold text-white hover:bg-slate-700 cursor-pointer"
-                  >
-                    Coba Lagi
-                  </button>
-                  <button
-                    onClick={onClose}
-                    className="px-3 py-1.5 bg-slate-800/80 border border-slate-700 rounded-xl text-xs font-semibold text-slate-300 hover:bg-slate-700 cursor-pointer"
-                  >
-                    Batal
-                  </button>
-                </div>
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 bg-rose-900/60 border border-rose-700 rounded-xl text-xs font-semibold text-white hover:bg-rose-800 cursor-pointer"
+                >
+                  Batal / Kembali
+                </button>
               </div>
             </div>
           ) : !capturedImage ? (
@@ -391,24 +323,14 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
                 </div>
               </div>
 
-              {/* Camera Switcher Button & Native Camera Trigger */}
-              <div className="absolute top-3 right-3 flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-2 rounded-full bg-slate-900/80 border border-slate-700 text-white hover:bg-slate-800 shadow-md cursor-pointer transition text-xs font-bold flex items-center gap-1"
-                  title="Gunakan Kamera Bawaan HP"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={toggleFacingMode}
-                  className="p-2.5 rounded-full bg-slate-900/80 border border-slate-700 text-white hover:bg-slate-800 shadow-md cursor-pointer transition"
-                  title="Ganti Kamera Depan/Belakang"
-                >
-                  <SwitchCamera className="w-4 h-4" />
-                </button>
-              </div>
+              {/* Camera Switcher Button */}
+              <button
+                onClick={toggleFacingMode}
+                className="absolute top-3 right-3 p-2.5 rounded-full bg-slate-900/80 border border-slate-700 text-white hover:bg-slate-800 shadow-md cursor-pointer transition"
+                title="Ganti Kamera Depan/Belakang"
+              >
+                <SwitchCamera className="w-4 h-4" />
+              </button>
             </>
           ) : (
             <div className="relative w-full h-full flex items-center justify-center">
@@ -456,21 +378,12 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
                 </button>
               </div>
 
-              {/* Native Mobile Camera Button as an Alternative */}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-xl font-semibold text-xs transition cursor-pointer border border-slate-700 flex items-center justify-center gap-1.5"
-              >
-                <Camera className="w-3.5 h-3.5 text-sky-400" />
-                <span>Buka Kamera Bawaan HP / Galeri</span>
-              </button>
-
               <button
                 onClick={onClose}
-                className="w-full py-1.5 text-slate-400 hover:text-slate-200 text-[11px] text-center font-medium transition cursor-pointer"
+                className="w-full py-2 bg-slate-800/80 hover:bg-slate-800 text-slate-300 rounded-xl font-semibold text-xs transition cursor-pointer border border-slate-700 flex items-center justify-center gap-1.5"
               >
-                Batal / Kembali ke Tugas
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Batal / Kembali ke Tugas</span>
               </button>
             </div>
           ) : (
