@@ -23,6 +23,8 @@ interface NavbarProps {
   onOpenDinasModal: () => void;
   onOpenPeerInspectionModal: () => void;
   onQuickPull?: () => Promise<void>;
+  isConnectingSheet?: boolean;
+  initialSyncDone?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -34,6 +36,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenDinasModal,
   onOpenPeerInspectionModal,
   onQuickPull,
+  isConnectingSheet = false,
+  initialSyncDone = false,
 }) => {
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDateStr, setCurrentDateStr] = useState<string>('');
@@ -140,16 +144,41 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right action group */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Quick Pull Refresh Button */}
+          {/* Quick Pull Refresh Button (Blinks / Pulses on startup until connected) */}
           {onQuickPull && (
             <button
               onClick={handleQuickRefresh}
               disabled={isRefreshing}
-              title="Tarik data terbaru dari Google Sheets (2-Arah)"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:border-slate-300 transition-all shadow-xs cursor-pointer active:scale-98 disabled:opacity-50"
+              title={
+                !initialSyncDone || isConnectingSheet
+                  ? 'Klik untuk menyambungkan & memuat data terbaru dari Google Sheets'
+                  : 'Tarik data terbaru dari Google Sheets (2-Arah)'
+              }
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-75 ${
+                !initialSyncDone || isConnectingSheet
+                  ? 'bg-sky-600 hover:bg-sky-500 text-white border-2 border-sky-300 ring-4 ring-sky-400/40 shadow-lg animate-pulse'
+                  : 'bg-sky-50/80 hover:bg-sky-100 text-sky-800 border border-sky-200'
+              }`}
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-sky-600 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden lg:inline">{isRefreshing ? 'Memuat...' : 'Muat Sheet'}</span>
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${
+                  isRefreshing || isConnectingSheet
+                    ? 'animate-spin text-white'
+                    : !initialSyncDone
+                    ? 'animate-spin text-white'
+                    : 'text-sky-600'
+                }`}
+              />
+              <span className="font-bold tracking-tight">
+                {isConnectingSheet || isRefreshing
+                  ? 'Memuat Sheet...'
+                  : !initialSyncDone
+                  ? '⚡ Muat Sheet'
+                  : 'Muat Sheet'}
+              </span>
+              {initialSyncDone && !isConnectingSheet && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Sheet Terhubung" />
+              )}
             </button>
           )}
 
@@ -157,10 +186,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={onOpenSyncModal}
             title="Pengaturan & Status Sinkronisasi Google Sheets 2-Arah"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-emerald-200 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 transition-all shadow-xs cursor-pointer active:scale-98"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl border border-emerald-200 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 transition-all shadow-xs cursor-pointer active:scale-98"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden md:inline">Google Sheets 2-Arah</span>
+            <span className="hidden sm:inline">Google Sheets 2-Arah</span>
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           </button>
 

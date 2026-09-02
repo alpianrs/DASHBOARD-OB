@@ -40,6 +40,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
 
+  // Auto-sync user data silently on modal open
+  React.useEffect(() => {
+    if (isOpen) {
+      handleSyncUsersFromSheet(true);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleManualLogin = (e: React.FormEvent) => {
@@ -80,20 +87,26 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
   };
 
-  const handleSyncUsersFromSheet = async () => {
+  const handleSyncUsersFromSheet = async (isBackground = false) => {
     try {
       setIsSyncing(true);
-      setError(null);
-      setSyncSuccessMsg(null);
+      if (!isBackground) {
+        setError(null);
+        setSyncSuccessMsg(null);
+      }
       const res = await GoogleSheetsService.pullFromSheets();
       if (res.success) {
-        setSyncSuccessMsg('Data user berhasil disinkronkan langsung dari Google Sheet!');
+        if (!isBackground) {
+          setSyncSuccessMsg('Data user berhasil disinkronkan langsung dari Google Sheet!');
+        }
         if (onRefreshUsers) onRefreshUsers();
-      } else {
+      } else if (!isBackground) {
         setError(res.message || 'Gagal menyinkronkan user dari Google Sheet.');
       }
     } catch (err: any) {
-      setError('Gagal sinkron: ' + (err.message || 'Periksa koneksi Google Sheet.'));
+      if (!isBackground) {
+        setError('Gagal sinkron: ' + (err.message || 'Periksa koneksi Google Sheet.'));
+      }
     } finally {
       setIsSyncing(false);
     }

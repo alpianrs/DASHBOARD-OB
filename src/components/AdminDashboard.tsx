@@ -75,6 +75,7 @@ import {
   formatGoogleDriveImageUrl,
   getGoogleDriveViewLink,
   extractGoogleDriveFileId,
+  getGoogleDriveThumbnailFallback,
 } from '../utils/driveHelper';
 import { parseInstructionSteps } from '../utils/instructionHelper';
 import {
@@ -3984,14 +3985,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <div className="relative rounded-xl overflow-hidden bg-black/40 min-h-[200px] flex items-center justify-center">
               <img
-                src={photoPreview}
+                src={formatGoogleDriveImageUrl(photoPreview)}
                 alt="Proof"
+                referrerPolicy="no-referrer"
                 className="w-full h-auto max-h-[65vh] object-contain rounded-xl"
                 onError={(e) => {
                   const target = e.currentTarget;
-                  target.style.display = 'none';
-                  const fallback = target.nextElementSibling as HTMLElement;
-                  if (fallback) fallback.style.display = 'flex';
+                  const fallbackSrc = getGoogleDriveThumbnailFallback(photoPreview);
+                  if (fallbackSrc && target.src !== fallbackSrc) {
+                    target.src = fallbackSrc;
+                  } else {
+                    target.style.display = 'none';
+                    const fallback = target.nextElementSibling as HTMLElement;
+                    if (fallback) fallback.style.display = 'flex';
+                  }
                 }}
               />
               <div

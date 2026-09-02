@@ -23,6 +23,9 @@ import {
   Clock,
   MapPin,
   X,
+  ExternalLink,
+  Camera,
+  ArrowUpRight,
 } from 'lucide-react';
 import {
   User,
@@ -38,6 +41,7 @@ import {
 import { UserTaskView } from './UserTaskView';
 import { JobBarengCard } from './JobBarengCard';
 import { getJakartaDateString, isSameDay, normalizeDateString, isJobBarengExpired } from '../utils/dateHelper';
+import { formatGoogleDriveImageUrl, getGoogleDriveViewLink, getGoogleDriveThumbnailFallback } from '../utils/driveHelper';
 import {
   getSaturdayOptionsList,
   formatSaturdayDate,
@@ -1196,17 +1200,86 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
       {photoPreview && (
         <div
           onClick={() => setPhotoPreview(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs cursor-pointer animate-in fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-xs cursor-pointer animate-in fade-in"
         >
-          <div className="relative max-w-lg w-full bg-slate-900 rounded-2xl overflow-hidden shadow-2xl p-2">
-            <img
-              src={photoPreview}
-              alt="Proof"
-              className="w-full h-auto max-h-[75vh] object-contain rounded-xl"
-            />
-            <p className="text-center text-xs text-slate-300 py-2">
-              Klik di mana saja untuk menutup bukti foto live watermark.
-            </p>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-lg w-full bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl p-4 space-y-3 cursor-default"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-white">
+              <div className="flex items-center gap-2">
+                <Camera className="w-4 h-4 text-sky-400" />
+                <span className="font-bold text-xs">📷 Pratinjau Foto Watermark Live</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPhotoPreview(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Image Container with Fallback */}
+            <div className="relative rounded-xl overflow-hidden bg-black/60 min-h-[220px] max-h-[68vh] flex items-center justify-center">
+              <img
+                src={formatGoogleDriveImageUrl(photoPreview)}
+                alt="Bukti Foto Live Watermark"
+                referrerPolicy="no-referrer"
+                className="w-full h-auto max-h-[65vh] object-contain rounded-xl"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  const fallbackSrc = getGoogleDriveThumbnailFallback(photoPreview);
+                  if (fallbackSrc && target.src !== fallbackSrc) {
+                    target.src = fallbackSrc;
+                  } else {
+                    target.style.display = 'none';
+                    const fallback = target.nextElementSibling as HTMLElement;
+                    if (fallback) fallback.style.display = 'flex';
+                  }
+                }}
+              />
+              <div
+                style={{ display: 'none' }}
+                className="flex-col items-center justify-center p-6 text-center text-slate-300 space-y-2.5"
+              >
+                <AlertTriangle className="w-8 h-8 text-amber-400" />
+                <p className="text-xs font-medium text-slate-200">
+                  Foto tersimpan di Google Drive. Klik tombol di bawah untuk membuka foto langsung di Google Drive / Tab Baru.
+                </p>
+                <a
+                  href={getGoogleDriveViewLink(photoPreview)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs inline-flex items-center gap-1.5 transition shadow-sm"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Buka Gambar di Tab Baru
+                </a>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+              <a
+                href={getGoogleDriveViewLink(photoPreview)}
+                target="_blank"
+                rel="noreferrer"
+                className="px-3 py-1.5 bg-sky-600/30 border border-sky-500/50 hover:bg-sky-600/50 text-sky-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <ArrowUpRight className="w-3.5 h-3.5" />
+                <span>Buka di Google Drive ↗</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setPhotoPreview(null)}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs cursor-pointer transition"
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}

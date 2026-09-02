@@ -1,9 +1,9 @@
 /**
  * Helper utility to process and convert Google Drive URLs
- * so they can be rendered directly in <img> tags and opened in new tabs.
+ * so they can be rendered reliably in <img> tags and opened in new tabs.
  */
 
-export function extractGoogleDriveFileId(url: string): string | null {
+export function extractGoogleDriveFileId(url: string | undefined | null): string | null {
   if (!url || typeof url !== 'string') return null;
 
   // Format: https://drive.google.com/file/d/FILE_ID/view...
@@ -18,6 +18,10 @@ export function extractGoogleDriveFileId(url: string): string | null {
   const matchLh3 = url.match(/googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
   if (matchLh3 && matchLh3[1]) return matchLh3[1];
 
+  // Format: https://drive.google.com/thumbnail?id=FILE_ID
+  const matchThumb = url.match(/\/thumbnail\?id=([a-zA-Z0-9_-]+)/);
+  if (matchThumb && matchThumb[1]) return matchThumb[1];
+
   return null;
 }
 
@@ -30,7 +34,7 @@ export function formatGoogleDriveImageUrl(url: string | undefined | null): strin
   const trimmed = url.trim();
   if (!trimmed) return '';
 
-  // If already base64 data URL or standard external image (e.g. unsplash), return as is
+  // If already base64 data URL or standard blob image, return as is
   if (trimmed.startsWith('data:image/') || trimmed.startsWith('blob:')) {
     return trimmed;
   }
@@ -42,6 +46,18 @@ export function formatGoogleDriveImageUrl(url: string | undefined | null): strin
   }
 
   return trimmed;
+}
+
+/**
+ * Secondary fallback thumbnail URL from Google Drive API
+ */
+export function getGoogleDriveThumbnailFallback(url: string | undefined | null): string {
+  if (!url) return '';
+  const fileId = extractGoogleDriveFileId(url);
+  if (fileId) {
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`;
+  }
+  return formatGoogleDriveImageUrl(url);
 }
 
 /**
@@ -67,3 +83,4 @@ export function getGoogleDriveViewLink(url: string | undefined | null, defaultDr
     ? `https://drive.google.com/drive/folders/${defaultDriveFolderId}`
     : 'https://drive.google.com';
 }
+

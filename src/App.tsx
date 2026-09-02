@@ -75,18 +75,32 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+  // Sync Connection States
+  const [isConnectingSheet, setIsConnectingSheet] = useState<boolean>(true);
+  const [initialSyncDone, setInitialSyncDone] = useState<boolean>(false);
+
   // Initial state check on mount & Background 2-Way Sync
   useEffect(() => {
     refreshAllStateFromStorage();
 
-    // Auto pull from Google Sheets on initial load
+    // Auto pull & connect to Google Sheets immediately on initial load
+    setIsConnectingSheet(true);
     GoogleSheetsService.pullFromSheets()
       .then((res) => {
         if (res.success) {
           refreshAllStateFromStorage();
+          setInitialSyncDone(true);
+          showToast('✅ Google Sheets terhubung & data terbaru berhasil dimuat!', 'success');
+        } else {
+          console.warn('Initial sheet pull:', res.message);
         }
       })
-      .catch(console.warn);
+      .catch((err) => {
+        console.warn('Initial sheet connection error:', err);
+      })
+      .finally(() => {
+        setIsConnectingSheet(false);
+      });
 
     // Auto pull on window focus (so edits in Google Sheet reflect immediately when returning to tab)
     const handleWindowFocus = () => {
@@ -94,6 +108,7 @@ export default function App() {
         .then((res) => {
           if (res.success) {
             refreshAllStateFromStorage();
+            setInitialSyncDone(true);
           }
         })
         .catch(console.warn);
@@ -106,6 +121,7 @@ export default function App() {
         .then((res) => {
           if (res.success) {
             refreshAllStateFromStorage();
+            setInitialSyncDone(true);
           }
         })
         .catch(console.warn);
@@ -543,13 +559,17 @@ export default function App() {
 
   const handlePullSync = async () => {
     try {
+      setIsConnectingSheet(true);
       const res = await GoogleSheetsService.pullFromSheets();
       refreshAllStateFromStorage();
       if (!res.success) throw new Error(res.message);
+      setInitialSyncDone(true);
       showToast('Data terbaru berhasil disinkronkan dari Google Sheets (2-Arah).');
     } catch (err: any) {
       showToast(err.message || 'Gagal memuat dari Google Sheets', 'error');
       throw err;
+    } finally {
+      setIsConnectingSheet(false);
     }
   };
 
@@ -592,6 +612,7 @@ export default function App() {
           onSelectUser={handleSelectUser}
           onRefreshUsers={() => {
             refreshAllStateFromStorage();
+            setInitialSyncDone(true);
             showToast('Data user diperbarui dari Google Sheet');
           }}
         />
@@ -629,6 +650,8 @@ export default function App() {
         onOpenDinasModal={() => setIsDinasModalOpen(true)}
         onOpenPeerInspectionModal={() => setIsPeerInspectionModalOpen(true)}
         onQuickPull={handlePullSync}
+        isConnectingSheet={isConnectingSheet}
+        initialSyncDone={initialSyncDone}
       />
 
       {/* Main App Body */}
