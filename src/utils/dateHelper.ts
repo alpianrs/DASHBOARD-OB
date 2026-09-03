@@ -118,8 +118,9 @@ export function isJobBarengExpired(job: {
 }
 
 /**
- * Normalizes any date input (string, Date, timestamp) into YYYY-MM-DD format.
- * Handles DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD, ISO timestamps, and Date objects.
+ * Normalizes any date input (string, Date, timestamp) into YYYY-MM-DD format using Asia/Jakarta (WIB) timezone.
+ * Handles ISO timestamps (e.g. 2026-09-02T23:30:00.000Z), DD/MM/YYYY, YYYY-MM-DD, and Date objects.
+ * Prevents early-morning (before 07:00 AM WIB) tasks from being misplaced into yesterday due to UTC offset.
  */
 export function normalizeDateString(dateInput?: string | Date | null): string {
   if (!dateInput) return '';
@@ -129,16 +130,31 @@ export function normalizeDateString(dateInput?: string | Date | null): string {
   let s = String(dateInput).trim();
   if (!s) return '';
 
-  // 1. Strip time portion if present (e.g., "2026-08-31T07:15:00" or "31/08/2026 07:15:00")
-  if (s.includes('T')) {
-    s = s.split('T')[0].trim();
-  } else if (s.includes(' ')) {
-    s = s.split(' ')[0].trim();
+  // 1. If strictly already YYYY-MM-DD (e.g. "2026-09-03")
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return s;
   }
 
-  // 2. If slash separated (e.g. 28/08/2026 or 2026/08/28 or 8/28/2026 or 31/8/2026)
+  // 2. ISO timestamp or string containing timezone/time indicator:
+  // e.g. "2026-09-02T23:30:00.000Z", "2026-09-02T17:00:00.000Z", "2026-09-02T23:45:10Z"
+  // CRITICAL: Interpret in Asia/Jakarta (WIB, UTC+7)!
+  // If we just split('T'), any timestamp before 07:00 AM WIB yields yesterday in UTC!
+  if (s.includes('T') || s.endsWith('Z') || s.includes('+') || s.includes('GMT')) {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      return getJakartaDateString(d);
+    }
+  }
+
+  // 3. String starting with YYYY-MM-DD followed by time or space (e.g. "2026-09-03 06:15:00")
+  if (/^\d{4}-\d{2}-\d{2}\s/.test(s)) {
+    return s.split(' ')[0].trim();
+  }
+
+  // 4. Slash separated (e.g. 28/08/2026 or 2026/08/28 or 8/28/2026 or 31/8/2026)
   if (s.includes('/')) {
-    const parts = s.split('/').map((p) => p.trim());
+    const datePart = s.includes(' ') ? s.split(' ')[0].trim() : s;
+    const parts = datePart.split('/').map((p) => p.trim());
     if (parts.length === 3) {
       if (parts[2].length === 4) {
         // DD/MM/YYYY or MM/DD/YYYY -> YYYY-MM-DD
@@ -150,14 +166,10 @@ export function normalizeDateString(dateInput?: string | Date | null): string {
     }
   }
 
-  // 3. If already YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-    return s;
-  }
-
-  // 4. If DD-MM-YYYY (e.g. 31-08-2026 or 1-8-2026)
+  // 5. Dash separated (e.g. 31-08-2026 or 1-8-2026)
   if (s.includes('-')) {
-    const parts = s.split('-').map((p) => p.trim());
+    const datePart = s.includes(' ') ? s.split(' ')[0].trim() : s;
+    const parts = datePart.split('-').map((p) => p.trim());
     if (parts.length === 3) {
       if (parts[2].length === 4) {
         return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
@@ -165,6 +177,12 @@ export function normalizeDateString(dateInput?: string | Date | null): string {
         return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
       }
     }
+  }
+
+  // 6. Generic Date parse fallback
+  const fallbackDate = new Date(s);
+  if (!isNaN(fallbackDate.getTime())) {
+    return getJakartaDateString(fallbackDate);
   }
 
   return s;

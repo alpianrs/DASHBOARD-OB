@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plane, Calendar, MapPin, FileText, Send, X, CheckCircle2 } from 'lucide-react';
 import { User, DinasRequest } from '../types';
+import { getJakartaDateString } from '../utils/dateHelper';
 
 interface DinasModalProps {
   isOpen: boolean;
@@ -15,7 +16,7 @@ export const DinasModal: React.FC<DinasModalProps> = ({
   activeUser,
   onSubmitDinas,
 }) => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getJakartaDateString();
   const [date, setDate] = useState<string>(today);
   const [destination, setDestination] = useState<string>('');
   const [reason, setReason] = useState<string>('');

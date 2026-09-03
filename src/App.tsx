@@ -214,9 +214,8 @@ export default function App() {
       StorageService.addTaskLog(newLog);
       setTaskLogs(StorageService.getTaskLogs());
 
-      // Trigger real-time direct append / update to Google Sheets
+      // Trigger real-time direct append / update to Google Sheets (concurrent-safe row upsert)
       GoogleSheetsService.logTaskToSheets(newLog).catch(console.warn);
-      GoogleSheetsService.pushAllToSheets().catch(console.warn);
 
       confetti({ particleCount: 40, spread: 60, origin: { y: 0.7 } });
       showToast(`Alasan keterlambatan "${activeTaskTarget.title}" tersimpan & tercatat di Google Sheet!`);
@@ -296,7 +295,6 @@ export default function App() {
             setTaskLogs(StorageService.getTaskLogs());
           }
           await GoogleSheetsService.logTaskToSheets(newLog);
-          await GoogleSheetsService.pushAllToSheets();
         } catch (err) {
           console.warn('Background sync error for job bareng log:', err);
           GoogleSheetsService.logTaskToSheets(newLog).catch(console.warn);
@@ -364,7 +362,6 @@ export default function App() {
             setTaskLogs(StorageService.getTaskLogs());
           }
           await GoogleSheetsService.logTaskToSheets(targetLog);
-          await GoogleSheetsService.pushAllToSheets();
         } catch (err) {
           console.warn('Background sync error for task log:', err);
           GoogleSheetsService.logTaskToSheets(targetLog).catch(console.warn);
@@ -421,7 +418,6 @@ export default function App() {
     setPeerInspections(StorageService.getPeerInspections());
     showToast(`Inspeksi kebersihan untuk ${inspection.targetUserName} berhasil disimpan & tercatat di Google Sheet!`);
     GoogleSheetsService.logPeerInspectionToSheets(inspection).catch(console.warn);
-    GoogleSheetsService.pushAllToSheets().catch(console.warn);
   };
 
   // Submit Coordinator Weekly Score
@@ -447,6 +443,7 @@ export default function App() {
     };
     StorageService.updateTaskLog(updated);
     setTaskLogs(StorageService.getTaskLogs());
+    GoogleSheetsService.logTaskToSheets(updated).catch(console.warn);
     showToast('Pekerjaan berhasil diverifikasi oleh Kordinator.');
   };
 

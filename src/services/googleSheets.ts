@@ -11,6 +11,7 @@ import {
 } from '../types';
 import { parseInstructionSteps } from '../utils/instructionHelper';
 import { normalizeDateString, getJakartaDateString } from '../utils/dateHelper';
+import { extractGoogleDriveFileId } from '../utils/driveHelper';
 
 const SPREADSHEET_ID = '1McKt_ubKY3NmUivMTgep2C6tipg34rq51FZRVbVhtXU';
 const DRIVE_FOLDER_ID = '1MURpjYWLXdg8mOtjO2ucl2tESHYVWfZO';
@@ -435,7 +436,15 @@ function readSheet(ss, sheetName) {
   if (!sheet) return [];
   var data = sheet.getDataRange().getValues();
   if (data.length <= 1) return [];
-  return data.slice(1);
+  var rows = data.slice(1);
+  for (var r = 0; r < rows.length; r++) {
+    for (var c = 0; c < rows[r].length; c++) {
+      if (rows[r][c] instanceof Date) {
+        rows[r][c] = Utilities.formatDate(rows[r][c], "GMT+7", "yyyy-MM-dd HH:mm:ss");
+      }
+    }
+  }
+  return rows;
 }
 
 // Tulis data sheet dengan mempertahankan format header dan otomatis konversi foto base64 ke Google Drive
@@ -455,6 +464,29 @@ function writeSheet(ss, sheetName, rows) {
           var staff = (row[4] || "staff").toString().replace(/\s+/g, "_");
           row[photoIdx] = saveBase64ImageToDrive(row[photoIdx], "bukti_" + staff + "_" + r + "_" + (new Date().getTime()) + ".jpg");
         }
+      }
+
+      // Concurrency protection: Merge with existing rows instead of destructive clearContents
+      var existingData = sheet.getDataRange().getValues();
+      if (existingData.length > 1) {
+        var existingMap = {};
+        for (var ex = 1; ex < existingData.length; ex++) {
+          var exRow = existingData[ex];
+          var exId = String(exRow[0] || "");
+          if (exId) existingMap[exId] = exRow;
+        }
+        for (var inR = 1; inR < rows.length; inR++) {
+          var inRow = rows[inR];
+          var inId = String(inRow[0] || "");
+          if (inId) {
+            existingMap[inId] = inRow;
+          }
+        }
+        var mergedRows = [rows[0]];
+        for (var key in existingMap) {
+          mergedRows.push(existingMap[key]);
+        }
+        rows = mergedRows;
       }
     } else if (sheetName === "MasterTask") {
       for (var r = 1; r < rows.length; r++) {
@@ -556,6 +588,12 @@ export const GoogleSheetsService = {
     dataUrl: string,
     filename: string
   ): Promise<{ driveUrl: string; fileId?: string }> => {
+    if (!dataUrl) return { driveUrl: '' };
+    if (dataUrl.startsWith('http://') || dataUrl.startsWith('https://')) {
+      const fileId = extractGoogleDriveFileId(dataUrl);
+      return { driveUrl: dataUrl, fileId: fileId || undefined };
+    }
+
     const syncConfig = StorageService.getSyncConfig();
     const token = getCachedAccessToken();
 
@@ -564,7 +602,7 @@ export const GoogleSheetsService = {
       try {
         const res = await fetch(syncConfig.webAppUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({
             action: 'uploadPhoto',
             base64: dataUrl,
@@ -572,8 +610,10 @@ export const GoogleSheetsService = {
           }),
         });
         const resJson = await res.json();
-        if (resJson && resJson.success && resJson.driveUrl) {
-          return { driveUrl: resJson.driveUrl, fileId: resJson.fileId };
+        if (resJson && resJson.success && (resJson.driveUrl || resJson.webViewLink)) {
+          const driveUrl = resJson.driveUrl || resJson.webViewLink;
+          const fileId = resJson.fileId || extractGoogleDriveFileId(driveUrl);
+          return { driveUrl, fileId: fileId || undefined };
         }
       } catch (err) {
         console.warn('Apps Script photo upload fallback to API/local:', err);
@@ -640,12 +680,28 @@ export const GoogleSheetsService = {
 
     const logTaskDisplay = log.taskId ? `[${log.taskId}] ${log.taskTitle || ''}` : (log.taskTitle || '');
 
-    // Format safe photo URL for Google Sheet cell (cells cannot exceed 50,000 characters)
-    let safePhotoUrl = log.photoUrl || '';
-    if (safePhotoUrl.startsWith('data:')) {
-      safePhotoUrl = log.driveFileId
-        ? `https://drive.google.com/file/d/${log.driveFileId}/view`
-        : '[Bukti Foto Tersimpan di Perangkat]';
+    // Ensure photo is uploaded to Google Drive if still base64 data URL
+    let photoUrlToSave = log.photoUrl || '';
+    if (photoUrlToSave.startsWith('data:')) {
+      try {
+        const staff = (log.userName || 'staff').replace(/\s+/g, '_');
+        const filename = `bukti_${staff}_${log.id}_${Date.now()}.jpg`;
+        const uploadResult = await GoogleSheetsService.uploadPhotoToDrive(photoUrlToSave, filename);
+        if (uploadResult.driveUrl && uploadResult.driveUrl.startsWith('http')) {
+          photoUrlToSave = uploadResult.driveUrl;
+          log.photoUrl = uploadResult.driveUrl;
+          if (uploadResult.fileId) log.driveFileId = uploadResult.fileId;
+          StorageService.updateTaskLog(log);
+        }
+      } catch (err) {
+        console.warn('Auto upload photo on logTaskToSheets:', err);
+      }
+    } else if (photoUrlToSave === '[Bukti Foto Tersimpan di Perangkat]') {
+      if (log.driveFileId) {
+        photoUrlToSave = `https://drive.google.com/file/d/${log.driveFileId}/view`;
+        log.photoUrl = photoUrlToSave;
+        StorageService.updateTaskLog(log);
+      }
     }
 
     const logRow = [
@@ -662,7 +718,7 @@ export const GoogleSheetsService = {
       isLate ? 'YA' : 'TIDAK',
       log.lateReason || '',
       lateReportStatus,
-      safePhotoUrl,
+      photoUrlToSave,
       log.notes || '',
       log.kordinatorScore || '',
       log.kordinatorNotes || '',
@@ -674,15 +730,19 @@ export const GoogleSheetsService = {
     // 1. Post to Apps Script Web App (if configured)
     if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
       try {
-        await fetch(syncConfig.webAppUrl, {
+        const res = await fetch(syncConfig.webAppUrl, {
           method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({
             action: 'logTask',
             logRow,
           }),
         });
+        const resJson = await res.json();
+        if (resJson && resJson.photoUrl && resJson.photoUrl.startsWith('http')) {
+          log.photoUrl = resJson.photoUrl;
+          StorageService.updateTaskLog(log);
+        }
       } catch (err) {
         console.warn('Real-time task log post failed, will be included in full sync:', err);
       }
@@ -715,6 +775,23 @@ export const GoogleSheetsService = {
     const syncConfig = StorageService.getSyncConfig();
     const token = getCachedAccessToken();
 
+    // Ensure photo is uploaded to Google Drive if still base64 data URL
+    let photoUrlToSave = inspection.photoUrl || '';
+    if (photoUrlToSave.startsWith('data:')) {
+      try {
+        const inspector = (inspection.inspectorName || 'inspector').replace(/\s+/g, '_');
+        const filename = `inspeksi_${inspector}_${inspection.id}_${Date.now()}.jpg`;
+        const uploadResult = await GoogleSheetsService.uploadPhotoToDrive(photoUrlToSave, filename);
+        if (uploadResult.driveUrl && uploadResult.driveUrl.startsWith('http')) {
+          photoUrlToSave = uploadResult.driveUrl;
+          inspection.photoUrl = uploadResult.driveUrl;
+          StorageService.updatePeerInspection(inspection);
+        }
+      } catch (err) {
+        console.warn('Auto upload photo on logPeerInspectionToSheets:', err);
+      }
+    }
+
     const peerRow = [
       inspection.id,
       inspection.date,
@@ -727,7 +804,7 @@ export const GoogleSheetsService = {
       inspection.area || '',
       inspection.status || 'Sesuai Standar Kebersihan',
       inspection.notes || '',
-      inspection.photoUrl || '',
+      photoUrlToSave,
       JSON.stringify(inspection.checklistItems || []),
       inspection.timestamp,
     ];
@@ -735,15 +812,19 @@ export const GoogleSheetsService = {
     // 1. Post to Apps Script Web App (if configured)
     if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
       try {
-        await fetch(syncConfig.webAppUrl, {
+        const res = await fetch(syncConfig.webAppUrl, {
           method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({
             action: 'logPeerInspection',
             inspectionRow: peerRow,
           }),
         });
+        const resJson = await res.json();
+        if (resJson && resJson.photoUrl && resJson.photoUrl.startsWith('http')) {
+          inspection.photoUrl = resJson.photoUrl;
+          StorageService.updatePeerInspection(inspection);
+        }
       } catch (err) {
         console.warn('Real-time peer inspection post failed, will be included in full sync:', err);
       }
@@ -766,7 +847,7 @@ export const GoogleSheetsService = {
           }
         );
       } catch (err) {
-        console.warn('Direct REST PeerInspections append fallback error:', err);
+        console.warn('Direct REST PeerInspection append fallback error:', err);
       }
     }
   },
@@ -878,10 +959,10 @@ export const GoogleSheetsService = {
         const logTaskDisplay = l.taskId ? `[${l.taskId}] ${l.taskTitle || ''}` : (l.taskTitle || '');
 
         let safePhotoUrl = l.photoUrl || '';
-        if (safePhotoUrl.startsWith('data:')) {
-          safePhotoUrl = l.driveFileId
-            ? `https://drive.google.com/file/d/${l.driveFileId}/view`
-            : '[Bukti Foto Tersimpan di Perangkat]';
+        if (safePhotoUrl === '[Bukti Foto Tersimpan di Perangkat]') {
+          safePhotoUrl = l.driveFileId ? `https://drive.google.com/file/d/${l.driveFileId}/view` : '';
+        } else if (safePhotoUrl.startsWith('data:') && l.driveFileId) {
+          safePhotoUrl = `https://drive.google.com/file/d/${l.driveFileId}/view`;
         }
 
         return [
@@ -1027,8 +1108,7 @@ export const GoogleSheetsService = {
         };
         await fetch(syncConfig.webAppUrl, {
           method: 'POST',
-          mode: 'no-cors', // standard Apps Script trigger
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload),
         });
 

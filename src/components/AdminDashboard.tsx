@@ -268,10 +268,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     setIsUploadingPhoto(true);
     const reader = new FileReader();
-    reader.onload = (uploadEvent) => {
+    reader.onload = async (uploadEvent) => {
       const result = uploadEvent.target?.result as string;
       if (result) {
         setEditLogPhotoUrl(result);
+        try {
+          const staff = (editingLog?.userName || 'staff').replace(/\s+/g, '_');
+          const filename = `bukti_admin_${staff}_${editingLog?.id || Date.now()}_${Date.now()}.jpg`;
+          const uploadResult = await GoogleSheetsService.uploadPhotoToDrive(result, filename);
+          if (uploadResult.driveUrl && uploadResult.driveUrl.startsWith('http')) {
+            setEditLogPhotoUrl(uploadResult.driveUrl);
+          }
+        } catch (uploadErr) {
+          console.warn('Upload to drive error on admin edit:', uploadErr);
+        }
       }
       setIsUploadingPhoto(false);
     };

@@ -10,7 +10,7 @@ import {
   HolidayConfig,
   UnitType,
 } from '../types';
-import { isSameDay } from '../utils/dateHelper';
+import { isSameDay, getJakartaDateString, normalizeDateString } from '../utils/dateHelper';
 
 const STORAGE_KEYS = {
   USERS: 'lz_fm_users',
@@ -343,7 +343,7 @@ export const getStoredItem = <T>(key: string, defaultValue: T): T => {
   }
 };
 
-// Clean up heavy base64 data URLs from old task logs to free localStorage space
+// Clean up heavy base64 data URLs from past days' task logs to free localStorage space
 const freeLocalStorageSpace = () => {
   try {
     const rawLogs = localStorage.getItem(STORAGE_KEYS.TASK_LOGS);
@@ -351,10 +351,12 @@ const freeLocalStorageSpace = () => {
     const logs: TaskLog[] = JSON.parse(rawLogs);
     if (!Array.isArray(logs) || logs.length === 0) return;
 
-    // Prune base64 photos on logs older than the top 5 most recent
+    // Prune base64 photos ONLY on logs from past days (never prune today's active work!)
+    const today = getJakartaDateString();
     let modified = false;
-    const pruned = logs.map((log, index) => {
-      if (index >= 5 && log.photoUrl && log.photoUrl.startsWith('data:')) {
+    const pruned = logs.map((log) => {
+      const isPastDay = !isSameDay(log.date, today) && !isSameDay(log.timestamp, today);
+      if (isPastDay && log.photoUrl && log.photoUrl.startsWith('data:')) {
         modified = true;
         return {
           ...log,
@@ -590,11 +592,36 @@ export const StorageService = {
         }
       }
 
-      if (matchedKey) {
+        if (matchedKey) {
         const rLog = mergedMap.get(matchedKey)!;
+        
+        // Resolve best photoUrl (Never lose photo that was taken locally or uploaded to drive)
+        let bestPhotoUrl = lLog.photoUrl || rLog.photoUrl;
+        const rIsDrive = rLog.photoUrl && (rLog.photoUrl.startsWith('http://') || rLog.photoUrl.startsWith('https://'));
+        const lIsDrive = lLog.photoUrl && (lLog.photoUrl.startsWith('http://') || lLog.photoUrl.startsWith('https://'));
+        const lIsBase64 = lLog.photoUrl && lLog.photoUrl.startsWith('data:');
+        const rIsPlaceholder = rLog.photoUrl === '[Bukti Foto Tersimpan di Perangkat]';
+        const lIsPlaceholder = lLog.photoUrl === '[Bukti Foto Tersimpan di Perangkat]';
+
+        if (lIsDrive) {
+          bestPhotoUrl = lLog.photoUrl;
+        } else if (rIsDrive) {
+          bestPhotoUrl = rLog.photoUrl;
+        } else if (lIsBase64) {
+          bestPhotoUrl = lLog.photoUrl;
+        } else if (rLog.photoUrl && !rIsPlaceholder) {
+          bestPhotoUrl = rLog.photoUrl;
+        } else if (lLog.photoUrl && !lIsPlaceholder) {
+          bestPhotoUrl = lLog.photoUrl;
+        }
+
+        const today = getJakartaDateString();
+        const mergedDate = isSameDay(lLog.date, today) ? lLog.date : (rLog.date || lLog.date);
+
         const merged: TaskLog = {
           ...rLog,
-          photoUrl: (lLog.photoUrl && lLog.photoUrl.trim().length > 0) ? lLog.photoUrl : rLog.photoUrl,
+          date: mergedDate,
+          photoUrl: bestPhotoUrl,
           driveFileId: lLog.driveFileId || rLog.driveFileId,
           notes: lLog.notes || rLog.notes,
           lateReason: lLog.lateReason || rLog.lateReason,
@@ -784,6 +811,9 @@ export const StorageService = {
     }
     StorageService.savePeerInspections(list);
   },
+  updatePeerInspection: (inspection: PeerInspection): void => {
+    StorageService.addPeerInspection(inspection);
+  },
 
   getWeeklyScores: (): WeeklyScore[] => {
     const list = getStoredItem<WeeklyScore[]>(STORAGE_KEYS.WEEKLY_SCORES, []);
@@ -836,10 +866,10 @@ export const StorageService = {
     const config = StorageService.getHolidayConfig();
     if (!config) return { isOff: false, reason: '' };
 
-    const checkDateStr = dateStr || new Date().toISOString().split('T')[0];
+    const todayActual = getJakartaDateString();
+    const checkDateStr = dateStr ? normalizeDateString(dateStr) : todayActual;
     
     // 1. Check if manually marked as holiday today (only if checking current active date)
-    const todayActual = new Date().toISOString().split('T')[0];
     if (checkDateStr === todayActual && config.isHolidayToday === true) {
       return { isOff: true, reason: config.holidayReason || 'Libur Ditetapkan Admin' };
     }

@@ -234,12 +234,27 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
   const weeklyTasks = userMasterTasks.filter((t) => normalizeCategory(t.category, t) === 'Mingguan');
   const monthlyTasks = userMasterTasks.filter((t) => normalizeCategory(t.category, t) === 'Bulanan');
 
-  // Stats calculation (Strictly matched by Task ID)
+  // Helper to match a task log with a master task
+  const doesLogMatchTask = (l: TaskLog, task: MasterTask) => {
+    if (l.taskId && task.id && l.taskId.trim().toLowerCase() === task.id.trim().toLowerCase()) return true;
+    if (l.taskId === task.id) return true;
+    if (
+      l.taskTitle &&
+      task.title &&
+      l.taskTitle.trim().toLowerCase() === task.title.trim().toLowerCase() &&
+      normalizeTiming(l.timingType, task) === normalizeTiming(task.timingType, task)
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  // Stats calculation (Strictly matched by Task ID or Title/Timing)
   const totalDailyTasksCount = preReadinessTasks.length + clockOutTasks.length + anytimeDailyTasks.length + jobBarengTasks.length;
   const completedTodayCount = userMasterTasks.filter((task) => {
     return userTodayLogs.some(
       (l) =>
-        (l.taskId === task.id || (l.taskId && task.id && l.taskId.trim() === task.id.trim())) &&
+        doesLogMatchTask(l, task) &&
         (l.status === 'Selesai' ||
           l.status === 'Terlambat' ||
           Boolean(l.photoUrl && l.photoUrl.trim().length > 0) ||
@@ -247,9 +262,7 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
     );
   }).length;
   const lateTodayCount = userMasterTasks.filter((task) => {
-    const l = userTodayLogs.find(
-      (log) => log.taskId === task.id || (log.taskId && task.id && log.taskId.trim() === task.id.trim())
-    );
+    const l = userTodayLogs.find((log) => doesLogMatchTask(log, task));
     return Boolean(l?.isLate || l?.status === 'Terlambat' || (l?.lateReason && l.lateReason.trim().length > 0));
   }).length;
   const completionPercentage =
@@ -285,9 +298,9 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
   };
 
   const renderTaskItem = (task: MasterTask, isPreReadinessSection = false) => {
-    // STRICT TASK ID MATCHING ONLY: A task is completed ONLY if a log exists with matching task.id
+    // Robust task log matching by task ID or title + timing
     const existingLog = userTodayLogs.find(
-      (l) => l.taskId === task.id || (l.taskId && task.id && l.taskId.trim() === task.id.trim())
+      (l) => doesLogMatchTask(l, task)
     ) || taskLogs.find(
       (l) =>
         (isSameDay(l.date, today) || (l.timestamp && isSameDay(l.timestamp, today))) &&
@@ -296,7 +309,7 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
           (activeUser.username && l.userId === activeUser.username) ||
           (activeUser.username && l.userName && l.userName.trim().toLowerCase() === activeUser.username.trim().toLowerCase()) ||
           (activeUser.id && l.userName && l.userName.trim().toLowerCase() === activeUser.id.trim().toLowerCase())) &&
-        (l.taskId === task.id || (l.taskId && task.id && l.taskId.trim() === task.id.trim()))
+        doesLogMatchTask(l, task)
     );
 
     const isCompleted =
