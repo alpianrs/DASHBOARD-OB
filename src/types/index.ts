@@ -191,6 +191,15 @@ export interface SyncConfig {
   syncError: string | null;
   isGoogleConnected: boolean;
   autoSyncEnabled?: boolean;
+  pendingQueueCount?: number;
+}
+
+export interface PendingSyncItem {
+  id: string;
+  type: 'logTask' | 'peerInspection' | 'dinas' | 'weeklyScore' | 'jobBareng';
+  payload: any;
+  timestamp: string;
+  retryCount: number;
 }
 
 export interface MissedTaskSummary {

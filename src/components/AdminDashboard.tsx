@@ -312,7 +312,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } else {
       StorageService.updateTaskLog(updatedLog);
       GoogleSheetsService.logTaskToSheets(updatedLog).catch(console.warn);
-      GoogleSheetsService.pushAllToSheets().catch(console.warn);
     }
 
     setEditingLog(null);

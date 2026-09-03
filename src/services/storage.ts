@@ -9,6 +9,7 @@ import {
   SyncConfig,
   HolidayConfig,
   UnitType,
+  PendingSyncItem,
 } from '../types';
 import { isSameDay, getJakartaDateString, normalizeDateString } from '../utils/dateHelper';
 
@@ -23,6 +24,7 @@ const STORAGE_KEYS = {
   ACTIVE_USER: 'lz_fm_active_user',
   SYNC_CONFIG: 'lz_fm_sync_config',
   HOLIDAY_CONFIG: 'lz_fm_holiday_config',
+  PENDING_QUEUE: 'lz_fm_pending_sync_queue',
 };
 
 export const DEFAULT_HOLIDAY_CONFIG: HolidayConfig = {
@@ -661,11 +663,20 @@ export const StorageService = {
       }
     });
 
-    const result = Array.from(mergedMap.values()).sort((a, b) => {
+    const sorted = Array.from(mergedMap.values()).sort((a, b) => {
       const dateA = a.date || a.timestamp || '';
       const dateB = b.date || b.timestamp || '';
       return dateB.localeCompare(dateA);
     });
+
+    // Keep active logs lightweight (maximum 250 rows in local cache) while protecting all of today's work
+    const today = getJakartaDateString();
+    let result = sorted;
+    if (sorted.length > 250) {
+      const todayLogs = sorted.filter((l) => isSameDay(l.date, today) || isSameDay(l.timestamp, today));
+      const olderLogs = sorted.filter((l) => !isSameDay(l.date, today) && !isSameDay(l.timestamp, today)).slice(0, 250 - todayLogs.length);
+      result = [...todayLogs, ...olderLogs];
+    }
 
     StorageService.saveTaskLogs(result);
     return result;
@@ -882,6 +893,37 @@ export const StorageService = {
   },
   saveHolidayConfig: (config: HolidayConfig): void => {
     setStoredItem(STORAGE_KEYS.HOLIDAY_CONFIG, config);
+  },
+
+  // Offline / Retry Pending Queue for 100% Reliable Sync to Google Sheets
+  getPendingQueue: (): PendingSyncItem[] => {
+    return getStoredItem<PendingSyncItem[]>(STORAGE_KEYS.PENDING_QUEUE, []);
+  },
+  addToPendingQueue: (item: Omit<PendingSyncItem, 'retryCount'>): void => {
+    const queue = StorageService.getPendingQueue();
+    const existingIdx = queue.findIndex((q) => q.id === item.id);
+    if (existingIdx >= 0) {
+      queue[existingIdx] = { ...queue[existingIdx], ...item, retryCount: queue[existingIdx].retryCount || 0 };
+    } else {
+      queue.push({ ...item, retryCount: 0 });
+    }
+    setStoredItem(STORAGE_KEYS.PENDING_QUEUE, queue);
+  },
+  removeFromPendingQueue: (id: string): void => {
+    const queue = StorageService.getPendingQueue().filter((q) => q.id !== id);
+    setStoredItem(STORAGE_KEYS.PENDING_QUEUE, queue);
+  },
+  incrementPendingRetry: (id: string): void => {
+    const queue = StorageService.getPendingQueue().map((q) => {
+      if (q.id === id) {
+        return { ...q, retryCount: (q.retryCount || 0) + 1 };
+      }
+      return q;
+    });
+    setStoredItem(STORAGE_KEYS.PENDING_QUEUE, queue);
+  },
+  clearPendingQueue: (): void => {
+    setStoredItem(STORAGE_KEYS.PENDING_QUEUE, []);
   },
   isDayOffToday: (dateStr?: string): { isOff: boolean; reason: string } => {
     const config = StorageService.getHolidayConfig();

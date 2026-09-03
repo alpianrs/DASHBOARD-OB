@@ -47,8 +47,28 @@ export const SyncStatusModal: React.FC<SyncStatusModalProps> = ({
   const [showCode, setShowCode] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [savedUrlSuccess, setSavedUrlSuccess] = useState<boolean>(false);
+  const pendingQueue = StorageService.getPendingQueue();
+  const pendingCount = pendingQueue.length;
 
   if (!isOpen) return null;
+
+  const handleProcessQueue = async () => {
+    try {
+      setLoading(true);
+      await GoogleSheetsService.processPendingQueue();
+      setMessage({
+        type: 'success',
+        text: 'Semua antrean offline berhasil dikirim ke Google Sheet!',
+      });
+    } catch (err: any) {
+      setMessage({
+        type: 'error',
+        text: 'Gagal memproses antrean: ' + (err.message || 'Coba lagi'),
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSaveUrl = () => {
     const trimmed = webAppUrl.trim();
@@ -231,6 +251,49 @@ export const SyncStatusModal: React.FC<SyncStatusModalProps> = ({
               </div>
               <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-slate-700 transition" />
             </a>
+          </div>
+
+          {/* Offline Resilient Pending Queue Status */}
+          <div className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 ${
+            pendingCount > 0
+              ? 'bg-amber-50/80 border-amber-300 text-amber-950'
+              : 'bg-emerald-50/60 border-emerald-200 text-emerald-900'
+          }`}>
+            <div className="flex items-center gap-2.5">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                pendingCount > 0
+                  ? 'bg-amber-200/70 text-amber-800'
+                  : 'bg-emerald-100 text-emerald-700'
+              }`}>
+                {pendingCount > 0 ? (
+                  <RefreshCw className="w-4 h-4 animate-spin text-amber-700" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                )}
+              </div>
+              <div>
+                <span className="font-bold text-xs block">
+                  {pendingCount > 0
+                    ? `Antrean Offline: ${pendingCount} Perubahan Menunggu Kirim`
+                    : 'Semua Data Tersinkronisasi (0 Antrean Tertunda)'}
+                </span>
+                <span className="text-[10.5px] opacity-80 block">
+                  {pendingCount > 0
+                    ? 'Data tersimpan aman di HP/laptop dan akan dikirim otomatis saat koneksi stabil.'
+                    : 'Penyimpanan lokal dan Google Sheet berada dalam status sinkron konsisten.'}
+                </span>
+              </div>
+            </div>
+
+            {pendingCount > 0 && (
+              <button
+                onClick={handleProcessQueue}
+                disabled={loading}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs transition shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                {loading ? 'Mengirim...' : 'Kirim Sekarang'}
+              </button>
+            )}
           </div>
 
           {/* Web App URL Configuration */}

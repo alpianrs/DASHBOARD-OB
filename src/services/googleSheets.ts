@@ -248,7 +248,7 @@ function createOrSetupSheet(ss, sheetName, headers, seedRows, headerColor) {
 
 /**
  * Web App GET Endpoint:
- * Mengambil seluruh data database atau mengeksekusi aksi setup.
+ * Mengambil data database secara cepat & ringan (dengan limit baris riwayat default 150).
  */
 function doGet(e) {
   try {
@@ -264,14 +264,17 @@ function doGet(e) {
       return jsonOutput({ success: true, message: "Lazuardi FM Apps Script Connected!" });
     }
 
+    var limit = (e && e.parameter && e.parameter.limit) ? parseInt(e.parameter.limit, 10) : 150;
+    var fetchAll = (e && e.parameter && (e.parameter.all === "true" || e.parameter.action === "getAllFull"));
+
     var result = {
-      users: readSheet(ss, "Users"),
-      masterTasks: readSheet(ss, "MasterTask"),
-      taskLogs: readSheet(ss, "TaskLogs"),
-      jobBareng: readSheet(ss, "JobBareng"),
-      dinasRequests: readSheet(ss, "DinasRequests"),
-      peerInspections: readSheet(ss, "PeerInspections"),
-      weeklyScores: readSheet(ss, "WeeklyScores"),
+      users: readSheet(ss, "Users", 0, true),
+      masterTasks: readSheet(ss, "MasterTask", 0, true),
+      taskLogs: readSheet(ss, "TaskLogs", limit, fetchAll),
+      jobBareng: readSheet(ss, "JobBareng", 0, true),
+      dinasRequests: readSheet(ss, "DinasRequests", 0, true),
+      peerInspections: readSheet(ss, "PeerInspections", 100, fetchAll),
+      weeklyScores: readSheet(ss, "WeeklyScores", 100, fetchAll),
       timestamp: new Date().toISOString()
     };
 
@@ -283,15 +286,44 @@ function doGet(e) {
 
 /**
  * Web App POST Endpoint:
- * Menerima real-time log task baru, sync data pengguna, upload foto Google Drive, atau batch update.
+ * Menerima real-time log task baru, update targeted per-sheet, upload foto, atau batch update dengan ScriptLock.
  */
 function doPost(e) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(8000);
+  } catch (lockErr) {
+    // If lock fails, still attempt to proceed
+  }
+
   try {
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     var rawContents = (e && e.postData && e.postData.contents) ? e.postData.contents : "{}";
     var payload = JSON.parse(rawContents);
 
-    // 1. Single Task Log Real-time Append / Upsert (Simpan foto ke Google Drive & rekam alasan keterlambatan)
+    // 0. Targeted sheet updates (Super ringan & cepat tanpa kirim seluruh database)
+    if (payload.action === "saveUsers" && payload.users) {
+      writeSheet(ss, "Users", payload.users);
+      return jsonOutput({ success: true, message: "Data Users berhasil diperbarui!" });
+    }
+    if (payload.action === "saveMasterTasks" && payload.masterTasks) {
+      writeSheet(ss, "MasterTask", payload.masterTasks);
+      return jsonOutput({ success: true, message: "MasterTask berhasil diperbarui!" });
+    }
+    if (payload.action === "saveJobBareng" && payload.jobBareng) {
+      writeSheet(ss, "JobBareng", payload.jobBareng);
+      return jsonOutput({ success: true, message: "JobBareng berhasil diperbarui!" });
+    }
+    if (payload.action === "saveDinas" && payload.dinasRequests) {
+      writeSheet(ss, "DinasRequests", payload.dinasRequests);
+      return jsonOutput({ success: true, message: "DinasRequests berhasil diperbarui!" });
+    }
+    if (payload.action === "saveWeeklyScores" && payload.weeklyScores) {
+      writeSheet(ss, "WeeklyScores", payload.weeklyScores);
+      return jsonOutput({ success: true, message: "WeeklyScores berhasil diperbarui!" });
+    }
+
+    // 1. Single Task Log Real-time Append / Upsert (Scan mundur 80 baris terakhir untuk instan match)
     if (payload.action === "logTask" && payload.logRow) {
       var sheet = ss.getSheetByName("TaskLogs");
       if (!sheet) {
@@ -307,25 +339,27 @@ function doPost(e) {
         payload.logRow[photoIdx] = saveBase64ImageToDrive(payload.logRow[photoIdx], fn);
       }
 
-      // Upsert: Periksa apakah TaskLog ID atau (UserID + TaskTitle + Date) sudah ada di sheet
       var lastRow = sheet.getLastRow();
       var existingRowIndex = -1;
 
       if (lastRow > 1) {
-        var data = sheet.getRange(2, 1, lastRow - 1, Math.min(sheet.getLastColumn(), 10)).getValues();
+        // Fast backwards scan in the bottom 100 rows
+        var scanCount = Math.min(100, lastRow - 1);
+        var scanStart = Math.max(2, lastRow - scanCount + 1);
+        var data = sheet.getRange(scanStart, 1, scanCount, Math.min(sheet.getLastColumn(), 10)).getValues();
         var targetId = String(payload.logRow[0] || "");
         var targetUserId = String(payload.logRow[3] || "");
         var targetDate = String(payload.logRow[2] || "");
         var targetTitle = String(payload.logRow[6] || "").toLowerCase().trim();
 
-        for (var r = 0; r < data.length; r++) {
+        for (var r = data.length - 1; r >= 0; r--) {
           var rowId = String(data[r][0] || "");
           var rowDate = String(data[r][2] || "");
           var rowUserId = String(data[r][3] || "");
           var rowTitle = String(data[r][6] || "").toLowerCase().trim();
 
           if (rowId === targetId || (rowUserId === targetUserId && rowDate === targetDate && rowTitle === targetTitle)) {
-            existingRowIndex = r + 2; // +2 for 1-based index and header row
+            existingRowIndex = scanStart + r;
             break;
           }
         }
@@ -363,20 +397,22 @@ function doPost(e) {
       var existingPeerIndex = -1;
 
       if (pLastRow > 1) {
-        var pData = pSheet.getRange(2, 1, pLastRow - 1, Math.min(pSheet.getLastColumn(), 8)).getValues();
+        var pScanCount = Math.min(60, pLastRow - 1);
+        var pScanStart = Math.max(2, pLastRow - pScanCount + 1);
+        var pData = pSheet.getRange(pScanStart, 1, pScanCount, Math.min(pSheet.getLastColumn(), 8)).getValues();
         var pTargetId = String(payload.inspectionRow[0] || "");
         var pTargetInspectorId = String(payload.inspectionRow[2] || "");
         var pTargetDate = String(payload.inspectionRow[1] || "");
         var pTargetTargetUserId = String(payload.inspectionRow[5] || "");
 
-        for (var pr = 0; pr < pData.length; pr++) {
+        for (var pr = pData.length - 1; pr >= 0; pr--) {
           var prId = String(pData[pr][0] || "");
           var prDate = String(pData[pr][1] || "");
           var prInspectorId = String(pData[pr][2] || "");
           var prTargetUserId = String(pData[pr][5] || "");
 
           if (prId === pTargetId || (prInspectorId === pTargetInspectorId && prDate === pTargetDate && prTargetUserId === pTargetTargetUserId)) {
-            existingPeerIndex = pr + 2;
+            existingPeerIndex = pScanStart + pr;
             break;
           }
         }
@@ -411,7 +447,7 @@ function doPost(e) {
       return jsonOutput(setupResult);
     }
 
-    // 5. Batch Sync Full Data
+    // 5. Batch Sync Full Data (Fallback)
     if (payload.users && payload.users.length) writeSheet(ss, "Users", payload.users);
     if (payload.masterTasks && payload.masterTasks.length) writeSheet(ss, "MasterTask", payload.masterTasks);
     if (payload.taskLogs && payload.taskLogs.length) writeSheet(ss, "TaskLogs", payload.taskLogs);
@@ -427,21 +463,42 @@ function doPost(e) {
     });
   } catch (err) {
     return jsonOutput({ success: false, error: String(err) });
+  } finally {
+    try {
+      lock.releaseLock();
+    } catch (eRel) {}
   }
 }
 
-// Baca data sheet dan abaikan baris header
-function readSheet(ss, sheetName) {
+// Baca data sheet cepat dengan optimasi limit baris
+function readSheet(ss, sheetName, limit, fetchAll) {
   var sheet = ss.getSheetByName(sheetName);
   if (!sheet) return [];
-  var data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return [];
-  var rows = data.slice(1);
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow <= 1 || lastCol < 1) return [];
+
+  var startRow = 2;
+  var numRows = lastRow - 1;
+
+  // Jika membaca TaskLogs dalam mode reguler, ambil baris-baris terbaru saja
+  if (sheetName === "TaskLogs" && !fetchAll && numRows > 150) {
+    var readLimit = limit || 150;
+    startRow = Math.max(2, lastRow - readLimit + 1);
+    numRows = lastRow - startRow + 1;
+  } else if (limit && limit > 0 && numRows > limit && !fetchAll) {
+    startRow = Math.max(2, lastRow - limit + 1);
+    numRows = lastRow - startRow + 1;
+  }
+
+  var rows = sheet.getRange(startRow, 1, numRows, lastCol).getValues();
   for (var r = 0; r < rows.length; r++) {
-    for (var c = 0; c < rows[r].length; c++) {
-      if (rows[r][c] instanceof Date) {
-        rows[r][c] = Utilities.formatDate(rows[r][c], "GMT+7", "yyyy-MM-dd HH:mm:ss");
-      }
+    var row = rows[r];
+    if (row[1] instanceof Date) {
+      row[1] = Utilities.formatDate(row[1], "GMT+7", "yyyy-MM-dd HH:mm:ss");
+    }
+    if (row[2] instanceof Date) {
+      row[2] = Utilities.formatDate(row[2], "GMT+7", "yyyy-MM-dd");
     }
   }
   return rows;
@@ -667,7 +724,122 @@ export const GoogleSheetsService = {
     return { driveUrl: dataUrl };
   },
 
-  // Real-time single TaskLog direct append to Google Sheet
+  isProcessingQueue: false,
+
+  // Background queue processor to ensure 100% reliable delivery of pending items
+  processPendingQueue: async (): Promise<void> => {
+    if (GoogleSheetsService.isProcessingQueue) return;
+    const queue = StorageService.getPendingQueue();
+    if (!queue || queue.length === 0) return;
+
+    const syncConfig = StorageService.getSyncConfig();
+    if (!syncConfig.webAppUrl || !syncConfig.webAppUrl.startsWith('http')) return;
+
+    GoogleSheetsService.isProcessingQueue = true;
+    try {
+      for (const item of queue) {
+        try {
+          if (item.type === 'logTask' && item.payload?.logRow) {
+            const res = await fetch(syncConfig.webAppUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({
+                action: 'logTask',
+                logRow: item.payload.logRow,
+              }),
+            });
+            if (res.ok) {
+              const resJson = await res.json();
+              if (resJson && resJson.photoUrl && resJson.photoUrl.startsWith('http')) {
+                if (item.payload.log) {
+                  item.payload.log.photoUrl = resJson.photoUrl;
+                  StorageService.updateTaskLog(item.payload.log);
+                }
+              }
+              StorageService.removeFromPendingQueue(item.id);
+            } else {
+              StorageService.incrementPendingRetry(item.id);
+              break;
+            }
+          } else if (item.type === 'peerInspection' && item.payload?.peerRow) {
+            const res = await fetch(syncConfig.webAppUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({
+                action: 'logPeerInspection',
+                inspectionRow: item.payload.peerRow,
+              }),
+            });
+            if (res.ok) {
+              const resJson = await res.json();
+              if (resJson && resJson.photoUrl && resJson.photoUrl.startsWith('http')) {
+                if (item.payload.inspection) {
+                  item.payload.inspection.photoUrl = resJson.photoUrl;
+                  StorageService.updatePeerInspection(item.payload.inspection);
+                }
+              }
+              StorageService.removeFromPendingQueue(item.id);
+            } else {
+              StorageService.incrementPendingRetry(item.id);
+              break;
+            }
+          } else if (item.type === 'dinas' && item.payload?.dinasRequests) {
+            const res = await fetch(syncConfig.webAppUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({
+                action: 'saveDinas',
+                dinasRequests: item.payload.dinasRequests,
+              }),
+            });
+            if (res.ok) {
+              StorageService.removeFromPendingQueue(item.id);
+            } else {
+              StorageService.incrementPendingRetry(item.id);
+              break;
+            }
+          } else if (item.type === 'weeklyScore' && item.payload?.weeklyScores) {
+            const res = await fetch(syncConfig.webAppUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({
+                action: 'saveWeeklyScores',
+                weeklyScores: item.payload.weeklyScores,
+              }),
+            });
+            if (res.ok) {
+              StorageService.removeFromPendingQueue(item.id);
+            } else {
+              StorageService.incrementPendingRetry(item.id);
+              break;
+            }
+          } else if (item.type === 'jobBareng' && item.payload?.jobBareng) {
+            const res = await fetch(syncConfig.webAppUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({
+                action: 'saveJobBareng',
+                jobBareng: item.payload.jobBareng,
+              }),
+            });
+            if (res.ok) {
+              StorageService.removeFromPendingQueue(item.id);
+            } else {
+              StorageService.incrementPendingRetry(item.id);
+              break;
+            }
+          }
+        } catch (itemErr) {
+          StorageService.incrementPendingRetry(item.id);
+          break; // Stop loop on network error to allow retry on next interval
+        }
+      }
+    } finally {
+      GoogleSheetsService.isProcessingQueue = false;
+    }
+  },
+
+  // Real-time single TaskLog direct append to Google Sheet with Queue & Retry
   logTaskToSheets: async (log: TaskLog): Promise<void> => {
     const syncConfig = StorageService.getSyncConfig();
     const token = getCachedAccessToken();
@@ -730,6 +902,14 @@ export const GoogleSheetsService = {
       log.peerNotes || '',
     ];
 
+    // Enqueue to pending queue first for offline resilience
+    StorageService.addToPendingQueue({
+      id: log.id,
+      type: 'logTask',
+      payload: { logRow, log },
+      timestamp: new Date().toISOString(),
+    });
+
     // 1. Post to Apps Script Web App (if configured)
     if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
       try {
@@ -741,13 +921,20 @@ export const GoogleSheetsService = {
             logRow,
           }),
         });
-        const resJson = await res.json();
-        if (resJson && resJson.photoUrl && resJson.photoUrl.startsWith('http')) {
-          log.photoUrl = resJson.photoUrl;
-          StorageService.updateTaskLog(log);
+        if (res.ok) {
+          const resJson = await res.json();
+          if (resJson && resJson.photoUrl && resJson.photoUrl.startsWith('http')) {
+            log.photoUrl = resJson.photoUrl;
+            StorageService.updateTaskLog(log);
+          }
+          // Remove from pending queue on verified delivery
+          StorageService.removeFromPendingQueue(log.id);
+        } else {
+          StorageService.incrementPendingRetry(log.id);
         }
       } catch (err) {
-        console.warn('Real-time task log post failed, will be included in full sync:', err);
+        console.warn('Real-time task log post failed, queued for automatic background retry:', err);
+        StorageService.incrementPendingRetry(log.id);
       }
     }
 
@@ -773,7 +960,7 @@ export const GoogleSheetsService = {
     }
   },
 
-  // Real-time single PeerInspection direct append to Google Sheet
+  // Real-time single PeerInspection direct append to Google Sheet with Queue
   logPeerInspectionToSheets: async (inspection: PeerInspection): Promise<void> => {
     const syncConfig = StorageService.getSyncConfig();
     const token = getCachedAccessToken();
@@ -812,6 +999,14 @@ export const GoogleSheetsService = {
       inspection.timestamp,
     ];
 
+    // Enqueue for reliability
+    StorageService.addToPendingQueue({
+      id: inspection.id,
+      type: 'peerInspection',
+      payload: { peerRow, inspection },
+      timestamp: new Date().toISOString(),
+    });
+
     // 1. Post to Apps Script Web App (if configured)
     if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
       try {
@@ -823,13 +1018,19 @@ export const GoogleSheetsService = {
             inspectionRow: peerRow,
           }),
         });
-        const resJson = await res.json();
-        if (resJson && resJson.photoUrl && resJson.photoUrl.startsWith('http')) {
-          inspection.photoUrl = resJson.photoUrl;
-          StorageService.updatePeerInspection(inspection);
+        if (res.ok) {
+          const resJson = await res.json();
+          if (resJson && resJson.photoUrl && resJson.photoUrl.startsWith('http')) {
+            inspection.photoUrl = resJson.photoUrl;
+            StorageService.updatePeerInspection(inspection);
+          }
+          StorageService.removeFromPendingQueue(inspection.id);
+        } else {
+          StorageService.incrementPendingRetry(inspection.id);
         }
       } catch (err) {
-        console.warn('Real-time peer inspection post failed, will be included in full sync:', err);
+        console.warn('Real-time peer inspection post failed, queued for automatic retry:', err);
+        StorageService.incrementPendingRetry(inspection.id);
       }
     }
 
@@ -853,6 +1054,324 @@ export const GoogleSheetsService = {
         console.warn('Direct REST PeerInspection append fallback error:', err);
       }
     }
+  },
+
+  // Lightweight Targeted Sync: Save Users only
+  saveUsersToSheets: async (usersInput?: User[]): Promise<SyncResult> => {
+    const syncConfig = StorageService.getSyncConfig();
+    const token = getCachedAccessToken();
+    const now = new Date().toISOString();
+    const users = usersInput || StorageService.getUsers();
+    const userRows = [
+      ['ID', 'Username', 'Password', 'Name', 'Role', 'Unit', 'Status', 'Phone'],
+      ...users.map((u) => [
+        u.id,
+        u.username,
+        u.password || 'password123',
+        u.name,
+        u.role,
+        u.unit,
+        u.status,
+        u.phone || '',
+      ]),
+    ];
+
+    if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
+      try {
+        const res = await fetch(syncConfig.webAppUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'saveUsers', users: userRows }),
+        });
+        if (res.ok) {
+          syncConfig.lastSyncTime = now;
+          StorageService.saveSyncConfig(syncConfig);
+          return { success: true, message: 'Data Users tersimpan di Google Sheet!', timestamp: now };
+        }
+      } catch (e) {
+        console.warn('Targeted users sync failed:', e);
+      }
+    }
+
+    if (token) {
+      try {
+        await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/Users!A1:H${userRows.length + 10}?valueInputOption=USER_ENTERED`,
+          {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ values: userRows }),
+          }
+        );
+        return { success: true, message: 'Data Users tersimpan via REST!', timestamp: now };
+      } catch (err: any) {
+        return { success: false, message: err.message, timestamp: now };
+      }
+    }
+
+    return { success: true, message: 'Data Users tersimpan secara lokal.', timestamp: now };
+  },
+
+  // Lightweight Targeted Sync: Save MasterTasks only
+  saveMasterTasksToSheets: async (tasksInput?: MasterTask[]): Promise<SyncResult> => {
+    const syncConfig = StorageService.getSyncConfig();
+    const token = getCachedAccessToken();
+    const now = new Date().toISOString();
+    const tasks = tasksInput || StorageService.getMasterTasks();
+    const taskRows = [
+      ['ID', 'Title', 'Unit', 'Category', 'TimingType', 'Instructions', 'PhotoRequired', 'IsActive', 'Area', 'Assignee', 'StandardPhotoURL'],
+      ...tasks.map((t) => [
+        t.id,
+        t.title,
+        t.unit,
+        t.category,
+        t.timingType,
+        t.instructions.join(' | '),
+        t.photoRequired ? 'YA' : 'TIDAK',
+        t.isActive ? 'AKTIF' : 'NONAKTIF',
+        t.area || '',
+        t.assignee || 'Semua Petugas',
+        t.standardPhotoUrl || '',
+      ]),
+    ];
+
+    if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
+      try {
+        const res = await fetch(syncConfig.webAppUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'saveMasterTasks', masterTasks: taskRows }),
+        });
+        if (res.ok) {
+          syncConfig.lastSyncTime = now;
+          StorageService.saveSyncConfig(syncConfig);
+          return { success: true, message: 'MasterTask tersimpan di Google Sheet!', timestamp: now };
+        }
+      } catch (e) {
+        console.warn('Targeted master task sync failed:', e);
+      }
+    }
+
+    if (token) {
+      try {
+        await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/MasterTask!A1:K${taskRows.length + 10}?valueInputOption=USER_ENTERED`,
+          {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ values: taskRows }),
+          }
+        );
+        return { success: true, message: 'MasterTask tersimpan via REST!', timestamp: now };
+      } catch (err: any) {
+        return { success: false, message: err.message, timestamp: now };
+      }
+    }
+
+    return { success: true, message: 'MasterTask tersimpan secara lokal.', timestamp: now };
+  },
+
+  // Lightweight Targeted Sync: Save JobBareng only
+  saveJobBarengToSheets: async (jobsInput?: JobBareng[]): Promise<SyncResult> => {
+    const syncConfig = StorageService.getSyncConfig();
+    const token = getCachedAccessToken();
+    const now = new Date().toISOString();
+    const users = StorageService.getUsers();
+    const jobs = jobsInput || StorageService.getJobBareng();
+    const jobRows = [
+      ['ID', 'Title', 'Description', 'Date', 'TargetUnit', 'TargetArea', 'Status', 'Participants', 'CompletedUsers', 'CreatedAt', 'AssignmentType', 'AssignedUsers'],
+      ...jobs.map((j) => {
+        const participantDisplay = (j.participantNames && j.participantNames.length > 0)
+          ? j.participantNames.join(', ')
+          : j.participantIds.map((id) => {
+              const u = users.find((user) => user.id === id || user.username === id);
+              return u ? u.name : id;
+            }).join(', ');
+
+        const completedDisplay = (j.completedUserNames && j.completedUserNames.length > 0)
+          ? j.completedUserNames.join(', ')
+          : j.completedUserIds.map((id) => {
+              const u = users.find((user) => user.id === id || user.username === id);
+              return u ? u.name : id;
+            }).join(', ');
+
+        const assignedDisplay = (j.assignedUserNames && j.assignedUserNames.length > 0)
+          ? j.assignedUserNames.join(', ')
+          : (j.assignedUserIds || []).map((id) => {
+              const u = users.find((user) => user.id === id || user.username === id);
+              return u ? u.name : id;
+            }).join(', ');
+
+        return [
+          j.id,
+          j.title,
+          j.description,
+          j.date,
+          j.targetUnit,
+          j.targetArea,
+          j.status,
+          participantDisplay,
+          completedDisplay,
+          j.createdAt,
+          j.assignmentType || 'all',
+          assignedDisplay || 'Semua Petugas',
+        ];
+      }),
+    ];
+
+    if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
+      try {
+        const res = await fetch(syncConfig.webAppUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'saveJobBareng', jobBareng: jobRows }),
+        });
+        if (res.ok) {
+          syncConfig.lastSyncTime = now;
+          StorageService.saveSyncConfig(syncConfig);
+          return { success: true, message: 'Job Bareng tersimpan di Google Sheet!', timestamp: now };
+        }
+      } catch (e) {
+        console.warn('Targeted job bareng sync failed:', e);
+      }
+    }
+
+    if (token) {
+      try {
+        await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/JobBareng!A1:L${jobRows.length + 10}?valueInputOption=USER_ENTERED`,
+          {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ values: jobRows }),
+          }
+        );
+        return { success: true, message: 'Job Bareng tersimpan via REST!', timestamp: now };
+      } catch (err: any) {
+        return { success: false, message: err.message, timestamp: now };
+      }
+    }
+
+    return { success: true, message: 'Job Bareng tersimpan secara lokal.', timestamp: now };
+  },
+
+  // Lightweight Targeted Sync: Save DinasRequests only
+  saveDinasToSheets: async (dinasInput?: DinasRequest[]): Promise<SyncResult> => {
+    const syncConfig = StorageService.getSyncConfig();
+    const token = getCachedAccessToken();
+    const now = new Date().toISOString();
+    const dinas = dinasInput || StorageService.getDinasRequests();
+    const dinasRows = [
+      ['ID', 'Date', 'UserID', 'UserName', 'Unit', 'Reason', 'Destination', 'Status', 'ApprovedBy', 'ApprovedAt', 'CreatedAt'],
+      ...dinas.map((d) => [
+        d.id,
+        d.date,
+        d.userId,
+        d.userName,
+        d.unit,
+        d.reason,
+        d.destination,
+        d.status,
+        d.approvedByName || d.approvedBy || '',
+        d.approvedAt || '',
+        d.createdAt,
+      ]),
+    ];
+
+    if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
+      try {
+        const res = await fetch(syncConfig.webAppUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'saveDinas', dinasRequests: dinasRows }),
+        });
+        if (res.ok) {
+          syncConfig.lastSyncTime = now;
+          StorageService.saveSyncConfig(syncConfig);
+          return { success: true, message: 'Dinas Requests tersimpan di Google Sheet!', timestamp: now };
+        }
+      } catch (e) {
+        console.warn('Targeted dinas sync failed:', e);
+      }
+    }
+
+    if (token) {
+      try {
+        await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/DinasRequests!A1:K${dinasRows.length + 10}?valueInputOption=USER_ENTERED`,
+          {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ values: dinasRows }),
+          }
+        );
+        return { success: true, message: 'Dinas Requests tersimpan via REST!', timestamp: now };
+      } catch (err: any) {
+        return { success: false, message: err.message, timestamp: now };
+      }
+    }
+
+    return { success: true, message: 'Dinas Requests tersimpan secara lokal.', timestamp: now };
+  },
+
+  // Lightweight Targeted Sync: Save WeeklyScores only
+  saveWeeklyScoresToSheets: async (scoresInput?: WeeklyScore[]): Promise<SyncResult> => {
+    const syncConfig = StorageService.getSyncConfig();
+    const token = getCachedAccessToken();
+    const now = new Date().toISOString();
+    const scores = scoresInput || StorageService.getWeeklyScores();
+    const weeklyRows = [
+      ['ID', 'UserID', 'UserName', 'Unit', 'SaturdayDate', 'Year', 'DateRange', 'Score', 'KordinatorName', 'CategoryScoresJSON', 'Notes', 'Timestamp'],
+      ...scores.map((w) => [
+        w.id,
+        w.userId,
+        w.userName,
+        w.unit,
+        w.saturdayDate || '',
+        w.year,
+        w.dateRange || '',
+        w.score,
+        w.kordinatorName,
+        JSON.stringify(w.categoryScores || {}),
+        w.notes,
+        w.timestamp,
+      ]),
+    ];
+
+    if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
+      try {
+        const res = await fetch(syncConfig.webAppUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'saveWeeklyScores', weeklyScores: weeklyRows }),
+        });
+        if (res.ok) {
+          syncConfig.lastSyncTime = now;
+          StorageService.saveSyncConfig(syncConfig);
+          return { success: true, message: 'Penilaian mingguan tersimpan di Google Sheet!', timestamp: now };
+        }
+      } catch (e) {
+        console.warn('Targeted weekly scores sync failed:', e);
+      }
+    }
+
+    if (token) {
+      try {
+        await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/WeeklyScores!A1:L${weeklyRows.length + 10}?valueInputOption=USER_ENTERED`,
+          {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ values: weeklyRows }),
+          }
+        );
+        return { success: true, message: 'Penilaian mingguan tersimpan via REST!', timestamp: now };
+      } catch (err: any) {
+        return { success: false, message: err.message, timestamp: now };
+      }
+    }
+
+    return { success: true, message: 'Penilaian mingguan tersimpan secara lokal.', timestamp: now };
   },
 
   // Trigger remote database setup on Google Sheet
@@ -1200,9 +1719,10 @@ export const GoogleSheetsService = {
         // 1. Try Apps Script Web App if configured
         if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
           try {
+            const pullUrl = `${syncConfig.webAppUrl}${syncConfig.webAppUrl.includes('?') ? '&' : '?'}limit=150`;
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 12000);
-            const response = await fetch(syncConfig.webAppUrl, { signal: controller.signal });
+            const timeoutId = setTimeout(() => controller.abort(), 25000);
+            const response = await fetch(pullUrl, { signal: controller.signal });
             clearTimeout(timeoutId);
             const resJson = await response.json();
             if (resJson.success && resJson.data) {
@@ -1335,6 +1855,19 @@ export const GoogleSheetsService = {
 
           if (rLogs !== undefined) {
             const masterTasks = StorageService.getMasterTasks();
+            const taskById = new Map<string, MasterTask>();
+            const taskByTitle = new Map<string, MasterTask>();
+            const taskByTitleAndTiming = new Map<string, MasterTask>();
+
+            for (const t of masterTasks) {
+              if (t.id) taskById.set(t.id.toLowerCase(), t);
+              if (t.title) {
+                const lt = t.title.trim().toLowerCase();
+                taskByTitle.set(lt, t);
+                taskByTitleAndTiming.set(`${lt}::${t.timingType}`, t);
+              }
+            }
+
             const parsedLogs: TaskLog[] = (rLogs || [])
               .filter((row: any[]) => row && row.length > 0 && row[0])
               .map((row: any[], i: number) => {
@@ -1349,37 +1882,23 @@ export const GoogleSheetsService = {
                   resolvedTaskTitle = idPrefixMatch[2].trim() || rawTaskVal;
                 }
 
-                // 2. Strict ID matching first
+                // 2. High performance O(1) indexed matching
                 if (resolvedTaskId) {
-                  const directMatch = masterTasks.find(
-                    (t) => t.id && t.id.toLowerCase() === resolvedTaskId.toLowerCase()
-                  );
+                  const directMatch = taskById.get(resolvedTaskId.toLowerCase());
                   if (directMatch) {
                     resolvedTaskId = directMatch.id;
                     resolvedTaskTitle = directMatch.title || resolvedTaskTitle;
                   }
                 } else {
-                  // Check if rawTaskVal is directly an exact ID
-                  const directIdMatch = masterTasks.find(
-                    (t) => t.id && t.id.toLowerCase() === rawTaskVal.toLowerCase()
-                  );
+                  const directIdMatch = taskById.get(rawTaskVal.toLowerCase());
                   if (directIdMatch) {
                     resolvedTaskId = directIdMatch.id;
                     resolvedTaskTitle = directIdMatch.title;
                   } else {
-                    // Fallback title match - MUST respect timingType so Clock Out NEVER cross-matches Pre-Readiness!
                     const logTiming = String(row[8] || '').toLowerCase();
-                    const matchedTask = masterTasks.find((t) => {
-                      const isTitleMatch =
-                        t.title &&
-                        resolvedTaskTitle &&
-                        t.title.trim().toLowerCase() === resolvedTaskTitle.toLowerCase();
-                      if (!isTitleMatch) return false;
-                      if (logTiming && logTiming !== 'anytime') {
-                        return t.timingType === logTiming;
-                      }
-                      return true;
-                    });
+                    const matchedTask = (logTiming && logTiming !== 'anytime')
+                      ? taskByTitleAndTiming.get(`${resolvedTaskTitle.trim().toLowerCase()}::${logTiming}`)
+                      : taskByTitle.get(resolvedTaskTitle.trim().toLowerCase());
 
                     if (matchedTask) {
                       resolvedTaskId = matchedTask.id;
@@ -1731,6 +2250,19 @@ export const GoogleSheetsService = {
       // 2. Parse TaskLogs if present (including LateReason, LateReportStatus, PhotoURL)
       if (valueRanges[2]?.values !== undefined) {
         const masterTasks = StorageService.getMasterTasks();
+        const taskById = new Map<string, MasterTask>();
+        const taskByTitle = new Map<string, MasterTask>();
+        const taskByTitleAndTiming = new Map<string, MasterTask>();
+
+        for (const t of masterTasks) {
+          if (t.id) taskById.set(t.id.toLowerCase(), t);
+          if (t.title) {
+            const lt = t.title.trim().toLowerCase();
+            taskByTitle.set(lt, t);
+            taskByTitleAndTiming.set(`${lt}::${t.timingType}`, t);
+          }
+        }
+
         const parsedLogs: TaskLog[] = (valueRanges[2].values || [])
           .filter((row: any[]) => row && row.length > 0 && row[0])
           .map((row: any[], i: number) => {
@@ -1745,37 +2277,23 @@ export const GoogleSheetsService = {
               resolvedTaskTitle = idPrefixMatch[2].trim() || rawTaskVal;
             }
 
-            // 2. Strict ID matching first
+            // 2. Fast O(1) indexed matching
             if (resolvedTaskId) {
-              const directMatch = masterTasks.find(
-                (t) => t.id && t.id.toLowerCase() === resolvedTaskId.toLowerCase()
-              );
+              const directMatch = taskById.get(resolvedTaskId.toLowerCase());
               if (directMatch) {
                 resolvedTaskId = directMatch.id;
                 resolvedTaskTitle = directMatch.title || resolvedTaskTitle;
               }
             } else {
-              // Check if rawTaskVal is directly an exact ID
-              const directIdMatch = masterTasks.find(
-                (t) => t.id && t.id.toLowerCase() === rawTaskVal.toLowerCase()
-              );
+              const directIdMatch = taskById.get(rawTaskVal.toLowerCase());
               if (directIdMatch) {
                 resolvedTaskId = directIdMatch.id;
                 resolvedTaskTitle = directIdMatch.title;
               } else {
-                // Fallback title match - MUST respect timingType so Clock Out NEVER cross-matches Pre-Readiness!
                 const logTiming = String(row[8] || '').toLowerCase();
-                const matchedTask = masterTasks.find((t) => {
-                  const isTitleMatch =
-                    t.title &&
-                    resolvedTaskTitle &&
-                    t.title.trim().toLowerCase() === resolvedTaskTitle.toLowerCase();
-                  if (!isTitleMatch) return false;
-                  if (logTiming && logTiming !== 'anytime') {
-                    return t.timingType === logTiming;
-                  }
-                  return true;
-                });
+                const matchedTask = (logTiming && logTiming !== 'anytime')
+                  ? taskByTitleAndTiming.get(`${resolvedTaskTitle.trim().toLowerCase()}::${logTiming}`)
+                  : taskByTitle.get(resolvedTaskTitle.trim().toLowerCase());
 
                 if (matchedTask) {
                   resolvedTaskId = matchedTask.id;

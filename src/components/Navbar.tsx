@@ -13,6 +13,7 @@ import {
   FolderSync,
 } from 'lucide-react';
 import { User, SyncConfig } from '../types';
+import { StorageService } from '../services/storage';
 
 interface NavbarProps {
   activeUser: User;
@@ -183,15 +184,34 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
 
           {/* Google Sheets Sync Button */}
-          <button
-            onClick={onOpenSyncModal}
-            title="Pengaturan & Status Sinkronisasi Google Sheets 2-Arah"
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl border border-emerald-200 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 transition-all shadow-xs cursor-pointer active:scale-98"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden sm:inline">Google Sheets 2-Arah</span>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          </button>
+          {(() => {
+            const pendingCount = StorageService.getPendingQueue().length;
+            return (
+              <button
+                onClick={onOpenSyncModal}
+                title={
+                  pendingCount > 0
+                    ? `Ada ${pendingCount} perubahan dalam antrean pengiriman offline`
+                    : 'Pengaturan & Status Sinkronisasi Google Sheets 2-Arah'
+                }
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all shadow-xs cursor-pointer active:scale-98 ${
+                  pendingCount > 0
+                    ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
+                    : 'border-emerald-200 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300'
+                }`}
+              >
+                <FileSpreadsheet className={`w-3.5 h-3.5 ${pendingCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`} />
+                <span className="hidden sm:inline">Google Sheets</span>
+                {pendingCount > 0 ? (
+                  <span className="px-1.5 py-0.5 text-[10px] font-bold bg-amber-500 text-white rounded-full leading-none animate-pulse">
+                    {pendingCount} antre
+                  </span>
+                ) : (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                )}
+              </button>
+            );
+          })()}
 
           {/* User Profile & Switcher */}
           <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200">

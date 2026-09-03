@@ -99,11 +99,13 @@ export default function App() {
       })
       .finally(() => {
         setIsConnectingSheet(false);
+        GoogleSheetsService.processPendingQueue().catch(console.warn);
       });
 
-    // Throttled pull on window focus (maximum once every 2 minutes when switching tabs)
+    // Throttled pull and queue processing on window focus
     let lastFocusPullTime = Date.now();
     const handleWindowFocus = () => {
+      GoogleSheetsService.processPendingQueue().catch(console.warn);
       const now = Date.now();
       if (now - lastFocusPullTime < 120000) return;
       lastFocusPullTime = now;
@@ -117,10 +119,22 @@ export default function App() {
         })
         .catch(console.warn);
     };
-    window.addEventListener('focus', handleWindowFocus);
 
-    // Periodic background sync interval (every 90 seconds)
+    const handleOnline = () => {
+      GoogleSheetsService.processPendingQueue().catch(console.warn);
+      GoogleSheetsService.pullFromSheets()
+        .then((res) => {
+          if (res.success) refreshAllStateFromStorage();
+        })
+        .catch(console.warn);
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('online', handleOnline);
+
+    // Periodic background sync interval & queue processing (every 90 seconds)
     const syncInterval = setInterval(() => {
+      GoogleSheetsService.processPendingQueue().catch(console.warn);
       GoogleSheetsService.pullFromSheets()
         .then((res) => {
           if (res.success) {
@@ -133,6 +147,7 @@ export default function App() {
 
     return () => {
       window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('online', handleOnline);
       clearInterval(syncInterval);
     };
   }, []);
@@ -385,9 +400,10 @@ export default function App() {
       participantNames: Array.from(new Set([...(target.participantNames || []), activeUser.name])),
     };
     StorageService.updateJobBareng(updated);
-    setJobBarengList(StorageService.getJobBareng());
+    const updatedJobs = StorageService.getJobBareng();
+    setJobBarengList(updatedJobs);
     showToast('Anda telah bergabung dalam Job Bareng!');
-    GoogleSheetsService.pushAllToSheets().catch(console.warn);
+    GoogleSheetsService.saveJobBarengToSheets(updatedJobs).catch(console.warn);
   };
 
   // Complete Job Bareng Trigger
@@ -411,9 +427,10 @@ export default function App() {
   // Submit Dinas Request
   const handleSubmitDinas = (request: DinasRequest) => {
     StorageService.addDinasRequest(request);
-    setDinasRequests(StorageService.getDinasRequests());
+    const updatedDinas = StorageService.getDinasRequests();
+    setDinasRequests(updatedDinas);
     showToast('Pengajuan dinas luar terkirim. Menunggu persetujuan Admin FM.');
-    GoogleSheetsService.pushAllToSheets().catch(console.warn);
+    GoogleSheetsService.saveDinasToSheets(updatedDinas).catch(console.warn);
   };
 
   // Submit Peer Inspection
@@ -427,9 +444,10 @@ export default function App() {
   // Submit Coordinator Weekly Score
   const handleSubmitWeeklyScore = (score: WeeklyScore) => {
     StorageService.addWeeklyScore(score);
-    setWeeklyScores(StorageService.getWeeklyScores());
+    const updatedScores = StorageService.getWeeklyScores();
+    setWeeklyScores(updatedScores);
     showToast(`Penilaian mingguan untuk ${score.userName} berhasil disimpan!`);
-    GoogleSheetsService.pushAllToSheets().catch(console.warn);
+    GoogleSheetsService.saveWeeklyScoresToSheets(updatedScores).catch(console.warn);
   };
 
   // Coordinator Verify Task
@@ -454,44 +472,50 @@ export default function App() {
   // Admin Actions
   const handleUpdateUser = (updatedUser: User) => {
     StorageService.updateUser(updatedUser);
-    setUsers(StorageService.getUsers());
+    const updatedUsers = StorageService.getUsers();
+    setUsers(updatedUsers);
     showToast(`Data staff ${updatedUser.name} diperbarui.`);
-    GoogleSheetsService.pushAllToSheets().catch(console.warn);
+    GoogleSheetsService.saveUsersToSheets(updatedUsers).catch(console.warn);
   };
 
   const handleAddUser = (newUser: User) => {
     StorageService.addUser(newUser);
-    setUsers(StorageService.getUsers());
+    const updatedUsers = StorageService.getUsers();
+    setUsers(updatedUsers);
     showToast(`Staff baru ${newUser.name} ditambahkan.`);
-    GoogleSheetsService.pushAllToSheets().catch(console.warn);
+    GoogleSheetsService.saveUsersToSheets(updatedUsers).catch(console.warn);
   };
 
   const handleAddMasterTask = (task: MasterTask) => {
     StorageService.addMasterTask(task);
-    setMasterTasks(StorageService.getMasterTasks());
+    const updatedTasks = StorageService.getMasterTasks();
+    setMasterTasks(updatedTasks);
     showToast(`Master task "${task.title}" berhasil ditambahkan.`);
-    GoogleSheetsService.pushAllToSheets().catch(console.warn);
+    GoogleSheetsService.saveMasterTasksToSheets(updatedTasks).catch(console.warn);
   };
 
   const handleUpdateMasterTask = (task: MasterTask) => {
     StorageService.updateMasterTask(task);
-    setMasterTasks(StorageService.getMasterTasks());
+    const updatedTasks = StorageService.getMasterTasks();
+    setMasterTasks(updatedTasks);
     showToast(`Master task "${task.title}" diperbarui.`);
-    GoogleSheetsService.pushAllToSheets().catch(console.warn);
+    GoogleSheetsService.saveMasterTasksToSheets(updatedTasks).catch(console.warn);
   };
 
   const handleDeleteMasterTask = (taskId: string) => {
     StorageService.deleteMasterTask(taskId);
-    setMasterTasks(StorageService.getMasterTasks());
+    const updatedTasks = StorageService.getMasterTasks();
+    setMasterTasks(updatedTasks);
     showToast('Master task dihapus.');
-    GoogleSheetsService.pushAllToSheets().catch(console.warn);
+    GoogleSheetsService.saveMasterTasksToSheets(updatedTasks).catch(console.warn);
   };
 
   const handleCreateJobBareng = (job: JobBareng) => {
     StorageService.addJobBareng(job);
-    setJobBarengList(StorageService.getJobBareng());
+    const updatedJobs = StorageService.getJobBareng();
+    setJobBarengList(updatedJobs);
     showToast(`Job Bareng "${job.title}" telah dipublikasikan ke semua staff!`);
-    GoogleSheetsService.pushAllToSheets().catch(console.warn);
+    GoogleSheetsService.saveJobBarengToSheets(updatedJobs).catch(console.warn);
   };
 
   const handleApproveDinas = (requestId: string, approve: boolean) => {
@@ -506,7 +530,8 @@ export default function App() {
       approvedAt: new Date().toISOString(),
     };
     StorageService.updateDinasRequest(updated);
-    setDinasRequests(StorageService.getDinasRequests());
+    const updatedDinas = StorageService.getDinasRequests();
+    setDinasRequests(updatedDinas);
 
     if (approve) {
       // Create a TaskLog mark as Dinas Luar
@@ -529,19 +554,19 @@ export default function App() {
       };
       StorageService.addTaskLog(dinasLog);
       setTaskLogs(StorageService.getTaskLogs());
+      GoogleSheetsService.logTaskToSheets(dinasLog).catch(console.warn);
     }
 
     showToast(`Permintaan dinas luar ${approve ? 'disetujui' : 'ditolak'}.`);
-    GoogleSheetsService.pushAllToSheets().catch(console.warn);
+    GoogleSheetsService.saveDinasToSheets(updatedDinas).catch(console.warn);
   };
 
   const handleUpdateTaskLog = (updatedLog: TaskLog) => {
     StorageService.updateTaskLog(updatedLog);
     setTaskLogs(StorageService.getTaskLogs());
     showToast(`Log tugas "${updatedLog.taskTitle}" (${updatedLog.userName}) berhasil diperbarui & disimpan.`);
-    // Realtime sync this specific log to Google Sheets and push all
+    // Realtime sync this specific log to Google Sheets with queue resilience
     GoogleSheetsService.logTaskToSheets(updatedLog).catch(console.warn);
-    GoogleSheetsService.pushAllToSheets().catch(console.warn);
   };
 
   const handleDeleteTaskLog = (logId: string) => {
