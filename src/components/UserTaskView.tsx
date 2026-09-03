@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   CheckCircle2,
   Check,
@@ -138,101 +138,121 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
     activeUser.unit === 'Semua Unit' ||
     activeUser.role === 'admin';
 
-  const unitMasterTasks = masterTasks.filter((t) => {
-    const tUnit = (t.unit || 'Semua Unit').trim().toLowerCase();
-    const uUnit = (activeUser.unit || 'Semua Unit').trim().toLowerCase();
-    const matchesUnit =
-      isGeneralUnit ||
-      tUnit === 'semua unit' ||
-      tUnit === 'semua' ||
-      tUnit === 'all' ||
-      tUnit === uUnit ||
-      uUnit.includes(tUnit) ||
-      tUnit.includes(uUnit);
-    return matchesUnit && isMasterTaskActive(t);
-  });
+  const unitMasterTasks = useMemo(() => {
+    return masterTasks.filter((t) => {
+      const tUnit = (t.unit || 'Semua Unit').trim().toLowerCase();
+      const uUnit = (activeUser.unit || 'Semua Unit').trim().toLowerCase();
+      const matchesUnit =
+        isGeneralUnit ||
+        tUnit === 'semua unit' ||
+        tUnit === 'semua' ||
+        tUnit === 'all' ||
+        tUnit === uUnit ||
+        uUnit.includes(tUnit) ||
+        tUnit.includes(uUnit);
+      return matchesUnit && isMasterTaskActive(t);
+    });
+  }, [masterTasks, activeUser.unit, isGeneralUnit]);
 
   // Strict user task filtering: A user ONLY sees tasks assigned to them (or specifically for them)
-  const myAssignedTasks = unitMasterTasks.filter((t) =>
-    isTaskAssignedToUser(t, activeUser)
-  );
-
-  // Exclusively display tasks assigned to this user
-  const userMasterTasks = myAssignedTasks;
+  const userMasterTasks = useMemo(() => {
+    return unitMasterTasks.filter((t) => isTaskAssignedToUser(t, activeUser));
+  }, [unitMasterTasks, activeUser]);
 
   // Today's logs for this active user (strictly matching by userId/userName AND today's date with format tolerance)
-  const userTodayLogs = taskLogs.filter((l) => {
-    const isUserMatch =
-      l.userId === activeUser.id ||
-      (l.userName && activeUser.name && l.userName.trim().toLowerCase() === activeUser.name.trim().toLowerCase()) ||
-      (activeUser.username && l.userId === activeUser.username) ||
-      (activeUser.username && l.userName && l.userName.trim().toLowerCase() === activeUser.username.trim().toLowerCase()) ||
-      (activeUser.id && l.userName && l.userName.trim().toLowerCase() === activeUser.id.trim().toLowerCase());
-    const isDateMatch =
-      isSameDay(l.date, today) ||
-      (l.timestamp && isSameDay(l.timestamp, today));
-    return isUserMatch && Boolean(isDateMatch);
-  });
+  const userTodayLogs = useMemo(() => {
+    return taskLogs.filter((l) => {
+      const isUserMatch =
+        l.userId === activeUser.id ||
+        (l.userName && activeUser.name && l.userName.trim().toLowerCase() === activeUser.name.trim().toLowerCase()) ||
+        (activeUser.username && l.userId === activeUser.username) ||
+        (activeUser.username && l.userName && l.userName.trim().toLowerCase() === activeUser.username.trim().toLowerCase()) ||
+        (activeUser.id && l.userName && l.userName.trim().toLowerCase() === activeUser.id.trim().toLowerCase());
+      const isDateMatch =
+        isSameDay(l.date, today) ||
+        (l.timestamp && isSameDay(l.timestamp, today));
+      return isUserMatch && Boolean(isDateMatch);
+    });
+  }, [taskLogs, activeUser.id, activeUser.name, activeUser.username, today]);
 
   // Active Insidental / Job Bareng for this user (Visible throughout TODAY until the day changes)
-  const activeJobs = jobBarengList.filter((j) => {
-    if (j.status === 'Dibatalkan') return false;
-    if (isJobBarengExpired(j)) return false;
+  const activeJobs = useMemo(() => {
+    return jobBarengList.filter((j) => {
+      if (j.status === 'Dibatalkan') return false;
+      if (isJobBarengExpired(j)) return false;
 
-    // Strict date check: only show jobs for today
-    const jobDate = normalizeDateString(j.date) || normalizeDateString(j.createdAt) || today;
-    if (jobDate !== today) return false;
-    
-    // If specific users are assigned
-    if (
-      j.assignmentType === 'specific' &&
-      ((j.assignedUserIds && j.assignedUserIds.length > 0) ||
-        (j.assignedUserNames && j.assignedUserNames.length > 0))
-    ) {
-      const isAssigned =
-        (j.assignedUserIds &&
-          j.assignedUserIds.some(
-            (id) =>
-              id === activeUser.id ||
-              id === activeUser.username ||
-              (activeUser.name && id.toLowerCase() === activeUser.name.toLowerCase())
-          )) ||
-        (j.assignedUserNames &&
-          activeUser.name &&
-          j.assignedUserNames.some(
-            (n) => n.toLowerCase().trim() === activeUser.name.toLowerCase().trim()
-          ));
+      // Strict date check: only show jobs for today
+      const jobDate = normalizeDateString(j.date) || normalizeDateString(j.createdAt) || today;
+      if (jobDate !== today) return false;
+      
+      // If specific users are assigned
+      if (
+        j.assignmentType === 'specific' &&
+        ((j.assignedUserIds && j.assignedUserIds.length > 0) ||
+          (j.assignedUserNames && j.assignedUserNames.length > 0))
+      ) {
+        const isAssigned =
+          (j.assignedUserIds &&
+            j.assignedUserIds.some(
+              (id) =>
+                id === activeUser.id ||
+                id === activeUser.username ||
+                (activeUser.name && id.toLowerCase() === activeUser.name.toLowerCase())
+            )) ||
+          (j.assignedUserNames &&
+            activeUser.name &&
+            j.assignedUserNames.some(
+              (n) => n.toLowerCase().trim() === activeUser.name.toLowerCase().trim()
+            ));
 
-      if (!isAssigned) return false;
-      return true;
-    }
+        if (!isAssigned) return false;
+        return true;
+      }
 
-    // Target unit check
-    const isTargetAll =
-      !j.targetUnit ||
-      j.targetUnit === 'Semua Unit' ||
-      j.targetUnit.toLowerCase().includes('semua');
-    const isTargetUnitMatch =
-      j.targetUnit &&
-      activeUser.unit &&
-      j.targetUnit.trim().toLowerCase() === activeUser.unit.trim().toLowerCase();
+      // Target unit check
+      const isTargetAll =
+        !j.targetUnit ||
+        j.targetUnit === 'Semua Unit' ||
+        j.targetUnit.toLowerCase().includes('semua');
+      const isTargetUnitMatch =
+        j.targetUnit &&
+        activeUser.unit &&
+        j.targetUnit.trim().toLowerCase() === activeUser.unit.trim().toLowerCase();
 
-    return isGeneralUnit || isTargetAll || isTargetUnitMatch;
-  });
+      return isGeneralUnit || isTargetAll || isTargetUnitMatch;
+    });
+  }, [jobBarengList, today, activeUser, isGeneralUnit]);
 
   // Categorized tasks with fallback normalization
-  const preReadinessTasks = userMasterTasks.filter(
-    (t) => normalizeCategory(t.category, t) === 'Harian' && normalizeTiming(t.timingType, t) === 'pre_readiness'
-  );
-  const clockOutTasks = userMasterTasks.filter(
-    (t) => normalizeCategory(t.category, t) === 'Harian' && normalizeTiming(t.timingType, t) === 'clock_out'
-  );
-  const anytimeDailyTasks = userMasterTasks.filter(
-    (t) => normalizeCategory(t.category, t) === 'Harian' && normalizeTiming(t.timingType, t) === 'anytime'
-  );
-  const jobBarengTasks = userMasterTasks.filter((t) => normalizeCategory(t.category, t) === 'Job Bareng');
-  const weeklyTasks = userMasterTasks.filter((t) => normalizeCategory(t.category, t) === 'Mingguan');
-  const monthlyTasks = userMasterTasks.filter((t) => normalizeCategory(t.category, t) === 'Bulanan');
+  const preReadinessTasks = useMemo(() => {
+    return userMasterTasks.filter(
+      (t) => normalizeCategory(t.category, t) === 'Harian' && normalizeTiming(t.timingType, t) === 'pre_readiness'
+    );
+  }, [userMasterTasks]);
+
+  const clockOutTasks = useMemo(() => {
+    return userMasterTasks.filter(
+      (t) => normalizeCategory(t.category, t) === 'Harian' && normalizeTiming(t.timingType, t) === 'clock_out'
+    );
+  }, [userMasterTasks]);
+
+  const anytimeDailyTasks = useMemo(() => {
+    return userMasterTasks.filter(
+      (t) => normalizeCategory(t.category, t) === 'Harian' && normalizeTiming(t.timingType, t) === 'anytime'
+    );
+  }, [userMasterTasks]);
+
+  const jobBarengTasks = useMemo(() => {
+    return userMasterTasks.filter((t) => normalizeCategory(t.category, t) === 'Job Bareng');
+  }, [userMasterTasks]);
+
+  const weeklyTasks = useMemo(() => {
+    return userMasterTasks.filter((t) => normalizeCategory(t.category, t) === 'Mingguan');
+  }, [userMasterTasks]);
+
+  const monthlyTasks = useMemo(() => {
+    return userMasterTasks.filter((t) => normalizeCategory(t.category, t) === 'Bulanan');
+  }, [userMasterTasks]);
 
   // Helper to match a task log with a master task
   const doesLogMatchTask = (l: TaskLog, task: MasterTask) => {
@@ -251,46 +271,61 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
 
   // Stats calculation (Strictly matched by Task ID or Title/Timing)
   const totalDailyTasksCount = preReadinessTasks.length + clockOutTasks.length + anytimeDailyTasks.length + jobBarengTasks.length;
-  const completedTodayCount = userMasterTasks.filter((task) => {
-    return userTodayLogs.some(
-      (l) =>
-        doesLogMatchTask(l, task) &&
-        (l.status === 'Selesai' ||
-          l.status === 'Terlambat' ||
-          Boolean(l.photoUrl && l.photoUrl.trim().length > 0) ||
-          Boolean(l.lateReason && l.lateReason.trim().length > 0))
-    );
-  }).length;
-  const lateTodayCount = userMasterTasks.filter((task) => {
-    const l = userTodayLogs.find((log) => doesLogMatchTask(log, task));
-    return Boolean(l?.isLate || l?.status === 'Terlambat' || (l?.lateReason && l.lateReason.trim().length > 0));
-  }).length;
+  
+  const completedTodayCount = useMemo(() => {
+    return userMasterTasks.filter((task) => {
+      return userTodayLogs.some(
+        (l) =>
+          doesLogMatchTask(l, task) &&
+          (l.status === 'Selesai' ||
+            l.status === 'Terlambat' ||
+            Boolean(l.photoUrl && l.photoUrl.trim().length > 0) ||
+            Boolean(l.lateReason && l.lateReason.trim().length > 0))
+      );
+    }).length;
+  }, [userMasterTasks, userTodayLogs]);
+
+  const lateTodayCount = useMemo(() => {
+    return userMasterTasks.filter((task) => {
+      const l = userTodayLogs.find((log) => doesLogMatchTask(log, task));
+      return Boolean(l?.isLate || l?.status === 'Terlambat' || (l?.lateReason && l.lateReason.trim().length > 0));
+    }).length;
+  }, [userMasterTasks, userTodayLogs]);
+
   const completionPercentage =
     totalDailyTasksCount > 0
       ? Math.round((completedTodayCount / totalDailyTasksCount) * 100)
       : 100;
 
   // Inspections where active user was evaluated (Received)
-  const myReceivedInspections = peerInspections.filter(
-    (p) => p.targetUserId === activeUser.id || (p.targetUserName && p.targetUserName.trim() === activeUser.name.trim())
-  );
+  const myReceivedInspections = useMemo(() => {
+    return peerInspections.filter(
+      (p) => p.targetUserId === activeUser.id || (p.targetUserName && p.targetUserName.trim() === activeUser.name.trim())
+    );
+  }, [peerInspections, activeUser.id, activeUser.name]);
 
   // Inspections where active user was the inspector (Submitted)
-  const mySubmittedInspections = peerInspections.filter(
-    (p) => p.inspectorId === activeUser.id || (p.inspectorName && p.inspectorName.trim() === activeUser.name.trim())
-  );
+  const mySubmittedInspections = useMemo(() => {
+    return peerInspections.filter(
+      (p) => p.inspectorId === activeUser.id || (p.inspectorName && p.inspectorName.trim() === activeUser.name.trim())
+    );
+  }, [peerInspections, activeUser.id, activeUser.name]);
 
   // Inspections done by active user today
-  const todaySubmittedInspections = mySubmittedInspections.filter(
-    (p) => isSameDay(p.date, today) || (p.timestamp && isSameDay(p.timestamp, today))
-  );
+  const todaySubmittedInspections = useMemo(() => {
+    return mySubmittedInspections.filter(
+      (p) => isSameDay(p.date, today) || (p.timestamp && isSameDay(p.timestamp, today))
+    );
+  }, [mySubmittedInspections, today]);
 
   // Access control for evaluation scores (Only Admin and Coordinator can view scores)
   const canViewScores =
     activeUser.role === 'admin' || activeUser.role === 'kordinator';
 
   // Coordinator weekly ratings for this user
-  const myWeeklyScores = weeklyScores.filter((w) => w.userId === activeUser.id);
+  const myWeeklyScores = useMemo(() => {
+    return weeklyScores.filter((w) => w.userId === activeUser.id);
+  }, [weeklyScores, activeUser.id]);
   const latestWeeklyScore = myWeeklyScores[0];
 
   const toggleExpand = (taskId: string) => {

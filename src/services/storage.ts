@@ -323,30 +323,32 @@ const SEED_DINAS_REQUESTS: DinasRequest[] = [];
 const SEED_PEER_INSPECTIONS: PeerInspection[] = [];
 const SEED_WEEKLY_SCORES: WeeklyScore[] = [];
 
-// In-memory fallback cache in case localStorage is blocked or exceeds quota
+// In-memory active read/write cache to eliminate repeated JSON.parse overhead
 const memoryFallbackCache = new Map<string, any>();
 
-// Storage Helper Functions
+// Storage Helper Functions with in-memory caching for maximum speed
 export const getStoredItem = <T>(key: string, defaultValue: T): T => {
+  if (memoryFallbackCache.has(key)) {
+    return memoryFallbackCache.get(key) as T;
+  }
   try {
     const item = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
     if (item) {
-      return JSON.parse(item);
-    }
-    if (memoryFallbackCache.has(key)) {
-      return memoryFallbackCache.get(key);
+      const parsed = JSON.parse(item);
+      memoryFallbackCache.set(key, parsed);
+      return parsed;
     }
     return defaultValue;
   } catch (e) {
     console.error(`Error reading ${key} from localStorage:`, e);
-    return memoryFallbackCache.has(key) ? memoryFallbackCache.get(key) : defaultValue;
+    return defaultValue;
   }
 };
 
-// Clean up heavy base64 data URLs from past days' task logs to free localStorage space
+// Clean up heavy base64 data URLs from past days' task logs to prevent localStorage bloat and keep app fast
 const freeLocalStorageSpace = () => {
   try {
-    const rawLogs = localStorage.getItem(STORAGE_KEYS.TASK_LOGS);
+    const rawLogs = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.TASK_LOGS) : null;
     if (!rawLogs) return;
     const logs: TaskLog[] = JSON.parse(rawLogs);
     if (!Array.isArray(logs) || logs.length === 0) return;
@@ -367,15 +369,25 @@ const freeLocalStorageSpace = () => {
     });
 
     if (modified) {
-      localStorage.setItem(STORAGE_KEYS.TASK_LOGS, JSON.stringify(pruned));
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.TASK_LOGS, JSON.stringify(pruned));
+      }
+      memoryFallbackCache.set(STORAGE_KEYS.TASK_LOGS, pruned);
     }
   } catch (err) {
     console.warn('Could not free localStorage space:', err);
   }
 };
 
+// Immediately execute cleanup on startup to prune old heavy photos
+try {
+  freeLocalStorageSpace();
+} catch (e) {
+  // ignore
+}
+
 export const setStoredItem = <T>(key: string, value: T): void => {
-  // Always update memory fallback first
+  // Always update in-memory cache instantly for zero latency
   memoryFallbackCache.set(key, value);
 
   try {
@@ -563,31 +575,40 @@ export const StorageService = {
   mergeTaskLogs: (remoteLogs: TaskLog[]): TaskLog[] => {
     const localLogs = StorageService.getTaskLogs();
     const mergedMap = new Map<string, TaskLog>();
+    // Fast O(1) lookup index: key `${userId/name}_${taskId}_${date}` -> remoteLogId
+    const remoteIndexMap = new Map<string, string>();
 
     // 1. First index remote logs
     remoteLogs.forEach((rLog) => {
       if (rLog && (rLog.id || rLog.taskId)) {
         mergedMap.set(rLog.id, { ...rLog });
+
+        const rDate = normalizeDateString(rLog.date) || normalizeDateString(rLog.timestamp) || '';
+        const rTask = (rLog.taskId || '').trim().toLowerCase();
+        if (rDate && rTask) {
+          if (rLog.userId) {
+            remoteIndexMap.set(`${rLog.userId.trim().toLowerCase()}_${rTask}_${rDate}`, rLog.id);
+          }
+          if (rLog.userName) {
+            remoteIndexMap.set(`${rLog.userName.trim().toLowerCase()}_${rTask}_${rDate}`, rLog.id);
+          }
+        }
       }
     });
 
-    // 2. Merge local logs without losing newly completed work
+    // 2. Merge local logs without losing newly completed work (O(1) lookups)
     localLogs.forEach((lLog) => {
       let matchedKey: string | null = null;
       if (mergedMap.has(lLog.id)) {
         matchedKey = lLog.id;
       } else {
-        for (const [rId, rLog] of mergedMap.entries()) {
-          const isUserMatch =
-            (lLog.userId && rLog.userId && lLog.userId === rLog.userId) ||
-            (lLog.userName && rLog.userName && lLog.userName.trim().toLowerCase() === rLog.userName.trim().toLowerCase());
-          const isTaskMatch =
-            lLog.taskId && rLog.taskId && lLog.taskId.trim() === rLog.taskId.trim();
-          const isDateMatch = isSameDay(lLog.date, rLog.date) || isSameDay(lLog.timestamp, rLog.timestamp);
-
-          if (isUserMatch && isTaskMatch && isDateMatch) {
-            matchedKey = rId;
-            break;
+        const lDate = normalizeDateString(lLog.date) || normalizeDateString(lLog.timestamp) || '';
+        const lTask = (lLog.taskId || '').trim().toLowerCase();
+        if (lDate && lTask) {
+          if (lLog.userId && remoteIndexMap.has(`${lLog.userId.trim().toLowerCase()}_${lTask}_${lDate}`)) {
+            matchedKey = remoteIndexMap.get(`${lLog.userId.trim().toLowerCase()}_${lTask}_${lDate}`)!;
+          } else if (lLog.userName && remoteIndexMap.has(`${lLog.userName.trim().toLowerCase()}_${lTask}_${lDate}`)) {
+            matchedKey = remoteIndexMap.get(`${lLog.userName.trim().toLowerCase()}_${lTask}_${lDate}`)!;
           }
         }
       }

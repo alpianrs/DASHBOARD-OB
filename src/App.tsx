@@ -83,14 +83,13 @@ export default function App() {
   useEffect(() => {
     refreshAllStateFromStorage();
 
-    // Auto pull & connect to Google Sheets immediately on initial load
+    // Auto pull & connect to Google Sheets in background on initial load
     setIsConnectingSheet(true);
     GoogleSheetsService.pullFromSheets()
       .then((res) => {
         if (res.success) {
           refreshAllStateFromStorage();
           setInitialSyncDone(true);
-          showToast('✅ Google Sheets terhubung & data terbaru berhasil dimuat!', 'success');
         } else {
           console.warn('Initial sheet pull:', res.message);
         }
@@ -102,8 +101,13 @@ export default function App() {
         setIsConnectingSheet(false);
       });
 
-    // Auto pull on window focus (so edits in Google Sheet reflect immediately when returning to tab)
+    // Throttled pull on window focus (maximum once every 2 minutes when switching tabs)
+    let lastFocusPullTime = Date.now();
     const handleWindowFocus = () => {
+      const now = Date.now();
+      if (now - lastFocusPullTime < 120000) return;
+      lastFocusPullTime = now;
+
       GoogleSheetsService.pullFromSheets()
         .then((res) => {
           if (res.success) {
@@ -115,7 +119,7 @@ export default function App() {
     };
     window.addEventListener('focus', handleWindowFocus);
 
-    // Periodic interval 2-way pull (every 60 seconds)
+    // Periodic background sync interval (every 90 seconds)
     const syncInterval = setInterval(() => {
       GoogleSheetsService.pullFromSheets()
         .then((res) => {
@@ -125,7 +129,7 @@ export default function App() {
           }
         })
         .catch(console.warn);
-    }, 60000);
+    }, 90000);
 
     return () => {
       window.removeEventListener('focus', handleWindowFocus);

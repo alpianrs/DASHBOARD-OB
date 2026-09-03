@@ -577,6 +577,9 @@ function cleanupEmptyRows() {
 }
 `;
 
+// In-flight guard to prevent duplicate concurrent pull requests
+let activePullPromise: Promise<SyncResult> | null = null;
+
 export const GoogleSheetsService = {
   // Check if active access token or web app is available
   hasToken: (): boolean => {
@@ -1184,16 +1187,25 @@ export const GoogleSheetsService = {
 
   // Pull latest data from Google Sheets (2-way sync: Pull)
   pullFromSheets: async (): Promise<SyncResult> => {
-    const token = getCachedAccessToken();
-    const syncConfig = StorageService.getSyncConfig();
-    const now = new Date().toISOString();
+    if (activePullPromise) {
+      return activePullPromise;
+    }
 
-    // 1. Try Apps Script Web App if configured
-    if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
+    activePullPromise = (async (): Promise<SyncResult> => {
       try {
-        const response = await fetch(syncConfig.webAppUrl);
-        const resJson = await response.json();
-        if (resJson.success && resJson.data) {
+        const token = getCachedAccessToken();
+        const syncConfig = StorageService.getSyncConfig();
+        const now = new Date().toISOString();
+
+        // 1. Try Apps Script Web App if configured
+        if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 12000);
+            const response = await fetch(syncConfig.webAppUrl, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            const resJson = await response.json();
+            if (resJson.success && resJson.data) {
           const {
             users: rUsers,
             masterTasks: rTasks,
@@ -1939,17 +1951,23 @@ export const GoogleSheetsService = {
       syncConfig.isGoogleConnected = true;
       StorageService.saveSyncConfig(syncConfig);
 
-      return {
-        success: true,
-        message: 'Data berhasil diperbarui dari Google Sheets Lazuardi GCS.',
-        timestamp: now,
-      };
-    } catch (err: any) {
-      return {
-        success: true,
-        message: 'Menggunakan data lokal aktif.',
-        timestamp: now,
-      };
+        return {
+          success: true,
+          message: 'Data berhasil diperbarui dari Google Sheets Lazuardi GCS.',
+          timestamp: now,
+        };
+      } catch (err: any) {
+        return {
+          success: true,
+          message: 'Menggunakan data lokal aktif.',
+          timestamp: now,
+        };
+      }
+    } finally {
+      activePullPromise = null;
     }
-  },
+  })();
+
+  return activePullPromise;
+},
 };
