@@ -855,9 +855,10 @@ export const GoogleSheetsService = {
 
     const logTaskDisplay = log.taskId ? `[${log.taskId}] ${log.taskTitle || ''}` : (log.taskTitle || '');
 
-    // Ensure photo is uploaded to Google Drive if still base64 data URL
+    // For webAppUrl (Apps Script), Apps Script handles base64 image-to-Drive conversion directly in action="logTask"
+    // Only use separate uploadPhotoToDrive if NOT using webAppUrl or if already a Drive link
     let photoUrlToSave = log.photoUrl || '';
-    if (photoUrlToSave.startsWith('data:')) {
+    if (!syncConfig.webAppUrl && photoUrlToSave.startsWith('data:')) {
       try {
         const staff = (log.userName || 'staff').replace(/\s+/g, '_');
         const filename = `bukti_${staff}_${log.id}_${Date.now()}.jpg`;
@@ -902,11 +903,11 @@ export const GoogleSheetsService = {
       log.peerNotes || '',
     ];
 
-    // Enqueue to pending queue first for offline resilience
+    // Enqueue to pending queue first for offline resilience (avoid duplicating heavy base64 inside both logRow & log payload)
     StorageService.addToPendingQueue({
       id: log.id,
       type: 'logTask',
-      payload: { logRow, log },
+      payload: { logRow, log: { ...log, photoUrl: photoUrlToSave.startsWith('http') ? photoUrlToSave : undefined } },
       timestamp: new Date().toISOString(),
     });
 
@@ -967,7 +968,7 @@ export const GoogleSheetsService = {
 
     // Ensure photo is uploaded to Google Drive if still base64 data URL
     let photoUrlToSave = inspection.photoUrl || '';
-    if (photoUrlToSave.startsWith('data:')) {
+    if (!syncConfig.webAppUrl && photoUrlToSave.startsWith('data:')) {
       try {
         const inspector = (inspection.inspectorName || 'inspector').replace(/\s+/g, '_');
         const filename = `inspeksi_${inspector}_${inspection.id}_${Date.now()}.jpg`;
@@ -1003,7 +1004,7 @@ export const GoogleSheetsService = {
     StorageService.addToPendingQueue({
       id: inspection.id,
       type: 'peerInspection',
-      payload: { peerRow, inspection },
+      payload: { peerRow, inspection: { ...inspection, photoUrl: photoUrlToSave.startsWith('http') ? photoUrlToSave : undefined } },
       timestamp: new Date().toISOString(),
     });
 
@@ -1029,7 +1030,7 @@ export const GoogleSheetsService = {
           StorageService.incrementPendingRetry(inspection.id);
         }
       } catch (err) {
-        console.warn('Real-time peer inspection post failed, queued for automatic retry:', err);
+        console.warn('Real-time peer inspection post failed, queued for automatic background retry:', err);
         StorageService.incrementPendingRetry(inspection.id);
       }
     }

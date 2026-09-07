@@ -102,22 +102,26 @@ export default function App() {
         GoogleSheetsService.processPendingQueue().catch(console.warn);
       });
 
-    // Throttled pull and queue processing on window focus
+    // Throttled pull and queue processing on window focus (debounced to avoid freeze when returning from camera)
     let lastFocusPullTime = Date.now();
+    let focusDebounceTimer: any = null;
     const handleWindowFocus = () => {
-      GoogleSheetsService.processPendingQueue().catch(console.warn);
-      const now = Date.now();
-      if (now - lastFocusPullTime < 120000) return;
-      lastFocusPullTime = now;
+      if (focusDebounceTimer) clearTimeout(focusDebounceTimer);
+      focusDebounceTimer = setTimeout(() => {
+        GoogleSheetsService.processPendingQueue().catch(console.warn);
+        const now = Date.now();
+        if (now - lastFocusPullTime < 120000) return;
+        lastFocusPullTime = now;
 
-      GoogleSheetsService.pullFromSheets()
-        .then((res) => {
-          if (res.success) {
-            refreshAllStateFromStorage();
-            setInitialSyncDone(true);
-          }
-        })
-        .catch(console.warn);
+        GoogleSheetsService.pullFromSheets()
+          .then((res) => {
+            if (res.success) {
+              refreshAllStateFromStorage();
+              setInitialSyncDone(true);
+            }
+          })
+          .catch(console.warn);
+      }, 1500);
     };
 
     const handleOnline = () => {
@@ -300,25 +304,19 @@ export default function App() {
       StorageService.addTaskLog(newLog);
       setTaskLogs(StorageService.getTaskLogs());
 
-      confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+      confetti({ particleCount: 30, spread: 55, origin: { y: 0.7 } });
       showToast('Berhasil menyelesaikan Job Bareng! Tersimpan & sedang disinkronkan.');
 
-      // Background Drive & Sheet sync
-      (async () => {
-        try {
-          const driveUpload = await GoogleSheetsService.uploadPhotoToDrive(photoDataUrl, filename);
-          if (driveUpload.driveUrl && driveUpload.driveUrl.startsWith('http')) {
-            newLog.photoUrl = driveUpload.driveUrl;
-            newLog.driveFileId = driveUpload.fileId;
-            StorageService.updateTaskLog(newLog);
+      // Background Drive & Sheet sync (non-blocking, single operation)
+      setTimeout(() => {
+        GoogleSheetsService.logTaskToSheets(newLog)
+          .then(() => {
             setTaskLogs(StorageService.getTaskLogs());
-          }
-          await GoogleSheetsService.logTaskToSheets(newLog);
-        } catch (err) {
-          console.warn('Background sync error for job bareng log:', err);
-          GoogleSheetsService.logTaskToSheets(newLog).catch(console.warn);
-        }
-      })();
+          })
+          .catch((err) => {
+            console.warn('Background sync error for job bareng log:', err);
+          });
+      }, 100);
     } else if (targetTask) {
       // 2. Optimistic immediate local save for Regular/Master Task (Strictly by targetTask.id)
       const currentLogs = StorageService.getTaskLogs();
@@ -367,25 +365,19 @@ export default function App() {
 
       setTaskLogs(StorageService.getTaskLogs());
 
-      confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
+      confetti({ particleCount: 30, spread: 55, origin: { y: 0.7 } });
       showToast(`Pekerjaan "${targetTask.title}" selesai & tersimpan!`);
 
-      // Background Drive & Sheet sync
-      (async () => {
-        try {
-          const driveUpload = await GoogleSheetsService.uploadPhotoToDrive(photoDataUrl, filename);
-          if (driveUpload.driveUrl && driveUpload.driveUrl.startsWith('http')) {
-            targetLog.photoUrl = driveUpload.driveUrl;
-            targetLog.driveFileId = driveUpload.fileId;
-            StorageService.updateTaskLog(targetLog);
+      // Background Drive & Sheet sync (non-blocking, single operation)
+      setTimeout(() => {
+        GoogleSheetsService.logTaskToSheets(targetLog)
+          .then(() => {
             setTaskLogs(StorageService.getTaskLogs());
-          }
-          await GoogleSheetsService.logTaskToSheets(targetLog);
-        } catch (err) {
-          console.warn('Background sync error for task log:', err);
-          GoogleSheetsService.logTaskToSheets(targetLog).catch(console.warn);
-        }
-      })();
+          })
+          .catch((err) => {
+            console.warn('Background sync error for task log:', err);
+          });
+      }, 100);
     }
   };
 

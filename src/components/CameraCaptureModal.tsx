@@ -9,6 +9,8 @@ import {
   SwitchCamera,
   ArrowLeft,
   Zap,
+  Upload,
+  Loader2,
 } from 'lucide-react';
 import { User, MasterTask } from '../types';
 
@@ -32,36 +34,47 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [notes, setNotes] = useState<string>('');
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isCameraLoading, setIsCameraLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Start Camera
+  // Start Camera with optimized constraints for fast mobile startup
   const startCamera = async (mode: 'environment' | 'user') => {
     try {
+      setIsCameraLoading(true);
       setCameraError(null);
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
       }
 
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
+      // Fast, lightweight constraints for mobile devices (avoids 1080p lag)
+      const constraints: MediaStreamConstraints = {
         video: {
-          facingMode: mode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          facingMode: { ideal: mode },
+          width: { ideal: 640, max: 1280 },
+          height: { ideal: 480, max: 720 },
         },
         audio: false,
-      });
+      };
 
+      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
       setStream(mediaStream);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+        videoRef.current.onloadedmetadata = () => {
+          setIsCameraLoading(false);
+        };
       }
+      // Safety fallback to dismiss loading
+      setTimeout(() => setIsCameraLoading(false), 1200);
     } catch (err: any) {
       console.error('Camera access error:', err);
+      setIsCameraLoading(false);
       setCameraError(
-        'Tidak dapat membuka kamera. Pastikan izin akses kamera telah diaktifkan pada browser/perangkat Anda.'
+        'Tidak dapat membuka kamera browser langsung. Anda tetap dapat menggunakan tombol "Kamera HP / File" di bawah.'
       );
     }
   };
@@ -70,6 +83,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     if (isOpen) {
       setCapturedImage(null);
       setNotes('');
+      setIsSubmitting(false);
       startCamera(facingMode);
     } else {
       if (stream) {
@@ -109,60 +123,60 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
       second: '2-digit',
     });
 
-    const bannerHeight = Math.min(130, Math.max(90, Math.round(height * 0.22)));
+    const bannerHeight = Math.min(120, Math.max(80, Math.round(height * 0.2)));
 
     // Dark gradient overlay at bottom
     const gradient = ctx.createLinearGradient(0, height - bannerHeight, 0, height);
     gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    gradient.addColorStop(0.3, 'rgba(15, 23, 42, 0.85)');
+    gradient.addColorStop(0.3, 'rgba(15, 23, 42, 0.88)');
     gradient.addColorStop(1, 'rgba(15, 23, 42, 0.98)');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, height - bannerHeight, width, bannerHeight);
 
     // Watermark Header
     ctx.fillStyle = '#10B981'; // Emerald
-    ctx.font = 'bold 14px sans-serif';
-    ctx.fillText('✓ LAZUARDI GCS — FACILITY MANAGEMENT', 16, height - bannerHeight + 28);
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillText('✓ LAZUARDI GCS — FACILITY MANAGEMENT', 14, height - bannerHeight + 24);
 
     // Unit & Task Info
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 13px sans-serif';
+    ctx.font = 'bold 12px sans-serif';
     const taskNameTrunc =
       task.title.length > 45 ? task.title.substring(0, 42) + '...' : task.title;
-    ctx.fillText(`Tugas: ${taskNameTrunc}`, 16, height - bannerHeight + 50);
+    ctx.fillText(`Tugas: ${taskNameTrunc}`, 14, height - bannerHeight + 44);
 
-    ctx.font = 'normal 12px sans-serif';
+    ctx.font = 'normal 11px sans-serif';
     ctx.fillStyle = '#E2E8F0';
     ctx.fillText(
       `Petugas: ${activeUser.name} | Unit: ${activeUser.unit}`,
-      16,
-      height - bannerHeight + 70
+      14,
+      height - bannerHeight + 62
     );
 
     // Timestamp & Anti-tamper tag
     ctx.fillStyle = '#FCD34D'; // Amber
-    ctx.font = 'bold 11px monospace';
+    ctx.font = 'bold 10px monospace';
     ctx.fillText(
       `WAKTU: ${dateFormatted} ${timeFormatted} WIB | ON-SITE`,
-      16,
-      height - bannerHeight + 90
+      14,
+      height - bannerHeight + 78
     );
   };
 
-  // Generate watermarked photo from current video frame (Optimized size & compression)
+  // Generate watermarked photo from current video frame (Optimized size & compression, <35KB)
   const generateWatermarkedImage = (): string | null => {
     if (!videoRef.current || !canvasRef.current) return null;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: false });
     if (!ctx) return null;
 
     const rawWidth = video.videoWidth || 640;
     const rawHeight = video.videoHeight || 480;
 
-    // Downscale to max 800px width/height for fast phone saving (<50KB)
-    const MAX_DIM = 800;
+    // Downscale to max 720px width/height for fast phone saving (<35KB)
+    const MAX_DIM = 720;
     let targetWidth = rawWidth;
     let targetHeight = rawHeight;
     if (targetWidth > targetHeight) {
@@ -184,7 +198,59 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
     applyWatermarkToCanvas(ctx, targetWidth, targetHeight);
 
-    return canvas.toDataURL('image/jpeg', 0.68);
+    return canvas.toDataURL('image/jpeg', 0.65);
+  };
+
+  // Handle image selected via native camera / file picker
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsCameraLoading(true);
+    const reader = new FileReader();
+    reader.onload = (readerEvent) => {
+      const img = new Image();
+      img.onload = () => {
+        if (canvasRef.current) {
+          const canvas = canvasRef.current;
+          const ctx = canvas.getContext('2d', { willReadFrequently: false });
+          if (ctx) {
+            const rawWidth = img.width || 640;
+            const rawHeight = img.height || 480;
+            const MAX_DIM = 720;
+            let targetWidth = rawWidth;
+            let targetHeight = rawHeight;
+            if (targetWidth > targetHeight) {
+              if (targetWidth > MAX_DIM) {
+                targetHeight = Math.round((targetHeight * MAX_DIM) / targetWidth);
+                targetWidth = MAX_DIM;
+              }
+            } else {
+              if (targetHeight > MAX_DIM) {
+                targetWidth = Math.round((targetWidth * MAX_DIM) / targetHeight);
+                targetHeight = MAX_DIM;
+              }
+            }
+
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+            applyWatermarkToCanvas(ctx, targetWidth, targetHeight);
+            const watermarkedData = canvas.toDataURL('image/jpeg', 0.65);
+            setCapturedImage(watermarkedData);
+
+            if (stream) {
+              stream.getTracks().forEach((track) => track.stop());
+              setStream(null);
+            }
+          }
+        }
+        setIsCameraLoading(false);
+      };
+      img.src = readerEvent.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   // Capture only (to preview & add notes)
@@ -205,15 +271,19 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     const dataUrl = generateWatermarkedImage();
     if (!dataUrl) return;
 
+    // Immediately stop tracks to release hardware camera and GPU
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
       setStream(null);
     }
 
     setIsSubmitting(true);
-    onPhotoCaptured(dataUrl, 'Foto bukti langsung diambil & disimpan.');
-    setIsSubmitting(false);
     onClose();
+
+    // Defer state updates slightly so modal dismiss animation is butter smooth
+    setTimeout(() => {
+      onPhotoCaptured(dataUrl, 'Foto bukti langsung diambil & disimpan.');
+    }, 40);
   };
 
   const handleRetake = () => {
@@ -223,16 +293,24 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
 
   const handleSubmit = () => {
     if (!capturedImage) return;
+
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      setStream(null);
+    }
+
     setIsSubmitting(true);
-    onPhotoCaptured(capturedImage, notes);
-    setIsSubmitting(false);
     onClose();
+
+    setTimeout(() => {
+      onPhotoCaptured(capturedImage, notes);
+    }, 40);
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-xs animate-in fade-in duration-150">
       <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         {/* Top Header with Back / Cancel Button */}
         <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
@@ -283,23 +361,32 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
 
         {/* Camera or Preview Viewport */}
         <div className="relative flex-1 bg-black flex items-center justify-center min-h-[280px] max-h-[50vh] overflow-hidden">
+          {/* Loading Indicator */}
+          {isCameraLoading && !capturedImage && (
+            <div className="absolute inset-0 z-20 bg-slate-950/80 flex flex-col items-center justify-center gap-2.5 text-slate-300">
+              <Loader2 className="w-7 h-7 text-emerald-400 animate-spin" />
+              <span className="text-xs font-medium">Menghubungkan kamera perangkat...</span>
+            </div>
+          )}
+
           {cameraError && !capturedImage ? (
             <div className="p-6 text-center text-rose-300 max-w-sm space-y-3">
               <AlertCircle className="w-10 h-10 mx-auto text-rose-400" />
               <p className="text-xs font-medium leading-relaxed">{cameraError}</p>
               
-              <div className="pt-2 flex justify-center gap-2">
+              <div className="pt-2 flex flex-col sm:flex-row justify-center gap-2">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>Gunakan Kamera HP / File</span>
+                </button>
                 <button
                   onClick={() => startCamera(facingMode)}
                   className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs font-semibold text-white hover:bg-slate-700 cursor-pointer"
                 >
-                  Coba Lagi
-                </button>
-                <button
-                  onClick={onClose}
-                  className="px-4 py-2 bg-rose-900/60 border border-rose-700 rounded-xl text-xs font-semibold text-white hover:bg-rose-800 cursor-pointer"
-                >
-                  Batal / Kembali
+                  Coba Kamera Lagi
                 </button>
               </div>
             </div>
@@ -319,7 +406,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
                   <span>KAMERA AKTIF</span>
                 </div>
                 <div className="text-center text-[11px] text-white/90 font-medium bg-black/60 backdrop-blur-xs py-1 px-3 rounded-xl self-center border border-white/10">
-                  Arahkan ke area yang telah dibersihkan
+                  Arahkan ke area yang telah dikerjakan
                 </div>
               </div>
 
@@ -348,6 +435,16 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
 
           {/* Hidden Canvas for Watermark Processing */}
           <canvas ref={canvasRef} className="hidden" />
+
+          {/* Hidden Native File Input for Instant Native Camera / Gallery Upload */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
         </div>
 
         {/* Action Controls & Prominent Buttons */}
@@ -358,7 +455,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
                 {/* 1-Click Instant Capture and Save */}
                 <button
                   onClick={handleInstantCaptureAndSave}
-                  disabled={!!cameraError || isSubmitting}
+                  disabled={!!cameraError || isSubmitting || isCameraLoading}
                   className="py-3 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition cursor-pointer disabled:opacity-50"
                   title="Ambil foto dan langsung selesaikan pekerjaan"
                 >
@@ -369,7 +466,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
                 {/* Regular Capture to preview */}
                 <button
                   onClick={handleCapture}
-                  disabled={!!cameraError}
+                  disabled={!!cameraError || isCameraLoading}
                   className="py-3 px-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition cursor-pointer disabled:opacity-50"
                   title="Ambil foto untuk dicek terlebih dahulu"
                 >
@@ -378,13 +475,25 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
                 </button>
               </div>
 
-              <button
-                onClick={onClose}
-                className="w-full py-2 bg-slate-800/80 hover:bg-slate-800 text-slate-300 rounded-xl font-semibold text-xs transition cursor-pointer border border-slate-700 flex items-center justify-center gap-1.5"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Batal / Kembali ke Tugas</span>
-              </button>
+              {/* Native Camera / File Input Alternative Button */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-semibold text-xs transition cursor-pointer border border-slate-700 flex items-center justify-center gap-1.5"
+                  title="Buka kamera bawaan HP jika tampilan kamera di browser terasa berat"
+                >
+                  <Upload className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Kamera HP / File</span>
+                </button>
+
+                <button
+                  onClick={onClose}
+                  className="py-2.5 px-3 bg-slate-800/80 hover:bg-slate-800 text-slate-300 rounded-xl font-semibold text-xs transition cursor-pointer border border-slate-700 flex items-center justify-center gap-1.5"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Batal / Kembali</span>
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-3">
