@@ -20,6 +20,7 @@ import {
   SunMedium,
   Users2,
   Coffee,
+  TreePine,
 } from 'lucide-react';
 import {
   MasterTask,
@@ -32,6 +33,8 @@ import {
 } from '../types';
 import { StorageService, isTaskAssignedToUser } from '../services/storage';
 import { JobBarengCard } from './JobBarengCard';
+import { MasjidRollingCard } from './MasjidRollingCard';
+import { TreeWorkOrderView } from './TreeWorkOrderView';
 import { formatGoogleDriveImageUrl, getGoogleDriveViewLink } from '../utils/driveHelper';
 import { parseInstructionSteps } from '../utils/instructionHelper';
 import { getJakartaDateString, getJakartaHour, isMasterTaskActive, isJobBarengExpired, isSameDay, normalizeDateString } from '../utils/dateHelper';
@@ -69,6 +72,7 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
   const [inspectionSubTab, setInspectionSubTab] = useState<'submitted' | 'received'>('submitted');
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [selectedPhotoPreview, setSelectedPhotoPreview] = useState<string | null>(null);
+  const [showTreeModal, setShowTreeModal] = useState(false);
 
   const today = getJakartaDateString();
   const currentHour = getJakartaHour();
@@ -184,6 +188,12 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
       // Strict date check: only show jobs for today
       const jobDate = normalizeDateString(j.date) || normalizeDateString(j.createdAt) || today;
       if (jobDate !== today) return false;
+
+      // Division Separation: Job Bareng created for PLH only seen by PLH, OB only by OB
+      const userDiv = activeUser.division || 'OB';
+      if (j.division && j.division !== 'Semua') {
+        if (j.division !== userDiv) return false;
+      }
       
       // If specific users are assigned
       if (
@@ -209,7 +219,12 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
         return true;
       }
 
-      // Target unit check
+      // For PLH staff: PLH tasks (Job Bareng & Insidental) apply across the 5 outdoor areas and are visible to all PLH members
+      if (userDiv === 'PLH' && (j.division === 'PLH' || j.division === 'Semua')) {
+        return true;
+      }
+
+      // Target unit check for OB / general
       const isTargetAll =
         !j.targetUnit ||
         j.targetUnit === 'Semua Unit' ||
@@ -799,47 +814,63 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
         </div>
       </div>
 
-      {/* Tabs Navigation */}
-      <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-xl text-xs font-semibold overflow-x-auto border border-slate-200/60">
+      {/* PLH Specific: Masjid Rolling Schedule Card */}
+      {(activeUser.division === 'PLH' || activeUser.role === 'admin' || activeUser.role === 'kordinator') && (
+        <MasjidRollingCard />
+      )}
+
+      {/* Tabs Navigation & Quick Actions */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+        <div className="flex-1 flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-xl text-xs font-semibold overflow-x-auto border border-slate-200/60">
+          <button
+            onClick={() => setActiveTab('harian')}
+            className={`flex-1 py-2 px-3 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'harian'
+                ? 'bg-white text-slate-900 shadow-xs font-bold border border-slate-200/60'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Harian {isPastPreReadiness ? '(Clock Out ▲)' : '(Pre-Readiness ▲)'}
+          </button>
+          <button
+            onClick={() => setActiveTab('mingguan')}
+            className={`flex-1 py-2 px-3 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'mingguan'
+                ? 'bg-white text-slate-900 shadow-xs font-bold border border-slate-200/60'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Mingguan (Senin)
+          </button>
+          <button
+            onClick={() => setActiveTab('bulanan')}
+            className={`flex-1 py-2 px-3 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'bulanan'
+                ? 'bg-white text-slate-900 shadow-xs font-bold border border-slate-200/60'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Bulanan (Tgl 1)
+          </button>
+          <button
+            onClick={() => setActiveTab('riwayat')}
+            className={`flex-1 py-2 px-3 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'riwayat'
+                ? 'bg-white text-slate-900 shadow-xs font-bold border border-slate-200/60'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Inspeksi & Riwayat
+          </button>
+        </div>
+
+        {/* Quick Access to Tree Work Orders */}
         <button
-          onClick={() => setActiveTab('harian')}
-          className={`flex-1 py-2 px-3 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-            activeTab === 'harian'
-              ? 'bg-white text-slate-900 shadow-xs font-bold border border-slate-200/60'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
+          onClick={() => setShowTreeModal(true)}
+          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer whitespace-nowrap"
         >
-          Harian {isPastPreReadiness ? '(Clock Out ▲)' : '(Pre-Readiness ▲)'}
-        </button>
-        <button
-          onClick={() => setActiveTab('mingguan')}
-          className={`flex-1 py-2 px-3 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-            activeTab === 'mingguan'
-              ? 'bg-white text-slate-900 shadow-xs font-bold border border-slate-200/60'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          Mingguan (Senin)
-        </button>
-        <button
-          onClick={() => setActiveTab('bulanan')}
-          className={`flex-1 py-2 px-3 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-            activeTab === 'bulanan'
-              ? 'bg-white text-slate-900 shadow-xs font-bold border border-slate-200/60'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          Bulanan (Tgl 1)
-        </button>
-        <button
-          onClick={() => setActiveTab('riwayat')}
-          className={`flex-1 py-2 px-3 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-            activeTab === 'riwayat'
-              ? 'bg-white text-slate-900 shadow-xs font-bold border border-slate-200/60'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          Inspeksi & Riwayat
+          <TreePine className="w-3.5 h-3.5 text-emerald-200" />
+          <span>Work Order Pohon</span>
         </button>
       </div>
 
@@ -1045,6 +1076,31 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
               </span>
             </div>
           </div>
+
+          {/* PLH Specific: Work Order Pohon Mingguan (Treatment Besar / Vendor Luar) Banner */}
+          {(activeUser.division === 'PLH' || activeUser.role === 'admin' || activeUser.role === 'kordinator') && (
+            <div className="bg-emerald-950 text-white border border-emerald-800 rounded-2xl p-4 shadow-sm space-y-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-800/80 text-emerald-200 flex items-center justify-center">
+                    <TreePine className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-white">Work Order Khusus Pohon & Penanganan</h4>
+                    <p className="text-[11px] text-emerald-300">
+                      Cek kondisi pohon rimbun, treatment berkala &amp; penanganan besar oleh Vendor Luar.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowTreeModal(true)}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  Buka Work Order Pohon ↗
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             {weeklyTasks.map((t) => renderTaskItem(t, false))}
@@ -1450,6 +1506,37 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
                 Tutup Pratinjau
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal / Overlay: Tree Work Order Management View */}
+      {showTreeModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-slate-50 w-full max-w-5xl rounded-3xl p-4 sm:p-6 shadow-2xl border border-slate-300 max-h-[92vh] overflow-y-auto relative">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4 sticky top-0 bg-slate-50/90 backdrop-blur-md z-10">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black">
+                  🌳
+                </span>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-slate-900">
+                    Modul Work Order Khusus Pohon (PLH & Vendor Luar)
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Pencatatan kondisi rimbun, instruksi database Google Sheet, dan penanganan vendor
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowTreeModal(false)}
+                className="px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs transition cursor-pointer"
+              >
+                ✕ Tutup
+              </button>
+            </div>
+
+            <TreeWorkOrderView activeUser={activeUser} />
           </div>
         </div>
       )}

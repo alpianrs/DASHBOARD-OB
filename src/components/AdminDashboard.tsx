@@ -41,6 +41,7 @@ import {
   Camera,
   Upload,
   Folder,
+  TreePine,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -68,9 +69,12 @@ import {
   UnitType,
   UserRole,
   EVALUATION_CATEGORIES,
+  PLH_AREAS,
 } from '../types';
 import { StorageService, isTaskAssignedToUser } from '../services/storage';
 import { GOOGLE_APPS_SCRIPT_CODE, GoogleSheetsService } from '../services/googleSheets';
+import { MasjidRollingCard } from './MasjidRollingCard';
+import { TreeWorkOrderView } from './TreeWorkOrderView';
 import {
   formatGoogleDriveImageUrl,
   getGoogleDriveViewLink,
@@ -138,12 +142,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onTriggerSync,
 }) => {
   const [adminTab, setAdminTab] = useState<
-    'analytics' | 'rekap_tugas' | 'job_bareng' | 'dinas_luar' | 'manajemen_user' | 'master_task' | 'hari_libur' | 'google_sync'
+    'analytics' | 'rekap_tugas' | 'job_bareng' | 'dinas_luar' | 'manajemen_user' | 'master_task' | 'hari_libur' | 'google_sync' | 'pohon_masjid'
   >('analytics');
 
   // Date filtering state using Jakarta (WIB) timezone
   const todayStr = getJakartaDateString();
-  const [dateFilterMode, setDateFilterMode] = useState<'today' | '7days' | 'month' | 'custom'>('today');
+  const [dateFilterMode, setDateFilterMode] = useState<'today' | '7days' | 'month' | 'all' | 'custom'>('today');
   const [startDate, setStartDate] = useState<string>(todayStr);
   const [endDate, setEndDate] = useState<string>(todayStr);
   const [selectedUnitFilter, setSelectedUnitFilter] = useState<string>('Semua');
@@ -203,16 +207,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [jbTime, setJbTime] = useState<string>('13:00 - 15:30 WIB');
   const [jbAssignmentType, setJbAssignmentType] = useState<'all' | 'specific'>('all');
   const [jbSelectedUserIds, setJbSelectedUserIds] = useState<string[]>([]);
-
-  // 15 SOP Breakdown Filter State (Inherits Unit & User from global filters)
-  const [sopDateMode, setSopDateMode] = useState<'all' | 'week' | 'range' | 'month'>('all');
-  const [sopSelectedSaturday, setSopSelectedSaturday] = useState<string>('Semua');
-  const [sopStartDate, setSopStartDate] = useState<string>('');
-  const [sopEndDate, setSopEndDate] = useState<string>('');
-
-  // Incidental Task Participation Chart Filter State
-  const [selectedIncidentalUser, setSelectedIncidentalUser] = useState<string>('Semua');
-  const [selectedIncidentalPeriod, setSelectedIncidentalPeriod] = useState<'month' | '30days' | 'all'>('month');
+  const [jbTaskType, setJbTaskType] = useState<'job_bareng' | 'insidental'>('job_bareng');
+  const [jbIncidentCategory, setJbIncidentCategory] = useState<string>('Pohon Tumbang / Dahan Patah');
 
   // User Management State
   const [isEditingUserModal, setIsEditingUserModal] = useState<boolean>(false);
@@ -222,6 +218,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newUserUsername, setNewUserUsername] = useState<string>('');
   const [newUserRole, setNewUserRole] = useState<UserRole>('user');
   const [newUserUnit, setNewUserUnit] = useState<UnitType>('TK');
+  const [newUserDivision, setNewUserDivision] = useState<'OB' | 'PLH'>('OB');
 
   // Master Task Modal State
   const [isEditingTaskModal, setIsEditingTaskModal] = useState<boolean>(false);
@@ -234,11 +231,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [taskArea, setTaskArea] = useState<string>('');
   const [taskAssignee, setTaskAssignee] = useState<string>('Semua Petugas');
   const [taskAssigneeFilter, setTaskAssigneeFilter] = useState<string>('Semua');
+  const [taskDivision, setTaskDivision] = useState<'OB' | 'PLH'>('OB');
+  const [masterTaskDivisionFilter, setMasterTaskDivisionFilter] = useState<'Semua' | 'OB' | 'PLH'>('Semua');
   const [taskInstructionsText, setTaskInstructionsText] = useState<string>('');
   const [taskPhotoRequired, setTaskPhotoRequired] = useState<boolean>(true);
   const [taskStandardPhotoUrl, setTaskStandardPhotoUrl] = useState<string>('');
   const [taskIsActive, setTaskIsActive] = useState<boolean>(true);
   const [selectedUserFilter, setSelectedUserFilter] = useState<string>('Semua');
+  const [selectedDivisionFilter, setSelectedDivisionFilter] = useState<'Semua' | 'OB' | 'PLH'>('Semua');
+  const [jbDivision, setJbDivision] = useState<'Semua' | 'OB' | 'PLH'>('Semua');
 
   // Edit & Fix Task Log Modal State
   const [editingLog, setEditingLog] = useState<TaskLog | null>(null);
@@ -328,14 +329,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  // Filter Task Logs according to Date, Unit, User, and Status controls
+  // Helper to check if a date string/ISO falls within the currently active global date filter
+  const isDateInFilter = (dateStrOrIso?: string | null): boolean => {
+    if (!dateStrOrIso) return true;
+    const d = normalizeDateString(dateStrOrIso);
+    if (!d) return true;
+    if (dateFilterMode === 'all') return true;
+    if (dateFilterMode === 'today') {
+      return isSameDay(d, todayStr) || d === todayStr;
+    }
+    // For '7days', 'month', and 'custom':
+    if (startDate && d < startDate) return false;
+    if (endDate && d > endDate) return false;
+    return true;
+  };
+
+  // Filter Task Logs according to Date, Unit, User, Division, and Status controls
   const filteredTaskLogs = taskLogs.filter((log) => {
     const logDate = normalizeDateString(log.date) || normalizeDateString(log.timestamp);
-    if (dateFilterMode === 'today') {
-      if (!isSameDay(log.date, todayStr) && !isSameDay(log.timestamp, todayStr) && logDate !== todayStr) return false;
-    } else if (dateFilterMode === 'custom') {
-      if (startDate && logDate < startDate) return false;
-      if (endDate && logDate > endDate) return false;
+    if (!isDateInFilter(logDate)) return false;
+    // Division filter
+    if (selectedDivisionFilter !== 'Semua') {
+      const logDivision = log.division || 'OB';
+      if (logDivision !== selectedDivisionFilter) return false;
     }
     // Unit filter
     if (selectedUnitFilter !== 'Semua' && log.unit !== selectedUnitFilter) {
@@ -384,10 +400,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const lateLogs = filteredTaskLogs.filter((l) => l.isLate || l.status === 'Terlambat').length;
   const totalCompleted = completedLogs + lateLogs;
 
-  // Filter Target Staff in Scope (Based on top global Unit and User filter)
+  // Filter Target Staff in Scope (Based on top global Division, Unit and User filter)
   const targetStaffUsers = allUsers.filter((u) => {
     if (u.status !== 'Aktif') return false;
     if (u.role !== 'user' && u.role !== 'kordinator') return false;
+    if (selectedDivisionFilter !== 'Semua') {
+      const uDiv = u.division || 'OB';
+      if (uDiv !== selectedDivisionFilter) return false;
+    }
     if (selectedUnitFilter !== 'Semua' && u.unit !== selectedUnitFilter && u.unit !== 'Semua Unit') return false;
     if (selectedUserFilter !== 'Semua') {
       if (u.id !== selectedUserFilter && !u.name.toLowerCase().includes(selectedUserFilter.toLowerCase())) return false;
@@ -413,14 +433,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       (log.taskTitle && log.taskTitle.toLowerCase().includes('pre-readiness'));
     if (!isPreReadiness) return false;
 
+    // Division filter
+    if (selectedDivisionFilter !== 'Semua') {
+      const logDiv = log.division || 'OB';
+      if (logDiv !== selectedDivisionFilter) return false;
+    }
+
     // Date filter
     const logDate = normalizeDateString(log.date) || normalizeDateString(log.timestamp);
-    if (dateFilterMode === 'today') {
-      if (!isSameDay(log.date, todayStr) && !isSameDay(log.timestamp, todayStr) && logDate !== todayStr) return false;
-    } else if (dateFilterMode === 'custom') {
-      if (startDate && logDate < startDate) return false;
-      if (endDate && logDate > endDate) return false;
-    }
+    if (!isDateInFilter(logDate)) return false;
 
     // Unit filter (Inherit from top global filter)
     if (selectedUnitFilter !== 'Semua' && log.unit !== selectedUnitFilter) {
@@ -451,6 +472,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const activePreReadinessMasterTasks = masterTasks.filter(
     (m) =>
       isMasterTaskActive(m) &&
+      (selectedDivisionFilter === 'Semua' || (m.division || 'OB') === selectedDivisionFilter) &&
       (m.timingType === 'pre_readiness' ||
         m.title.toLowerCase().includes('pagi') ||
         m.title.toLowerCase().includes('sebelum jam masuk') ||
@@ -515,9 +537,45 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       ? Math.max(dailyTasksAssignedCount, 1)
       : Math.max(dailyTasksAssignedCount * Math.min(daySpan, 31), 1);
 
-  // Average coordinator score across all staff (1 - 4 scale)
+  // Chart Data 3: 15 SOP Criteria Breakdown Calculations (Evaluasi Kordinator)
+  const filteredWeeklyScores = weeklyScores.filter((w) => {
+    const userObj = allUsers.find((u) => u.id === w.userId || u.name.toLowerCase() === w.userName.toLowerCase());
+    
+    // Filter Division
+    if (selectedDivisionFilter !== 'Semua') {
+      const wDiv = w.division || userObj?.division || 'OB';
+      if (wDiv !== selectedDivisionFilter) return false;
+    }
+
+    // Filter Unit (Inherit from top global filter)
+    if (selectedUnitFilter !== 'Semua') {
+      if (!userObj || (userObj.unit !== selectedUnitFilter && userObj.unit !== 'Semua Unit')) {
+        return false;
+      }
+    }
+    
+    // Filter Petugas (Inherit from top global filter)
+    if (selectedUserFilter !== 'Semua') {
+      if (w.userName.toLowerCase() !== selectedUserFilter.toLowerCase() && (!userObj || userObj.name.toLowerCase() !== selectedUserFilter.toLowerCase())) {
+        return false;
+      }
+    }
+
+    // Filter Tanggal dari Global Filter
+    const scoreDateStr = normalizeDateString(w.timestamp) || normalizeDateString(w.saturdayDate) || '';
+    if (!isDateInFilter(scoreDateStr)) return false;
+
+    return true;
+  });
+
+  // Average coordinator score across all staff in filtered division (1 - 4 scale)
   const avgKordScore =
-    weeklyScores.length > 0
+    filteredWeeklyScores.length > 0
+      ? (
+          filteredWeeklyScores.reduce((sum, item) => sum + item.score, 0) /
+          filteredWeeklyScores.length
+        ).toFixed(1)
+      : weeklyScores.length > 0
       ? (
           weeklyScores.reduce((sum, item) => sum + item.score, 0) /
           weeklyScores.length
@@ -571,47 +629,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     )
   );
 
-  // Chart Data 3: 15 SOP Criteria Breakdown Calculations (Evaluasi Kordinator)
-  const filteredWeeklyScores = weeklyScores.filter((w) => {
-    const userObj = allUsers.find((u) => u.id === w.userId || u.name.toLowerCase() === w.userName.toLowerCase());
-    
-    // Filter Unit (Inherit from top global filter)
-    if (selectedUnitFilter !== 'Semua') {
-      if (!userObj || (userObj.unit !== selectedUnitFilter && userObj.unit !== 'Semua Unit')) {
-        return false;
-      }
-    }
-    
-    // Filter Petugas (Inherit from top global filter)
-    if (selectedUserFilter !== 'Semua') {
-      if (w.userName.toLowerCase() !== selectedUserFilter.toLowerCase() && (!userObj || userObj.name.toLowerCase() !== selectedUserFilter.toLowerCase())) {
-        return false;
-      }
-    }
-
-    // Filter Tanggal / Pekan / Rentang
-    if (sopDateMode === 'week' && sopSelectedSaturday !== 'Semua') {
-      const wDate = (w.saturdayDate || w.dateRange || '').toLowerCase();
-      const wTimestamp = (w.timestamp || '').split('T')[0];
-      const target = sopSelectedSaturday.toLowerCase();
-      const isMatch = wDate.includes(target) || target.includes(wDate) || wTimestamp === sopSelectedSaturday;
-      if (!isMatch) return false;
-    } else if (sopDateMode === 'range') {
-      const scoreDateStr = (w.timestamp || '').split('T')[0] || (w.saturdayDate || '').match(/\d{4}-\d{2}-\d{2}/)?.[0] || '';
-      if (sopStartDate && scoreDateStr && scoreDateStr < sopStartDate) return false;
-      if (sopEndDate && scoreDateStr && scoreDateStr > sopEndDate) return false;
-    } else if (sopDateMode === 'month') {
-      const nowStr = new Date();
-      const currentYM = `${nowStr.getFullYear()}-${String(nowStr.getMonth() + 1).padStart(2, '0')}`;
-      const scoreDateStr = (w.timestamp || '').split('T')[0];
-      if (scoreDateStr && !scoreDateStr.startsWith(currentYM)) {
-        return false;
-      }
-    }
-
-    return true;
-  });
-
   const sop15ChartData = EVALUATION_CATEGORIES.map((cat, idx) => {
     const scoresForCat = filteredWeeklyScores
       .map((w) => w.categoryScores?.[cat])
@@ -647,33 +664,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Active Staff & Coordinator List
   const activeStaffList = allUsers.filter(
-    (u) => (u.role === 'user' || u.role === 'kordinator') && u.status === 'Aktif'
+    (u) =>
+      (u.role === 'user' || u.role === 'kordinator') &&
+      u.status === 'Aktif' &&
+      (selectedDivisionFilter === 'Semua' || (u.division || 'OB') === selectedDivisionFilter)
   );
 
-  // Incidental Tasks Filtered by Period
-  const nowLocal = new Date();
-  const currentYearMonth = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth() + 1).padStart(2, '0')}`;
-  
+  // Incidental Tasks Filtered by Global Division, Unit, and Date Range
   const filteredIncidentalJobs = jobBarengList.filter((job) => {
-    if (selectedIncidentalPeriod === 'month') {
-      return job.date?.startsWith(currentYearMonth) || true;
+    if (selectedDivisionFilter !== 'Semua') {
+      const jDiv = job.division || 'OB';
+      if (jDiv !== 'Semua' && jDiv !== selectedDivisionFilter) return false;
     }
-    if (selectedIncidentalPeriod === '30days') {
-      const jobDate = new Date(job.date || job.createdAt);
-      const diffDays = (nowLocal.getTime() - jobDate.getTime()) / (1000 * 3600 * 24);
-      return diffDays <= 30;
+    if (selectedUnitFilter !== 'Semua') {
+      if (job.targetUnit !== 'Semua Unit' && job.targetUnit !== 'Semua' && job.targetUnit !== selectedUnitFilter) {
+        return false;
+      }
     }
+    const jobDate = normalizeDateString(job.date) || normalizeDateString(job.createdAt);
+    if (!isDateInFilter(jobDate)) return false;
     return true;
   });
 
-  // Incidental stats for selected user
+  // Incidental stats for selected user from top global filter
   const selectedIncidentalUserObj = allUsers.find(
-    (u) => u.name.toLowerCase() === selectedIncidentalUser.toLowerCase() || u.id === selectedIncidentalUser
+    (u) => u.name.toLowerCase() === selectedUserFilter.toLowerCase() || u.id === selectedUserFilter
   );
   
   const userIncidentalTasksList = filteredIncidentalJobs
     .filter((job) => {
-      if (selectedIncidentalUser === 'Semua') return true;
+      if (selectedUserFilter === 'Semua') return true;
       if (!selectedIncidentalUserObj) return true;
       if (job.assignmentType === 'specific') {
         return (
@@ -692,7 +712,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     .map((job) => {
       let isJoined = false;
       let isCompleted = false;
-      if (selectedIncidentalUser === 'Semua') {
+      if (selectedUserFilter === 'Semua') {
         isJoined = job.participantIds.length > 0;
         isCompleted = job.completedUserIds.length > 0;
       } else if (selectedIncidentalUserObj) {
@@ -721,8 +741,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }
 
   // Job Bareng Detailed Statistics & Participation Breakdown
-  const jobBarengStats = jobBarengList.map((job) => {
+  const filteredJobBarengForStats = jobBarengList.filter((job) => {
+    if (selectedDivisionFilter !== 'Semua') {
+      const jDiv = job.division || 'OB';
+      if (jDiv !== 'Semua' && jDiv !== selectedDivisionFilter) return false;
+    }
+    if (selectedUnitFilter !== 'Semua') {
+      if (job.targetUnit !== 'Semua Unit' && job.targetUnit !== 'Semua' && job.targetUnit !== selectedUnitFilter) {
+        return false;
+      }
+    }
+    const jobDate = normalizeDateString(job.date) || normalizeDateString(job.createdAt);
+    if (!isDateInFilter(jobDate)) return false;
+    return true;
+  });
+
+  const jobBarengStats = filteredJobBarengForStats.map((job) => {
     const eligibleStaff = activeStaffList.filter((u) => {
+      if (job.division && job.division !== 'Semua') {
+        if ((u.division || 'OB') !== job.division) return false;
+      }
       if (job.assignmentType === 'specific') {
         return (
           job.assignedUserIds?.includes(u.id) ||
@@ -793,6 +831,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       createdBy: activeUser.id,
       createdByName: activeUser.name,
       status: 'Aktif',
+      division: jbDivision,
+      taskType: jbTaskType,
+      incidentCategory: jbTaskType === 'insidental' ? jbIncidentCategory : undefined,
       assignmentType: jbAssignmentType,
       assignedUserIds: jbAssignmentType === 'specific' ? jbSelectedUserIds : undefined,
       assignedUserNames: jbAssignmentType === 'specific' ? assignedStaffUsers.map((u) => u.name) : undefined,
@@ -807,6 +848,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setJbDescription('');
     setJbAssignmentType('all');
     setJbSelectedUserIds([]);
+    setJbDivision('Semua');
+    setJbTaskType('job_bareng');
+    setJbIncidentCategory('Pohon Tumbang / Dahan Patah');
   };
 
   // Handle Add New User
@@ -821,6 +865,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       password: 'password123',
       role: newUserRole,
       unit: newUserUnit,
+      division: newUserDivision,
       status: 'Aktif',
     };
 
@@ -828,6 +873,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setIsAddingUser(false);
     setNewUserName('');
     setNewUserUsername('');
+    setNewUserDivision('OB');
   };
 
   // Handle Save Master Task
@@ -849,6 +895,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         category: taskCategory,
         timingType: taskTiming,
         unit: taskUnit,
+        division: taskDivision,
         area: taskArea.trim(),
         assignee: taskAssignee.trim() || 'Semua Petugas',
         instructions: instructionsArray,
@@ -866,6 +913,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         category: taskCategory,
         timingType: taskTiming,
         unit: taskUnit,
+        division: taskDivision,
         area: taskArea.trim(),
         assignee: taskAssignee.trim() || 'Semua Petugas',
         instructions: instructionsArray,
@@ -880,6 +928,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setTaskTitle('');
     setTaskInstructionsText('');
     setTaskAssignee('Semua Petugas');
+    setTaskDivision('OB');
     setTaskStandardPhotoUrl('');
     setTaskIsActive(true);
   };
@@ -887,12 +936,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Export CSV Helper
   const exportToCSV = () => {
     const headers = [
-      'ID,Tanggal,Staff,Role,Unit,Pekerjaan,Kategori,Status,Telat,Alasan Telat,Skor Kordinator,Inspektor Rekan',
+      'ID,Tanggal,Divisi,Staff,Role,Unit,Pekerjaan,Kategori,Status,Telat,Alasan Telat,Skor Kordinator,Inspektor Rekan',
     ];
     const rows = filteredTaskLogs.map((l) =>
       [
         l.id,
         l.date,
+        l.division || 'OB',
         `"${l.userName}"`,
         l.userRole,
         `"${l.unit}"`,
@@ -918,7 +968,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Calculate Missed Tasks (Pekerjaan Yang Tidak Dikerjakan) for active staff and coordinators
   const staffUsers = allUsers.filter(
-    (u) => (u.role === 'user' || u.role === 'kordinator') && u.status === 'Aktif'
+    (u) =>
+      (u.role === 'user' || u.role === 'kordinator') &&
+      u.status === 'Aktif' &&
+      (selectedDivisionFilter === 'Semua' || (u.division || 'OB') === selectedDivisionFilter)
   );
   const isSelectedDateDayOff = StorageService.isDayOffToday(startDate);
 
@@ -1194,144 +1247,216 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
           <span>Google Sheet 2-Arah</span>
         </button>
+
+        <button
+          onClick={() => setAdminTab('pohon_masjid')}
+          className={`py-2 px-3.5 rounded-xl transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+            adminTab === 'pohon_masjid'
+              ? 'bg-emerald-800 text-white shadow-xs font-bold'
+              : 'text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50'
+          }`}
+        >
+          <TreePine className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Pohon & Rolling Masjid</span>
+        </button>
       </div>
 
-      {/* FILTER BAR: Date, Unit & User (Used across Analytics & Rekap) */}
-      {(adminTab === 'analytics' || adminTab === 'rekap_tugas') && (
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
-          {/* Date Presets */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-bold text-slate-700 flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5 text-slate-500" /> Rentang:
-            </span>
-            <button
-              onClick={() => {
-                setDateFilterMode('today');
-                setStartDate(todayStr);
-                setEndDate(todayStr);
-              }}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                dateFilterMode === 'today'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Hari Ini
-            </button>
-            <button
-              onClick={() => {
-                setDateFilterMode('custom');
-                const d = new Date();
-                d.setDate(d.getDate() - 6);
-                setStartDate(getJakartaDateString(d));
-                setEndDate(todayStr);
-              }}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                dateFilterMode === 'custom' && startDate === getJakartaDateString(new Date(Date.now() - 6 * 86400000))
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              7 Hari Terakhir
-            </button>
-            <button
-              onClick={() => {
-                setDateFilterMode('custom');
-                const d = new Date();
-                d.setDate(1); // 1st of month
-                setStartDate(getJakartaDateString(d));
-                setEndDate(todayStr);
-              }}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                dateFilterMode === 'custom' && startDate === getJakartaDateString(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Bulan Ini
-            </button>
-            <button
-              onClick={() => {
-                setDateFilterMode('all');
-                setStartDate('');
-                setEndDate('');
-              }}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                dateFilterMode === 'all'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Semua Waktu
-            </button>
-          </div>
-
-          {/* Date Picker Custom inputs */}
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => {
-                setDateFilterMode('custom');
-                setStartDate(e.target.value);
-              }}
-              className="px-2 py-1 border border-slate-300 rounded-lg text-xs"
-            />
-            <span className="text-slate-400">s/d</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => {
-                setDateFilterMode('custom');
-                setEndDate(e.target.value);
-              }}
-              className="px-2 py-1 border border-slate-300 rounded-lg text-xs"
-            />
-          </div>
-
-          {/* Unit & User Selectors */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold text-slate-700">Unit:</span>
-              <select
-                value={selectedUnitFilter}
-                onChange={(e) => setSelectedUnitFilter(e.target.value)}
-                className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium focus:ring-2 focus:ring-sky-500"
+      {/* UNIFIED SINGLE GLOBAL FILTER BAR FOR ADMIN */}
+      {(adminTab === 'analytics' || adminTab === 'rekap_tugas' || adminTab === 'job_bareng' || adminTab === 'dinas_luar') && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-3 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Division Toggle Pills */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setSelectedDivisionFilter('Semua')}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
+                  selectedDivisionFilter === 'Semua'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                }`}
               >
-                <option value="Semua">Semua Unit</option>
-                <option value="TK">TK</option>
-                <option value="SD">SD</option>
-                <option value="SMP">SMP</option>
-                <option value="Pelangi Direktorat">Pelangi Direktorat</option>
-                <option value="Ar Razi">Ar Razi</option>
-                <option value="Khaldun">Khaldun</option>
-              </select>
+                Semua Divisi
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedDivisionFilter('OB')}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
+                  selectedDivisionFilter === 'OB'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-sky-700 hover:bg-white/60'
+                }`}
+              >
+                <span>🧹</span>
+                <span>Divisi OB</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedDivisionFilter('PLH')}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
+                  selectedDivisionFilter === 'PLH'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-emerald-700 hover:bg-white/60'
+                }`}
+              >
+                <span>🌿</span>
+                <span>Divisi PLH</span>
+              </button>
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold text-slate-700 flex items-center gap-1">
-                <Users className="w-3.5 h-3.5 text-slate-500" /> Petugas:
+            {/* Unit & User Selectors */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-slate-700">Unit:</span>
+                <select
+                  value={selectedUnitFilter}
+                  onChange={(e) => setSelectedUnitFilter(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium focus:ring-2 focus:ring-sky-500 cursor-pointer"
+                >
+                  <option value="Semua">Semua Unit</option>
+                  <option value="TK">TK</option>
+                  <option value="SD">SD</option>
+                  <option value="SMP">SMP</option>
+                  <option value="Pelangi Direktorat">Pelangi Direktorat</option>
+                  <option value="Ar Razi">Ar Razi</option>
+                  <option value="Khaldun">Khaldun</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-slate-700 flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5 text-slate-500" /> Petugas:
+                </span>
+                <select
+                  value={selectedUserFilter}
+                  onChange={(e) => setSelectedUserFilter(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium focus:ring-2 focus:ring-sky-500 max-w-[200px] truncate cursor-pointer"
+                >
+                  <option value="Semua">Semua Petugas & Kordinator</option>
+                  {allUsers
+                    .filter((u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator'))
+                    .filter((u) => selectedDivisionFilter === 'Semua' || (u.division || 'OB') === selectedDivisionFilter)
+                    .filter(
+                      (u) =>
+                        selectedUnitFilter === 'Semua' ||
+                        u.unit === selectedUnitFilter ||
+                        u.unit === 'Semua Unit'
+                    )
+                    .map((u) => (
+                      <option key={u.id} value={u.name}>
+                        {u.name} ({u.division || 'OB'} - {u.role === 'kordinator' ? 'Kordinator' : u.unit})
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Date Ranges Presets & Custom Period */}
+          <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-bold text-slate-700 flex items-center gap-1 mr-1">
+                <Calendar className="w-3.5 h-3.5 text-slate-500" /> Rentang Waktu:
               </span>
-              <select
-                value={selectedUserFilter}
-                onChange={(e) => setSelectedUserFilter(e.target.value)}
-                className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium focus:ring-2 focus:ring-sky-500 max-w-[180px] truncate"
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFilterMode('today');
+                  setStartDate(todayStr);
+                  setEndDate(todayStr);
+                }}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
+                  dateFilterMode === 'today'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
               >
-                <option value="Semua">Semua Petugas & Kordinator</option>
-                {allUsers
-                  .filter((u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator'))
-                  .filter(
-                    (u) =>
-                      selectedUnitFilter === 'Semua' ||
-                      u.unit === selectedUnitFilter ||
-                      u.unit === 'Semua Unit'
-                  )
-                  .map((u) => (
-                    <option key={u.id} value={u.name}>
-                      {u.name} ({u.role === 'kordinator' ? 'Kordinator' : u.unit})
-                    </option>
-                  ))}
-              </select>
+                Hari Ini
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFilterMode('7days');
+                  const d = new Date();
+                  d.setDate(d.getDate() - 6);
+                  setStartDate(getJakartaDateString(d));
+                  setEndDate(todayStr);
+                }}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
+                  dateFilterMode === '7days'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                7 Hari Terakhir
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFilterMode('month');
+                  const now = new Date();
+                  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                  setStartDate(getJakartaDateString(firstDay));
+                  setEndDate(todayStr);
+                }}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
+                  dateFilterMode === 'month'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Bulan Ini
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFilterMode('all');
+                  setStartDate('');
+                  setEndDate('');
+                }}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
+                  dateFilterMode === 'all'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Semua Waktu
+              </button>
+            </div>
+
+            {/* Date Picker Custom inputs: Periode Tanggal - Kapan */}
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition ${
+              dateFilterMode === 'custom'
+                ? 'border-indigo-400 bg-indigo-50/40 ring-2 ring-indigo-200'
+                : 'border-slate-200 bg-slate-50/70'
+            }`}>
+              <span className="font-bold text-slate-700">Periode:</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setDateFilterMode('custom');
+                  setStartDate(e.target.value);
+                }}
+                className="px-2 py-1 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                title="Pilih tanggal mulai"
+              />
+              <span className="text-slate-400 font-bold">s/d</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setDateFilterMode('custom');
+                  setEndDate(e.target.value);
+                }}
+                className="px-2 py-1 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                title="Kapan (tanggal akhir)"
+              />
+              {dateFilterMode === 'custom' && (
+                <span className="text-[10px] font-bold text-indigo-700 uppercase bg-indigo-100 px-1.5 py-0.5 rounded">
+                  Kustom
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -1411,14 +1536,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </span>
               <div className="flex items-baseline justify-between mt-1">
                 <span className="text-2xl font-black text-slate-900">
-                  {allUsers.filter((u) => (u.role === 'user' || u.role === 'kordinator') && u.status === 'Aktif').length}
+                  {activeStaffList.length}
                 </span>
                 <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
                   {dinasRequests.filter((d) => d.status === 'Disetujui' && d.date === startDate).length} Dinas Luar
                 </span>
               </div>
               <div className="mt-1.5 text-[11px] text-slate-500">
-                <span>6 Unit Fasilitas Terpadu</span>
+                <span>{selectedDivisionFilter === 'Semua' ? '6 Unit Fasilitas Terpadu' : `Divisi ${selectedDivisionFilter}`}</span>
               </div>
             </div>
           </div>
@@ -1540,137 +1665,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     Penjabaran Nilai 15 Standar Kebersihan (Evaluasi Kordinator)
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Rekapitulasi nilai rata-rata 15 standar kebersihan (Skala 1.0 - 4.0: 1=Kurang, 2=Cukup, 3=Baik, 4=Sangat Baik).
+                    Rekapitulasi nilai rata-rata 15 standar kebersihan (Skala 1.0 - 4.0: 1=Kurang, 2=Cukup, 3=Baik, 4=Sangat Baik) mengikuti filter global di atas.
                   </p>
                 </div>
 
-                {/* Filter Periode Mode Buttons */}
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSopDateMode('all');
-                      setSopSelectedSaturday('Semua');
-                      setSopStartDate('');
-                      setSopEndDate('');
-                    }}
-                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
-                      sopDateMode === 'all'
-                        ? 'bg-white text-indigo-700 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Semua
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSopDateMode('week')}
-                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
-                      sopDateMode === 'week'
-                        ? 'bg-white text-indigo-700 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Pekan / Sabtu
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSopDateMode('range')}
-                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
-                      sopDateMode === 'range'
-                        ? 'bg-white text-indigo-700 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Rentang Tanggal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSopDateMode('month');
-                      setSopSelectedSaturday('Semua');
-                      setSopStartDate('');
-                      setSopEndDate('');
-                    }}
-                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
-                      sopDateMode === 'month'
-                        ? 'bg-white text-indigo-700 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Bulan Ini
-                  </button>
-                </div>
-              </div>
-
-              {/* Dynamic Filter Controls Bar */}
-              <div className="flex items-center gap-2.5 flex-wrap bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs">
-                {/* Specific Saturday/Week Dropdown */}
-                {sopDateMode === 'week' && (
-                  <div className="flex items-center gap-1.5 animate-in fade-in">
-                    <span className="font-bold text-slate-700">Pekan / Sabtu:</span>
-                    <select
-                      value={sopSelectedSaturday}
-                      onChange={(e) => setSopSelectedSaturday(e.target.value)}
-                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs"
-                    >
-                      <option value="Semua">Semua Pekan / Sabtu</option>
-                      {saturdayOptions.map((opt) => (
-                        <option key={opt.isoDate} value={opt.isoDate}>
-                          {opt.label}
-                        </option>
-                      ))}
-                      {existingSaturdayOptions.map((dateStr) => {
-                        const alreadyInList = saturdayOptions.some((o) => o.label === dateStr || o.isoDate === dateStr);
-                        if (alreadyInList) return null;
-                        return (
-                          <option key={dateStr} value={dateStr}>
-                            {dateStr}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                )}
-
-                {/* Custom Date Range Inputs */}
-                {sopDateMode === 'range' && (
-                  <div className="flex items-center gap-2 flex-wrap animate-in fade-in">
-                    <div className="flex items-center gap-1">
-                      <span className="font-bold text-slate-700">Dari:</span>
-                      <input
-                        type="date"
-                        value={sopStartDate}
-                        onChange={(e) => setSopStartDate(e.target.value)}
-                        className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="font-bold text-slate-700">Sampai:</span>
-                      <input
-                        type="date"
-                        value={sopEndDate}
-                        onChange={(e) => setSopEndDate(e.target.value)}
-                        className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    {(sopStartDate || sopEndDate) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSopStartDate('');
-                          setSopEndDate('');
-                        }}
-                        className="text-rose-600 font-bold hover:underline"
-                      >
-                        Reset
-                      </button>
-                    )}
-                  </div>
-                )}
-
                 {/* KPI Badges */}
-                <div className="ml-auto flex items-center gap-2 flex-wrap text-xs">
+                <div className="flex items-center gap-2 flex-wrap text-xs">
                   <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg font-black">
                     ⭐ Rata-rata: {overallAvgSopScore} / 4.0
                   </span>
@@ -1773,45 +1773,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
 
-            {/* Filter Bar for Incidental Participation */}
-            <div className="bg-white border border-amber-200 rounded-2xl p-4 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-slate-700 flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5 text-amber-600" /> Pilih Petugas:
-                  </span>
-                  <select
-                    value={selectedIncidentalUser}
-                    onChange={(e) => setSelectedIncidentalUser(e.target.value)}
-                    className="px-3 py-1.5 bg-amber-50/50 border border-amber-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 cursor-pointer max-w-[220px]"
-                  >
-                    <option value="Semua">Semua Petugas (Agregat)</option>
-                    {activeStaffList.map((u) => (
-                      <option key={u.id} value={u.name}>
-                        {u.name} (Unit {u.unit})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-slate-700 flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-amber-600" /> Periode:
-                  </span>
-                  <select
-                    value={selectedIncidentalPeriod}
-                    onChange={(e) => setSelectedIncidentalPeriod(e.target.value as any)}
-                    className="px-3 py-1.5 bg-amber-50/50 border border-amber-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 cursor-pointer"
-                  >
-                    <option value="month">1 Bulan Terakhir / Bulan Ini</option>
-                    <option value="30days">30 Hari Terakhir</option>
-                    <option value="all">Semua Waktu</option>
-                  </select>
-                </div>
+            {/* Global Filter Info Strip */}
+            <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl px-4 py-2.5 shadow-2xs flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2 flex-wrap font-semibold text-slate-700">
+                <span className="text-amber-700 font-bold flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5" /> Filter Terhubung:
+                </span>
+                <span className="bg-white px-2.5 py-0.5 rounded-lg border border-amber-200 text-slate-800 font-bold">
+                  Divisi: {selectedDivisionFilter}
+                </span>
+                <span className="bg-white px-2.5 py-0.5 rounded-lg border border-amber-200 text-slate-800 font-bold">
+                  Unit: {selectedUnitFilter}
+                </span>
+                <span className="bg-white px-2.5 py-0.5 rounded-lg border border-amber-200 text-slate-800 font-bold">
+                  Petugas: {selectedUserFilter}
+                </span>
+                <span className="bg-white px-2.5 py-0.5 rounded-lg border border-amber-200 text-slate-800 font-bold">
+                  Rentang: {dateFilterMode === 'today' ? 'Hari Ini' : dateFilterMode === '7days' ? '7 Hari Terakhir' : dateFilterMode === 'month' ? 'Bulan Ini' : dateFilterMode === 'all' ? 'Semua Waktu' : `${startDate} s/d ${endDate}`}
+                </span>
               </div>
 
-              <span className="text-[11px] font-semibold text-slate-500">
-                Menampilkan data {filteredIncidentalJobs.length} tugas insidental
+              <span className="text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2.5 py-1 rounded-lg">
+                {filteredIncidentalJobs.length} Tugas Insidental Terpilih
               </span>
             </div>
 
@@ -1838,8 +1821,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    {selectedIncidentalUser !== 'Semua'
-                      ? `Tingkat keaktifan ${selectedIncidentalUser} pada tugas insidental yang ditugaskan kepadanya.`
+                    {selectedUserFilter !== 'Semua'
+                      ? `Tingkat keaktifan ${selectedUserFilter} pada tugas insidental yang ditugaskan kepadanya.`
                       : 'Rata-rata keikutsertaan seluruh petugas pada tugas insidental.'}
                   </p>
                 </div>
@@ -2278,6 +2261,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
           </div>
 
+          {/* Division Filter for Job Bareng */}
+          <div className="flex items-center gap-1.5 p-1 bg-white border border-slate-200 rounded-xl w-fit shadow-2xs">
+            <span className="text-[11px] font-bold text-slate-500 px-2.5">Filter Divisi:</span>
+            <button
+              onClick={() => setSelectedDivisionFilter('Semua')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                selectedDivisionFilter === 'Semua'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Semua Divisi
+            </button>
+            <button
+              onClick={() => setSelectedDivisionFilter('OB')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                selectedDivisionFilter === 'OB'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <span>🧹</span>
+              <span>Divisi OB</span>
+            </button>
+            <button
+              onClick={() => setSelectedDivisionFilter('PLH')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                selectedDivisionFilter === 'PLH'
+                  ? 'bg-emerald-700 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <span>🌿</span>
+              <span>Divisi PLH</span>
+            </button>
+          </div>
+
           {/* Job Bareng Cards List with live participant tracking and percentage calculations */}
           <div className="space-y-3">
             {jobBarengStats.map(({ job, targetCount, joinedCount, completedCount, participationRate, completionRate, totalPointsAwarded, joinedUsers, completedUsers, notJoinedUsers }) => (
@@ -2288,6 +2308,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
+                        job.division === 'PLH'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : job.division === 'OB'
+                          ? 'bg-sky-100 text-sky-800 border border-sky-300'
+                          : 'bg-slate-100 text-slate-700 border border-slate-300'
+                      }`}>
+                        {job.division === 'PLH' ? '🌿 Divisi PLH' : job.division === 'OB' ? '🧹 Divisi OB' : '🌐 Semua Divisi'}
+                      </span>
                       <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold text-[10px]">
                         Target Unit: {job.targetUnit}
                       </span>
@@ -2523,8 +2552,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </span>
                 </div>
 
-                {/* Unit & Role Selectors (Quick annual update by Admin) */}
-                <div className="grid grid-cols-2 gap-2 pt-1">
+                {/* Unit, Role & Division Selectors (Quick annual update by Admin) */}
+                <div className="grid grid-cols-3 gap-2 pt-1">
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 mb-1">
                       Unit Kerja:
@@ -2548,7 +2577,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 mb-1">
-                      Role / Hak Akses:
+                      Divisi:
+                    </label>
+                    <select
+                      value={u.division || 'OB'}
+                      onChange={(e) =>
+                        onUpdateUser({ ...u, division: e.target.value as 'OB' | 'PLH' })
+                      }
+                      className="w-full px-2 py-1.5 rounded-lg border border-slate-300 font-semibold bg-white text-xs"
+                    >
+                      <option value="OB">🧹 OB</option>
+                      <option value="PLH">🌿 PLH</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                      Role / Hak:
                     </label>
                     <select
                       value={u.role}
@@ -2557,9 +2602,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       }
                       className="w-full px-2 py-1.5 rounded-lg border border-slate-300 font-semibold bg-white text-xs"
                     >
-                      <option value="user">Staff OB/OG</option>
-                      <option value="kordinator">Kordinator</option>
-                      <option value="admin">Admin FM</option>
+                      <option value="user">Staff</option>
+                      <option value="kordinator">Kord</option>
+                      <option value="admin">Admin</option>
                     </select>
                   </div>
                 </div>
@@ -2625,6 +2670,40 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           {/* Filter Bar for Master Tasks */}
           <div className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-xs flex flex-wrap items-center gap-3 text-xs">
+            {/* Division Filter Pills */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              <button
+                onClick={() => setMasterTaskDivisionFilter('Semua')}
+                className={`px-2.5 py-1 rounded-lg font-bold text-xs transition cursor-pointer ${
+                  masterTaskDivisionFilter === 'Semua'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                }`}
+              >
+                Semua Divisi
+              </button>
+              <button
+                onClick={() => setMasterTaskDivisionFilter('OB')}
+                className={`px-2.5 py-1 rounded-lg font-bold text-xs transition cursor-pointer flex items-center gap-1 ${
+                  masterTaskDivisionFilter === 'OB'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-sky-700 hover:bg-white/60'
+                }`}
+              >
+                <span>🧹 OB</span>
+              </button>
+              <button
+                onClick={() => setMasterTaskDivisionFilter('PLH')}
+                className={`px-2.5 py-1 rounded-lg font-bold text-xs transition cursor-pointer flex items-center gap-1 ${
+                  masterTaskDivisionFilter === 'PLH'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-emerald-700 hover:bg-white/60'
+                }`}
+              >
+                <span>🌿 PLH</span>
+              </button>
+            </div>
+
             <div className="flex items-center gap-1.5">
               <span className="font-bold text-slate-700">Filter Unit:</span>
               <select
@@ -2653,9 +2732,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <option value="Semua Petugas">Tugas Bersama (Semua Petugas)</option>
                 {allUsers
                   .filter((u) => u.role === 'user' && u.status === 'Aktif')
+                  .filter((u) => masterTaskDivisionFilter === 'Semua' || (u.division || 'OB') === masterTaskDivisionFilter)
                   .map((u) => (
                     <option key={u.id} value={u.name}>
-                      👤 {u.name} ({u.unit})
+                      👤 {u.name} ({u.division || 'OB'} - {u.unit})
                     </option>
                   ))}
               </select>
@@ -2666,6 +2746,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <strong className="text-slate-800 font-black">
                 {
                   masterTasks.filter((t) => {
+                    if (masterTaskDivisionFilter !== 'Semua' && (t.division || 'OB') !== masterTaskDivisionFilter) {
+                      return false;
+                    }
                     if (selectedUnitFilter !== 'Semua' && t.unit !== selectedUnitFilter && t.unit !== 'Semua Unit') {
                       return false;
                     }
@@ -2688,6 +2771,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="space-y-2.5">
             {masterTasks
               .filter((t) => {
+                if (masterTaskDivisionFilter !== 'Semua' && (t.division || 'OB') !== masterTaskDivisionFilter) {
+                  return false;
+                }
                 if (selectedUnitFilter !== 'Semua' && t.unit !== selectedUnitFilter && t.unit !== 'Semua Unit') {
                   return false;
                 }
@@ -2729,6 +2815,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-600' : 'bg-rose-600'}`}></span>
                             <span>{isActive ? 'Aktif di Harian' : 'Nonaktif (Off)'}</span>
                           </button>
+
+                          {/* Division Badge */}
+                          <span
+                            className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                              (t.division || 'OB') === 'PLH'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                : 'bg-sky-100 text-sky-800 border border-sky-200'
+                            }`}
+                          >
+                            {(t.division || 'OB') === 'PLH' ? '🌿 PLH' : '🧹 OB'}
+                          </span>
 
                           <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 font-bold text-[10px]">
                             {t.category} ({t.timingType})
@@ -2775,6 +2872,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             setTaskUnit(t.unit);
                             setTaskArea(t.area || '');
                             setTaskAssignee(t.assignee || 'Semua Petugas');
+                            setTaskDivision(t.division || 'OB');
                             setTaskInstructionsText(t.instructions.join('\n'));
                             setTaskPhotoRequired(t.photoRequired);
                             setTaskStandardPhotoUrl(t.standardPhotoUrl || '');
@@ -3238,6 +3336,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       )}
 
+      {/* TAB: WORK ORDER POHON & ROLLING PIKET MASJID */}
+      {adminTab === 'pohon_masjid' && (
+        <div className="space-y-5 animate-in fade-in duration-150">
+          <MasjidRollingCard />
+          <TreeWorkOrderView activeUser={activeUser} />
+        </div>
+      )}
+
       {/* CREATE JOB BARENG MODAL */}
       {isCreatingJob && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-in fade-in">
@@ -3256,16 +3362,75 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             <form onSubmit={handleSaveJobBareng} className="p-5 space-y-3.5">
+              {/* Partisi Jenis Pekerjaan: Job Bareng vs Insidental */}
+              <div className="space-y-1.5">
+                <label className="block font-bold text-slate-800 text-xs">
+                  Partisi Jenis Pekerjaan:
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setJbTaskType('job_bareng')}
+                    className={`py-2 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                      jbTaskType === 'job_bareng'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Job Bareng Tim</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setJbTaskType('insidental')}
+                    className={`py-2 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                      jbTaskType === 'insidental'
+                        ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Zap className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Insidental (Pohon Tumbang dll)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Kategori Insidental jika dipilih */}
+              {jbTaskType === 'insidental' && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1.5 animate-in fade-in duration-150">
+                  <label className="block font-bold text-rose-900 text-xs">
+                    Kategori Kejadian Insidental:
+                  </label>
+                  <select
+                    value={jbIncidentCategory}
+                    onChange={(e) => setJbIncidentCategory(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-rose-300 bg-white font-semibold text-xs text-rose-950 focus:ring-2 focus:ring-rose-500"
+                  >
+                    <option value="Pohon Tumbang / Dahan Patah">🌳 Pohon Tumbang / Dahan Patah</option>
+                    <option value="Saluran Air / Selokan Tersumbat">💧 Saluran Air / Selokan Tersumbat</option>
+                    <option value="Kebocoran / Genangan Air">🌊 Kebocoran / Genangan Air</option>
+                    <option value="Sampah Menumpuk / Daun Lebat">🍂 Sampah Menumpuk / Daun Lebat</option>
+                    <option value="Kerusakan Taman / Area Luar">🌿 Kerusakan Taman / Pagar / Fasilitas</option>
+                    <option value="Kebutuhan Event Mendadak">🎪 Kebutuhan Event / Acara Mendadak</option>
+                    <option value="Lainnya">⚠️ Kejadian Darurat Lainnya</option>
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  Judul Pekerjaan Mendadak:
+                  Judul Pekerjaan {jbTaskType === 'insidental' ? 'Insidental' : 'Job Bareng'}:
                 </label>
                 <input
                   type="text"
                   required
                   value={jbTitle}
                   onChange={(e) => setJbTitle(e.target.value)}
-                  placeholder="Contoh: Kerja Bakti Bersih Area Lapangan & Panggung Acara"
+                  placeholder={
+                    jbTaskType === 'insidental'
+                      ? 'Contoh: Pembersihan Pohon Tumbang di Area Pos 1 Menghalangi Akses'
+                      : 'Contoh: Kerja Bakti Bersih Area Lapangan & Panggung Acara'
+                  }
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
@@ -3275,15 +3440,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   Deskripsi & Instruksi:
                 </label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={jbDescription}
                   onChange={(e) => setJbDescription(e.target.value)}
-                  placeholder="Jelaskan kebutuhan pembersihan bersama..."
+                  placeholder="Jelaskan kebutuhan pekerjaan dan arahan pengerjaan..."
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-800"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Divisi Pelaksana:</label>
+                  <select
+                    value={jbDivision}
+                    onChange={(e) => setJbDivision(e.target.value as 'OB' | 'PLH' | 'Semua')}
+                    className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-sky-500"
+                  >
+                    <option value="Semua">🌐 Semua Divisi</option>
+                    <option value="OB">🧹 Divisi OB</option>
+                    <option value="PLH">🌿 Divisi PLH</option>
+                  </select>
+                </div>
+
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Target Unit:</label>
                   <select
@@ -3314,14 +3492,40 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Lokasi / Area:</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-slate-700">Lokasi / Area Pengerjaan:</label>
+                  {jbDivision === 'PLH' && (
+                    <span className="text-[10px] text-emerald-700 font-bold">5 Area Luar PLH</span>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={jbArea}
                   onChange={(e) => setJbArea(e.target.value)}
-                  placeholder="Lapangan Utama / Gedung Ar Razi..."
+                  placeholder="Lapangan Utama / Area Pos 1 / Kolam Renang..."
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500"
                 />
+
+                {/* Quick Chips for 5 PLH Areas */}
+                {(jbDivision === 'PLH' || jbDivision === 'Semua') && (
+                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                    <span className="text-[10px] font-bold text-slate-500">Pilih Cepat Area PLH:</span>
+                    {PLH_AREAS.map((area) => (
+                      <button
+                        key={area}
+                        type="button"
+                        onClick={() => setJbArea(area)}
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition cursor-pointer ${
+                          jbArea === area
+                            ? 'bg-emerald-600 text-white border-emerald-600'
+                            : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                        }`}
+                      >
+                        {area}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Target Penugasan: Semua User vs Pilih Beberapa User */}
@@ -3367,6 +3571,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           onClick={() => {
                             const staffList = allUsers
                               .filter((u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator'))
+                              .filter((u) => jbDivision === 'Semua' || (u.division || 'OB') === jbDivision)
                               .filter((u) => jbUnit === 'Semua Unit' || u.unit === jbUnit || u.unit === 'Semua Unit')
                               .map((u) => u.id);
                             setJbSelectedUserIds(staffList);
@@ -3389,6 +3594,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="max-h-36 overflow-y-auto space-y-1 bg-white p-2 rounded-xl border border-slate-200">
                       {allUsers
                         .filter((u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator'))
+                        .filter((u) => jbDivision === 'Semua' || (u.division || 'OB') === jbDivision)
                         .filter((u) => jbUnit === 'Semua Unit' || u.unit === jbUnit || u.unit === 'Semua Unit')
                         .map((u) => {
                           const isChecked = jbSelectedUserIds.includes(u.id);
@@ -3415,7 +3621,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               />
                               <span className="truncate">{u.name}</span>
                               <span className="text-[10px] text-slate-400 font-normal ml-auto">
-                                Unit {u.unit}
+                                {u.division || 'OB'} • Unit {u.unit}
                               </span>
                             </label>
                           );
@@ -3480,7 +3686,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Divisi:</label>
+                  <select
+                    value={taskDivision}
+                    onChange={(e) => setTaskDivision(e.target.value as 'OB' | 'PLH')}
+                    className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-sky-500"
+                  >
+                    <option value="OB">🧹 Divisi OB</option>
+                    <option value="PLH">🌿 Divisi PLH</option>
+                  </select>
+                </div>
+
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Kategori:</label>
                   <select
@@ -3495,15 +3713,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Waktu Pelaksanaan:</label>
+                  <label className="block font-bold text-slate-700 mb-1">Waktu:</label>
                   <select
                     value={taskTiming}
                     onChange={(e) => setTaskTiming(e.target.value as any)}
                     className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-sky-500"
                   >
-                    <option value="pre_readiness">Pre-Readiness (00:00 - 09:00 WIB)</option>
-                    <option value="clock_out">Clock Out (09:00 - 23:59 WIB)</option>
-                    <option value="anytime">Rutin Fleksibel (00:00 - 23:59 WIB)</option>
+                    <option value="pre_readiness">Pre-Readiness (00-09)</option>
+                    <option value="clock_out">Clock Out (09-23)</option>
+                    <option value="anytime">Fleksibel (24 Jam)</option>
                   </select>
                 </div>
               </div>
@@ -3719,7 +3937,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Divisi:</label>
+                  <select
+                    value={newUserDivision}
+                    onChange={(e) => setNewUserDivision(e.target.value as 'OB' | 'PLH')}
+                    className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-sky-500"
+                  >
+                    <option value="OB">🧹 OB</option>
+                    <option value="PLH">🌿 PLH</option>
+                  </select>
+                </div>
+
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Role:</label>
                   <select
@@ -3727,14 +3957,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     onChange={(e) => setNewUserRole(e.target.value as UserRole)}
                     className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-sky-500"
                   >
-                    <option value="user">Staff OB/OG</option>
+                    <option value="user">Staff</option>
                     <option value="kordinator">Kordinator</option>
                     <option value="admin">Admin FM</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Unit Penempatan:</label>
+                  <label className="block font-bold text-slate-700 mb-1">Unit:</label>
                   <select
                     value={newUserUnit}
                     onChange={(e) => setNewUserUnit(e.target.value as UnitType)}
@@ -3743,10 +3973,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <option value="TK">TK</option>
                     <option value="SD">SD</option>
                     <option value="SMP">SMP</option>
-                    <option value="Pelangi Direktorat">Pelangi Direktorat</option>
+                    <option value="Pelangi Direktorat">Pelangi</option>
                     <option value="Ar Razi">Ar Razi</option>
                     <option value="Khaldun">Khaldun</option>
-                    <option value="Semua Unit">Semua Unit</option>
+                    <option value="Semua Unit">Semua</option>
                   </select>
                 </div>
               </div>

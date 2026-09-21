@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Users, CheckCircle, Clock, MapPin, ArrowRight } from 'lucide-react';
+import { Sparkles, Users, CheckCircle, Clock, MapPin, ArrowRight, AlertTriangle, Trees } from 'lucide-react';
 import { JobBareng, User } from '../types';
 
 interface JobBarengCardProps {
@@ -27,28 +27,52 @@ export const JobBarengCard: React.FC<JobBarengCardProps> = ({
     Boolean(activeUser.name && job.completedUserNames?.some((n) => n.toLowerCase().trim() === activeUser.name.toLowerCase().trim())) ||
     Boolean(activeUser.name && job.completedUserIds?.some((id) => id.toLowerCase().trim() === activeUser.name.toLowerCase().trim()));
 
+  const isInsidental = job.taskType === 'insidental' || Boolean(job.incidentCategory);
+  const divisionLabel = job.division === 'PLH' ? 'PLH (Taman/Luar)' : job.division === 'OB' ? 'OB / Kebersihan' : 'Semua Divisi';
+
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 text-white shadow-md relative overflow-hidden group">
       {/* Subtle accent glow */}
-      <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+      <div
+        className={`absolute top-0 right-0 w-48 h-48 rounded-full blur-2xl pointer-events-none ${
+          isInsidental ? 'bg-rose-500/10' : 'bg-amber-500/10'
+        }`}
+      />
 
       <div className="relative z-10 space-y-3.5">
-        {/* Top Tag */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 rounded-lg text-[11px] font-bold tracking-wide text-amber-400">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>TUGAS INSIDENTAL</span>
+        {/* Top Badges */}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {isInsidental ? (
+              <div className="flex items-center gap-1.5 bg-rose-500/20 border border-rose-500/40 px-2.5 py-1 rounded-lg text-[11px] font-bold tracking-wide text-rose-300">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                <span>TUGAS INSIDENTAL {job.incidentCategory ? `• ${job.incidentCategory}` : ''}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 rounded-lg text-[11px] font-bold tracking-wide text-amber-400">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>JOB BARENG TIM</span>
+              </div>
+            )}
+
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-800 text-emerald-400 border border-slate-700">
+              {divisionLabel}
+            </span>
           </div>
+
           <span className="text-[11px] font-semibold bg-slate-800 border border-slate-700 text-slate-300 px-2.5 py-0.5 rounded-md">
             {job.assignmentType === 'specific'
               ? `Khusus (${job.assignedUserIds?.length || 0} Petugas)`
-              : `Unit: ${job.targetUnit}`}
+              : `Target: ${job.targetUnit}`}
           </span>
         </div>
 
         {/* Title & Description */}
         <div>
-          <h3 className="text-base font-bold text-white leading-snug tracking-tight">{job.title}</h3>
+          <h3 className="text-base font-bold text-white leading-snug tracking-tight flex items-center gap-2">
+            {isInsidental && <Trees className="w-4 h-4 text-emerald-400 shrink-0" />}
+            <span>{job.title}</span>
+          </h3>
           <p className="text-xs text-slate-300 mt-1 line-clamp-2 leading-relaxed">{job.description}</p>
         </div>
 
@@ -60,7 +84,7 @@ export const JobBarengCard: React.FC<JobBarengCardProps> = ({
           </div>
           <div className="flex items-center gap-1.5 bg-slate-800/80 px-2 py-1 rounded-lg border border-slate-700/60">
             <MapPin className="w-3.5 h-3.5 text-rose-400" />
-            <span>{job.targetArea}</span>
+            <span className="font-semibold text-slate-200">{job.targetArea || 'Area Sekolah'}</span>
           </div>
           <div className="flex items-center gap-1.5 bg-slate-800/80 px-2 py-1 rounded-lg border border-slate-700/60">
             <Users className="w-3.5 h-3.5 text-emerald-400" />

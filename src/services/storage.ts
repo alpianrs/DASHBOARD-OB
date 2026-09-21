@@ -9,7 +9,9 @@ import {
   SyncConfig,
   HolidayConfig,
   UnitType,
+  DivisionType,
   PendingSyncItem,
+  TreeWorkOrder,
 } from '../types';
 import { isSameDay, getJakartaDateString, normalizeDateString } from '../utils/dateHelper';
 
@@ -25,6 +27,7 @@ const STORAGE_KEYS = {
   SYNC_CONFIG: 'lz_fm_sync_config',
   HOLIDAY_CONFIG: 'lz_fm_holiday_config',
   PENDING_QUEUE: 'lz_fm_pending_sync_queue',
+  TREE_WORK_ORDERS: 'lz_fm_tree_work_orders',
 };
 
 export const DEFAULT_HOLIDAY_CONFIG: HolidayConfig = {
@@ -54,6 +57,64 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
 };
 
 // Seed Users for Lazuardi GCS Facility Management
+export const SEED_PLH_USERS: User[] = [
+  {
+    id: 'u-kord-plh',
+    username: 'slamet_plh',
+    password: 'password123',
+    name: 'Slamet Riyadi (Kord PLH)',
+    role: 'kordinator',
+    division: 'PLH',
+    unit: 'Semua Unit',
+    status: 'Aktif',
+    phone: '08129999001',
+  },
+  {
+    id: 'u-plh-01',
+    username: 'bambang_plh',
+    password: 'password123',
+    name: 'Bambang Irawan (PLH)',
+    role: 'user',
+    division: 'PLH',
+    unit: 'TK',
+    status: 'Aktif',
+    phone: '08129999002',
+  },
+  {
+    id: 'u-plh-02',
+    username: 'surya_plh',
+    password: 'password123',
+    name: 'Surya Wijaya (PLH)',
+    role: 'user',
+    division: 'PLH',
+    unit: 'SD',
+    status: 'Aktif',
+    phone: '08129999003',
+  },
+  {
+    id: 'u-plh-03',
+    username: 'kusnadi_plh',
+    password: 'password123',
+    name: 'Kusnadi (PLH)',
+    role: 'user',
+    division: 'PLH',
+    unit: 'SMP',
+    status: 'Aktif',
+    phone: '08129999004',
+  },
+  {
+    id: 'u-plh-04',
+    username: 'fauzi_plh',
+    password: 'password123',
+    name: 'Ahmad Fauzi (PLH)',
+    role: 'user',
+    division: 'PLH',
+    unit: 'Pelangi Direktorat',
+    status: 'Aktif',
+    phone: '08129999005',
+  },
+];
+
 const SEED_USERS: User[] = [
   {
     id: 'u-adm-01',
@@ -69,12 +130,14 @@ const SEED_USERS: User[] = [
     id: 'u-kord-01',
     username: 'lili',
     password: 'password123',
-    name: 'Lili Ariyanto',
+    name: 'Lili Ariyanto (Kord OB)',
     role: 'kordinator',
+    division: 'OB',
     unit: 'Ar Razi',
     status: 'Aktif',
     phone: '081298765432',
   },
+  ...SEED_PLH_USERS,
 ];
 
 // Seed Master Tasks with realistic assignee assignments and SOP standard benchmark photos
@@ -318,6 +381,421 @@ const SEED_MASTER_TASKS: MasterTask[] = [
   },
 ];
 
+// Seed Master Tasks for PLH (Pekerja Lingkungan Hidup)
+// Khusus 5 Area Luar: Area Pos 1, Area Pos 2, Area Khaldun, Area Ex Minifarm, Area Kolam Renang
+export const SEED_PLH_MASTER_TASKS: MasterTask[] = [
+  // PRE-READINESS PLH (00:00 - 09:00)
+  {
+    id: 'mt-plh-pr-01',
+    title: 'Pre-Readiness: Penyiraman Taman & Perapihan Area Pos 1',
+    unit: 'Semua Unit',
+    category: 'Harian',
+    timingType: 'pre_readiness',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Siram seluruh tanaman hias, pohon kecil, dan rumput di sekitar gerbang dan Area Pos 1 sebelum terik pagi.',
+      'Sapu bersih daun gugur dan ranting di paving dan trotoar akses utama.',
+      'Pastikan selang air dirapikan kembali dan tidak melintang di jalan.',
+    ],
+    photoRequired: true,
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80',
+    estimatedMinutes: 30,
+    area: 'Area Pos 1',
+    isActive: true,
+  },
+  {
+    id: 'mt-plh-pr-02',
+    title: 'Pre-Readiness: Kebersihan Taman & Drainase Area Pos 2',
+    unit: 'Semua Unit',
+    category: 'Harian',
+    timingType: 'pre_readiness',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Sapu bersih daun kering dan sampah luar di sekeliling Area Pos 2.',
+      'Periksa grill penutup selokan drainase air hujan dari sumbatan daun/plastik.',
+      'Siram tanaman pot dan tanaman pagar di sekitar Pos 2.',
+    ],
+    photoRequired: true,
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1590402494682-cd3fb53b1f70?auto=format&fit=crop&w=800&q=80',
+    estimatedMinutes: 25,
+    area: 'Area Pos 2',
+    isActive: true,
+  },
+  {
+    id: 'mt-plh-pr-03',
+    title: 'Pre-Readiness: Perawatan Lanskap & Taman Terbuka Area Khaldun',
+    unit: 'Semua Unit',
+    category: 'Harian',
+    timingType: 'pre_readiness',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Siram tanaman lanskap terbuka dan rumput di Area Khaldun.',
+      'Kumpulkan daun kering ke keranjang untuk bahan komposter.',
+      'Pastikan area pedestrian Khaldun bersih dari lumut dan genangan air.',
+    ],
+    photoRequired: true,
+    estimatedMinutes: 25,
+    area: 'Area Khaldun',
+    isActive: true,
+  },
+
+  // ANYTIME / OPERASIONAL HARIAN PLH
+  {
+    id: 'mt-plh-at-01',
+    title: 'Pemeliharaan Tanaman, Bedengan & Kompos Area Ex Minifarm',
+    unit: 'Semua Unit',
+    category: 'Harian',
+    timingType: 'anytime',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Pangkas gulma / rumput liar (weeding) di sekitar bedengan dan tanaman produktif Ex Minifarm.',
+      'Kelola bak komposter organik daun dan semprotkan cairan pengurai jika perlu.',
+      'Rapikan tumpukan daun dan pastikan area pembibitan bersih dan tertata.',
+    ],
+    photoRequired: true,
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6eb2251a?auto=format&fit=crop&w=800&q=80',
+    estimatedMinutes: 45,
+    area: 'Area Ex Minifarm',
+    isActive: true,
+  },
+  {
+    id: 'mt-plh-at-02',
+    title: 'Pembersihan Daun, Bibir Kolam & Saluran Area Kolam Renang',
+    unit: 'Semua Unit',
+    category: 'Harian',
+    timingType: 'anytime',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Jaring daun-daun dan ranting yang jatuh ke permukaan kolam renang.',
+      'Sapu dan sikat deck pinggir kolam dari lumut dan kotoran tanah.',
+      'Pangkas dahan pohon yang menjuntai terlalu dekat ke air kolam.',
+    ],
+    photoRequired: true,
+    estimatedMinutes: 40,
+    area: 'Area Kolam Renang',
+    isActive: true,
+  },
+  {
+    id: 'mt-plh-at-03',
+    title: 'Pemangkasan Dahan Rendah & Pengecekan Pohon Rawan Tumbang',
+    unit: 'Semua Unit',
+    category: 'Harian',
+    timingType: 'anytime',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Inspeksi keliling 5 area luar untuk mengecek pohon yang condong atau ranting lapuk.',
+      'Potong dahan yang berpotensi patah atau menghalangi jalur lintasan.',
+      'Laporkan ke kordinator bila ada pohon besar yang membutuhkan penanganan insidental.',
+    ],
+    photoRequired: false,
+    estimatedMinutes: 35,
+    area: 'Area Khaldun',
+    isActive: true,
+  },
+
+  // CLOCK OUT PLH (09:00 - 23:59)
+  {
+    id: 'mt-plh-co-01',
+    title: 'Clock Out: Penyiraman Sore & Cek Sirkulasi Area Kolam Renang',
+    unit: 'Semua Unit',
+    category: 'Harian',
+    timingType: 'clock_out',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Siram kembali tanaman lanskap di sekitar Kolam Renang dan Area Pos 1.',
+      'Pastikan saluran overflow kolam bersih dari dedaunan.',
+      'Matikan kran air utama luar setelah penyiraman sore selesai.',
+    ],
+    photoRequired: true,
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80',
+    estimatedMinutes: 30,
+    area: 'Area Kolam Renang',
+    isActive: true,
+  },
+  {
+    id: 'mt-plh-co-02',
+    title: 'Clock Out: Perapihan Peralatan, Mesin Rumput & Gudang PLH',
+    unit: 'Semua Unit',
+    category: 'Harian',
+    timingType: 'clock_out',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Bersihkan dan keringkan gunting tanaman, sabit, cangkul, dan mesin potong rumput.',
+      'Gulung rapi seluruh selang air pada tempatnya di Area Ex Minifarm / Pos.',
+      'Kunci gudang penyimpanan alat kerja PLH dengan aman.',
+    ],
+    photoRequired: true,
+    estimatedMinutes: 20,
+    area: 'Area Ex Minifarm',
+    isActive: true,
+  },
+  {
+    id: 'mt-plh-co-03',
+    title: 'Clock Out: Pengangkutan Sampah Dedaunan 5 Area Luar ke TPS',
+    unit: 'Semua Unit',
+    category: 'Harian',
+    timingType: 'clock_out',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Angkut seluruh hasil sapuan daun kering dari Pos 1, Pos 2, Khaldun, Ex Minifarm, dan Kolam Renang ke TPS.',
+      'Pastikan tidak ada tumpukan daun berserakan di trotoar atau pinggir lapangan.',
+      'Tutup rapat bak sampah luar agar tidak diacak hewan.',
+    ],
+    photoRequired: true,
+    estimatedMinutes: 30,
+    area: 'Area Pos 1',
+    isActive: true,
+  },
+
+  // MINGGUAN PLH (Reset Setiap Hari Senin)
+  {
+    id: 'mt-plh-wk-01',
+    title: 'Mingguan: Pemangkasan Pagar Tanaman, Semak & Topiary 5 Area Luar',
+    unit: 'Semua Unit',
+    category: 'Mingguan',
+    timingType: 'anytime',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Gunakan gunting dahan dan mesin pemotong semak untuk meratakan tinggi pagar tanaman.',
+      'Bentuk rapi tanaman hias di sepanjang trotoar Pos 1, Pos 2, Khaldun, dan Minifarm.',
+      'Sapu bersih serpihan daun hasil pangkasan dan kumpulkan ke polybag kompos.',
+    ],
+    photoRequired: true,
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6eb2251a?auto=format&fit=crop&w=800&q=80',
+    estimatedMinutes: 60,
+    area: '5 Area Luar PLH',
+    isActive: true,
+  },
+  {
+    id: 'mt-plh-wk-02',
+    title: 'Mingguan: Pemupukan Organik, Penggemburan Tanah & Penanganan Hama Kutu Daun',
+    unit: 'Semua Unit',
+    category: 'Mingguan',
+    timingType: 'anytime',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Gemburkan tanah di sekeliling perakaran tanaman pot dan bedengan Ex Minifarm.',
+      'Berikan pupuk kompos organik matang secukupnya pada media tanam.',
+      'Cek tanda kutu putih atau jamur pada batang/daun dan semprotkan cairan pestisida nabati jika perlu.',
+    ],
+    photoRequired: true,
+    estimatedMinutes: 50,
+    area: 'Area Ex Minifarm',
+    isActive: true,
+  },
+  {
+    id: 'mt-plh-wk-03',
+    title: 'Mingguan: Pembersihan Sedimen Lumpur & Sampah Saluran Drainase Terbuka Luar',
+    unit: 'Semua Unit',
+    category: 'Mingguan',
+    timingType: 'anytime',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Buka penutup grill besi selokan di sepanjang lintasan luar dan Area Pos 2.',
+      'Keruk endapan lumpur, pasir, dan daun busuk yang menumpuk di dasar saluran air hujan.',
+      'Siram saluran dengan air hingga aliran lancar menuju pembuangan kota.',
+    ],
+    photoRequired: true,
+    estimatedMinutes: 55,
+    area: 'Area Pos 2',
+    isActive: true,
+  },
+  {
+    id: 'mt-plh-wk-04',
+    title: 'Mingguan: Deep Cleaning Kolam Renang (Vacuum Dasar Keramik & Sikat Dinding)',
+    unit: 'Semua Unit',
+    category: 'Mingguan',
+    timingType: 'anytime',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Pasang selang vacuum head dan jalankan penyedotan endapan kotoran dasar kolam.',
+      'Sikat lumut pada sambungan keramik dinding kolam renang.',
+      'Lakukan backwash dan rinse pada tabung filter pompa sirkulasi kolam.',
+    ],
+    photoRequired: true,
+    estimatedMinutes: 75,
+    area: 'Area Kolam Renang',
+    isActive: true,
+  },
+  {
+    id: 'mt-plh-wk-05',
+    title: 'Mingguan: Piket Kebersihan & Kesiapan Aula Masjid (Rolling Mingguan PLH)',
+    unit: 'Semua Unit',
+    category: 'Mingguan',
+    timingType: 'anytime',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Tugas ini bergilir otomatis setiap minggu (reset Senin) untuk Area Pos 2, Kolam Renang, Ex Minifarm, dan Khaldun (Area Pos 1 Dikecualikan).',
+      'Vacuum seluruh karpet sajadah Aula Masjid dari debu dan kotoran.',
+      'Lap mimbar, rak Al-Quran, jendela kaca, dan wudhu luar masjid.',
+      'Pastikan pendingin/kipas angin dan wewangian karpet terpasang rapi untuk ibadah.',
+    ],
+    photoRequired: true,
+    estimatedMinutes: 45,
+    area: 'Aula Masjid (Rolling PLH)',
+    isActive: true,
+  },
+
+  // BULANAN PLH (Reset Setiap Tanggal 1)
+  {
+    id: 'mt-plh-mo-01',
+    title: 'Bulanan: Inspeksi & Treatment Kanopi Pohon Rimbun Seluruh Kampus',
+    unit: 'Semua Unit',
+    category: 'Bulanan',
+    timingType: 'anytime',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Inspeksi keliling seluruh pohon besar di 5 area luar kampus Lazuardi.',
+      'Identifikasi pohon rimbun yang membahayakan genteng atau kabel listrik (Work Order Pohon).',
+      'Lakukan penanganan internal untuk dahan rendah, dan jadwalkan Vendor Luar untuk treatment pohon besar/tinggi.',
+    ],
+    photoRequired: true,
+    estimatedMinutes: 90,
+    area: '5 Area Luar PLH',
+    isActive: true,
+  },
+  {
+    id: 'mt-plh-mo-02',
+    title: 'Bulanan: Pemanenan & Pengayakan Kompos Matang Ex Minifarm',
+    unit: 'Semua Unit',
+    category: 'Bulanan',
+    timingType: 'anytime',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Bongkar bak komposter daun organik yang sudah terurai sempurna di Minifarm.',
+      'Ayak kompos halus dan masukkan ke karung penyimpanan.',
+      'Distribusikan kompos matang ke area taman TK, SD, SMP, dan pot koridor.',
+    ],
+    photoRequired: true,
+    estimatedMinutes: 80,
+    area: 'Area Ex Minifarm',
+    isActive: true,
+  },
+  {
+    id: 'mt-plh-mo-03',
+    title: 'Bulanan: Overhaul & Servis Rutin Mesin Potong Rumput & Alat Kerja PLH',
+    unit: 'Semua Unit',
+    category: 'Bulanan',
+    timingType: 'anytime',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Ganti oli mesin potong rumput dan bersihkan busi serta filter udara.',
+      'Asah mata pisau pemotong rumput dan gunting dahan agar tajam maksimal.',
+      'Periksa selang air, sambungan kran luar, dan inventaris alat di gudang PLH.',
+    ],
+    photoRequired: true,
+    estimatedMinutes: 60,
+    area: 'Area Ex Minifarm',
+    isActive: true,
+  },
+  {
+    id: 'mt-plh-mo-04',
+    title: 'Bulanan: Pengecatan Ulang & Perbaikan Fisik Batas Taman / Pagar Luar',
+    unit: 'Semua Unit',
+    category: 'Bulanan',
+    timingType: 'anytime',
+    division: 'PLH',
+    assignee: 'Semua Petugas',
+    instructions: [
+      'Cat ulang pembatas taman / kansteen yang kusam atau berlumut di sekitar Pos 1 & Khaldun.',
+      'Perbaiki tiang bambu penyangga pohon muda yang patah atau miring.',
+      'Pastikan papan penunjuk tanaman dan marka taman terbaca jelas.',
+    ],
+    photoRequired: true,
+    estimatedMinutes: 90,
+    area: 'Area Pos 1',
+    isActive: true,
+  },
+];
+
+// Seed Work Orders Khusus Pohon untuk PLH
+export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
+  {
+    id: 'two-2026-001',
+    date: '2026-09-21',
+    area: 'Area Kolam Renang',
+    treeName: 'Pohon Trembesi Rimbun Dekat Kolam Renang',
+    condition: 'Rimbun',
+    treatmentNeeded: 'Penebangan / Topping Pohon Tinggi (Vendor Luar)',
+    handlerType: 'Vendor Luar',
+    isLargeTreatment: true,
+    vendorName: 'CV Duta Hijau Pertamanan',
+    vendorCost: 2500000,
+    scheduledWeek: 'Minggu ke-4 September 2026',
+    urgency: 'Tinggi / Bahaya',
+    notes: 'Pohon sangat rimbun dengan tinggi ±12 meter. Dahan atas menjuntai ke kabel listrik utama PLN dan atap tribun kolam. Membutuhkan mobil crane dan vendor berpengalaman.',
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=800&q=80',
+    status: 'Dijadwalkan',
+    reportedBy: 'u-plh-01',
+    reportedByName: 'Bambang Irawan (PLH)',
+    syncedToSheet: true,
+    createdAt: '2026-09-21T08:00:00.000Z',
+  },
+  {
+    id: 'two-2026-002',
+    date: '2026-09-21',
+    area: 'Area Pos 2',
+    treeName: 'Pohon Ketapang Kencana Dekat Gerbang Pos 2',
+    condition: 'Rimbun',
+    treatmentNeeded: 'Penjarangan Kanopi Rimbun',
+    handlerType: 'Internal PLH',
+    isLargeTreatment: false,
+    scheduledWeek: 'Minggu ke-4 September 2026',
+    urgency: 'Sedang',
+    notes: 'Kanopi daun lebat menutupi sorot lampu penerangan malam Pos 2 dan CCTV gerbang. Dilakukan pemangkasan dahan selektif oleh tim internal PLH.',
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=800&q=80',
+    status: 'Sedang Dikerjakan',
+    reportedBy: 'u-plh-02',
+    reportedByName: 'Surya Wijaya (PLH)',
+    syncedToSheet: true,
+    createdAt: '2026-09-21T08:30:00.000Z',
+  },
+  {
+    id: 'two-2026-003',
+    date: '2026-09-20',
+    area: 'Area Khaldun',
+    treeName: 'Pohon Flamboyan Area Lanskap Khaldun',
+    condition: 'Dahan Kering / Lapuk',
+    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
+    handlerType: 'Internal PLH',
+    isLargeTreatment: false,
+    urgency: 'Sedang',
+    notes: 'Terdapat 3 dahan kering rawan patah di dekat jalur pedestrian siswa. Telah dipangkas rapi dan dahan dipotong kecil untuk komposter.',
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=800&q=80',
+    status: 'Selesai',
+    reportedBy: 'u-plh-03',
+    reportedByName: 'Kusnadi (PLH)',
+    completedAt: '2026-09-20T14:30:00.000Z',
+    completedBy: 'u-plh-03',
+    completedByName: 'Kusnadi (PLH)',
+    syncedToSheet: true,
+    createdAt: '2026-09-20T09:00:00.000Z',
+  },
+];
+
+// Combine all MasterTasks (OB + PLH)
+export const ALL_INITIAL_MASTER_TASKS: MasterTask[] = [
+  ...SEED_MASTER_TASKS.map((t) => ({ ...t, division: t.division || ('OB' as const) })),
+  ...SEED_PLH_MASTER_TASKS,
+];
+
 // Initial Task Logs (Seed is empty, sourced from Google Sheets)
 const SEED_TASK_LOGS: TaskLog[] = [];
 const SEED_JOB_BARENG: JobBareng[] = [];
@@ -466,13 +944,33 @@ export const StorageService = {
       return SEED_USERS;
     }
 
-    if (
-      normalized.length !== users.length ||
-      normalized.some((u, i) => u.name !== users[i]?.name)
-    ) {
-      setStoredItem(STORAGE_KEYS.USERS, normalized);
+    // Ensure all existing users have division set ('OB' by default unless PLH)
+    let needsResave = false;
+    let updatedUsers = normalized.map((u) => {
+      if (!u.division && u.role !== 'admin') {
+        const isPlh = u.id.includes('plh') || u.username.includes('plh') || u.name.includes('(PLH)');
+        needsResave = true;
+        return { ...u, division: isPlh ? ('PLH' as const) : ('OB' as const) };
+      }
+      return u;
+    });
+
+    // Ensure all 5 PLH users are present in the list
+    for (const plhUser of SEED_PLH_USERS) {
+      if (!updatedUsers.some((u) => u.id === plhUser.id || u.username === plhUser.username)) {
+        updatedUsers.push(plhUser);
+        needsResave = true;
+      }
     }
-    return normalized;
+
+    if (
+      needsResave ||
+      updatedUsers.length !== users.length ||
+      updatedUsers.some((u, i) => u.name !== users[i]?.name)
+    ) {
+      setStoredItem(STORAGE_KEYS.USERS, updatedUsers);
+    }
+    return updatedUsers;
   },
   saveUsers: (users: User[]): void => {
     setStoredItem(STORAGE_KEYS.USERS, users || []);
@@ -506,34 +1004,48 @@ export const StorageService = {
   },
 
   getMasterTasks: (): MasterTask[] => {
-    const tasks = getStoredItem<MasterTask[]>(STORAGE_KEYS.MASTER_TASKS, SEED_MASTER_TASKS);
+    const tasks = getStoredItem<MasterTask[]>(STORAGE_KEYS.MASTER_TASKS, ALL_INITIAL_MASTER_TASKS);
     if (!tasks || tasks.length === 0) {
-      setStoredItem(STORAGE_KEYS.MASTER_TASKS, SEED_MASTER_TASKS);
-      return SEED_MASTER_TASKS;
+      setStoredItem(STORAGE_KEYS.MASTER_TASKS, ALL_INITIAL_MASTER_TASKS);
+      return ALL_INITIAL_MASTER_TASKS;
     }
-    // Ensure every task has an assignee property and standardPhotoUrl if available
-    let hasUpdatedAssignees = false;
-    const normalizedTasks = tasks.map((t) => {
+    // Ensure every task has division, assignee, and standardPhotoUrl
+    let hasUpdated = false;
+    let normalizedTasks = tasks.map((t) => {
       let modified = false;
       const updated = { ...t };
+      if (!updated.division) {
+        const isPlh = updated.id.includes('plh') || updated.title.toLowerCase().includes('plh');
+        updated.division = isPlh ? ('PLH' as const) : ('OB' as const);
+        modified = true;
+      }
       if (!updated.assignee) {
-        const seedMatch = SEED_MASTER_TASKS.find((st) => st.id === t.id);
+        const seedMatch = ALL_INITIAL_MASTER_TASKS.find((st) => st.id === t.id);
         updated.assignee = seedMatch?.assignee || 'Semua Petugas';
         modified = true;
       }
       if (!updated.standardPhotoUrl) {
-        const seedMatch = SEED_MASTER_TASKS.find((st) => st.id === t.id);
+        const seedMatch = ALL_INITIAL_MASTER_TASKS.find((st) => st.id === t.id);
         if (seedMatch?.standardPhotoUrl) {
           updated.standardPhotoUrl = seedMatch.standardPhotoUrl;
           modified = true;
         }
       }
       if (modified) {
-        hasUpdatedAssignees = true;
+        hasUpdated = true;
       }
       return updated;
     });
-    if (hasUpdatedAssignees) {
+
+    // Ensure PLH tasks are present
+    for (const plhTask of SEED_PLH_MASTER_TASKS) {
+      if (!normalizedTasks.some((t) => t.id === plhTask.id)) {
+        normalizedTasks.push(plhTask);
+        hasUpdated = true;
+      }
+    }
+
+    if (hasUpdated) {
       setStoredItem(STORAGE_KEYS.MASTER_TASKS, normalizedTasks);
     }
     return normalizedTasks;
@@ -960,6 +1472,36 @@ export const StorageService = {
     return { isOff: false, reason: '' };
   },
 
+  // Tree Work Orders (Penanganan Khusus Pohon untuk PLH & Vendor Luar)
+  getTreeWorkOrders: (): TreeWorkOrder[] => {
+    const list = getStoredItem<TreeWorkOrder[]>(STORAGE_KEYS.TREE_WORK_ORDERS, SEED_TREE_WORK_ORDERS);
+    if (!list || list.length === 0) {
+      setStoredItem(STORAGE_KEYS.TREE_WORK_ORDERS, SEED_TREE_WORK_ORDERS);
+      return SEED_TREE_WORK_ORDERS;
+    }
+    return list;
+  },
+  saveTreeWorkOrders: (orders: TreeWorkOrder[]): void => {
+    setStoredItem(STORAGE_KEYS.TREE_WORK_ORDERS, orders || []);
+  },
+  addTreeWorkOrder: (order: TreeWorkOrder): void => {
+    const list = StorageService.getTreeWorkOrders();
+    list.unshift(order);
+    StorageService.saveTreeWorkOrders(list);
+  },
+  updateTreeWorkOrder: (order: TreeWorkOrder): void => {
+    const list = StorageService.getTreeWorkOrders();
+    const index = list.findIndex((o) => o.id === order.id);
+    if (index !== -1) {
+      list[index] = order;
+      StorageService.saveTreeWorkOrders(list);
+    }
+  },
+  deleteTreeWorkOrder: (id: string): void => {
+    const list = StorageService.getTreeWorkOrders().filter((o) => o.id !== id);
+    StorageService.saveTreeWorkOrders(list);
+  },
+
   // Reset to initial seed state
   resetAllData: (): void => {
     setStoredItem(STORAGE_KEYS.USERS, SEED_USERS);
@@ -971,6 +1513,7 @@ export const StorageService = {
     setStoredItem(STORAGE_KEYS.WEEKLY_SCORES, SEED_WEEKLY_SCORES);
     setStoredItem(STORAGE_KEYS.SYNC_CONFIG, DEFAULT_SYNC_CONFIG);
     setStoredItem(STORAGE_KEYS.HOLIDAY_CONFIG, DEFAULT_HOLIDAY_CONFIG);
+    setStoredItem(STORAGE_KEYS.TREE_WORK_ORDERS, SEED_TREE_WORK_ORDERS);
   },
 };
 
@@ -983,10 +1526,17 @@ export const StorageService = {
 export const canInspectPeer = (
   inspectorRole: string,
   inspectorUnit: UnitType | string,
-  targetUnit: UnitType | string
+  targetUnit: UnitType | string,
+  inspectorDivision?: DivisionType,
+  targetDivision?: DivisionType
 ): boolean => {
-  if (inspectorRole === 'admin' || inspectorRole === 'kordinator') {
-    return true; // Admin & Kordinator can inspect ALL units
+  // Cross-division inspection between OB and PLH is not permitted
+  if (inspectorDivision && targetDivision && inspectorDivision !== targetDivision) {
+    return false;
+  }
+
+  if (inspectorRole === 'admin') {
+    return true; // Admin can inspect ALL units
   }
   
   const normInsp = String(inspectorUnit || '').trim().toLowerCase();
@@ -1014,6 +1564,13 @@ export const isTaskAssignedToUser = (task: MasterTask, user: User): boolean => {
   if (!user || !task) return false;
   if (user.role === 'admin') return true;
 
+  // 0. Strict Division Separation (OB vs PLH)
+  const userDivision = user.division || 'OB';
+  const taskDivision = task.division || 'OB';
+  if (userDivision !== taskDivision) {
+    return false;
+  }
+
   // 1. Check unit compatibility
   const tUnit = (task.unit || 'Semua Unit').trim().toLowerCase();
   const uUnit = (user.unit || 'Semua Unit').trim().toLowerCase();
@@ -1030,7 +1587,7 @@ export const isTaskAssignedToUser = (task: MasterTask, user: User): boolean => {
 
   if (!matchesUnit) return false;
 
-  // 2. Kordinator manages all tasks in their assigned unit/building
+  // 2. Kordinator manages all tasks in their assigned division and unit/building
   if (user.role === 'kordinator') {
     return true;
   }

@@ -26,6 +26,8 @@ import {
   ExternalLink,
   Camera,
   ArrowUpRight,
+  TreePine,
+  Zap,
 } from 'lucide-react';
 import {
   User,
@@ -37,9 +39,13 @@ import {
   WeeklyScore,
   UnitType,
   EVALUATION_CATEGORIES,
+  PLH_EVALUATION_CATEGORIES,
+  PLH_AREAS,
 } from '../types';
 import { UserTaskView } from './UserTaskView';
 import { JobBarengCard } from './JobBarengCard';
+import { MasjidRollingCard } from './MasjidRollingCard';
+import { TreeWorkOrderView } from './TreeWorkOrderView';
 import { getJakartaDateString, isSameDay, normalizeDateString, isJobBarengExpired } from '../utils/dateHelper';
 import { formatGoogleDriveImageUrl, getGoogleDriveViewLink, getGoogleDriveThumbnailFallback } from '../utils/driveHelper';
 import {
@@ -87,27 +93,42 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
   onVerifyTaskLog,
 }) => {
   const [activeKordTab, setActiveKordTab] = useState<
-    'my_tasks' | 'job_bareng' | 'inspect_all' | 'weekly_rating' | 'monitoring'
+    'my_tasks' | 'job_bareng' | 'inspect_all' | 'weekly_rating' | 'monitoring' | 'plh_pohon'
   >('monitoring');
 
-  // Job Bareng Modal State for Coordinator
+  // Job Bareng & Insidental Modal State for Coordinator
   const [isCreatingJob, setIsCreatingJob] = useState<boolean>(false);
+  const [jbTaskType, setJbTaskType] = useState<'job_bareng' | 'insidental'>('job_bareng');
+  const [jbIncidentCategory, setJbIncidentCategory] = useState<string>('');
   const [jbTitle, setJbTitle] = useState<string>('');
   const [jbDescription, setJbDescription] = useState<string>('');
   const [jbUnit, setJbUnit] = useState<UnitType>('Semua Unit');
-  const [jbArea, setJbArea] = useState<string>('Area Sekolah');
+
+  const kordDivision = activeUser.division || 'OB';
+
+  const [jbArea, setJbArea] = useState<string>(() => (kordDivision === 'PLH' ? 'Area Pos 1' : 'Area Sekolah'));
   const [jbTime, setJbTime] = useState<string>('13:00 - 15:30 WIB');
   const [jbAssignmentType, setJbAssignmentType] = useState<'all' | 'specific'>('all');
   const [jbSelectedUserIds, setJbSelectedUserIds] = useState<string[]>([]);
 
   // Multi-unit filter for Coordinator inspection
   const [selectedUnitFilter, setSelectedUnitFilter] = useState<UnitType | 'Semua Unit'>('Semua Unit');
-  const [selectedStaffId, setSelectedStaffId] = useState<string>(
-    allUsers.filter((u) => u.role === 'user')[0]?.id || ''
+
+  // Strict division-scoped staff
+  const divisionStaff = allUsers.filter(
+    (u) => u.role === 'user' && u.status === 'Aktif' && (u.division || 'OB') === kordDivision
   );
 
-  // 15 Categories evaluation state (scale 1 - 4)
-  const initialScores: Record<string, number> = EVALUATION_CATEGORIES.reduce(
+  const [selectedStaffId, setSelectedStaffId] = useState<string>(
+    divisionStaff[0]?.id || ''
+  );
+
+  // Criteria: 4 PLH criteria for PLH Coordinator vs 15 Categories for OB
+  const activeEvaluationCategories: readonly string[] =
+    kordDivision === 'PLH' ? PLH_EVALUATION_CATEGORIES : EVALUATION_CATEGORIES;
+
+  // Initial scores based on active division criteria
+  const initialScores: Record<string, number> = activeEvaluationCategories.reduce(
     (acc, cat) => {
       acc[cat] = 4;
       return acc;
@@ -130,20 +151,28 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
   // Selected Photo Preview
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
-  const obOgStaff = allUsers.filter((u) => u.role === 'user' && u.status === 'Aktif');
-
-  // Filter staff by unit
+  // Filter staff by unit within this coordinator's division
   const filteredStaff = selectedUnitFilter === 'Semua Unit'
-    ? obOgStaff
-    : obOgStaff.filter((u) => u.unit === selectedUnitFilter);
+    ? divisionStaff
+    : divisionStaff.filter((u) => u.unit === selectedUnitFilter);
 
-  // Today logs (WIB timezone)
+  // Filter logs strictly by this coordinator's division
   const today = getJakartaDateString();
-  const todayLogs = taskLogs.filter((l) => isSameDay(l.date, today) || (l.timestamp && isSameDay(l.timestamp, today)));
+  const divisionLogs = taskLogs.filter((l) => (l.division || 'OB') === kordDivision);
+  const todayLogs = divisionLogs.filter((l) => isSameDay(l.date, today) || (l.timestamp && isSameDay(l.timestamp, today)));
 
   const filteredLogs = selectedUnitFilter === 'Semua Unit'
     ? todayLogs
     : todayLogs.filter((l) => l.unit === selectedUnitFilter);
+
+  // Scoped Job Bareng for this coordinator's division
+  const divisionJobBareng = jobBarengList.filter((j) => (j.division || 'OB') === kordDivision);
+
+  // Scoped Weekly Scores for this coordinator's division
+  const divisionWeeklyScores = weeklyScores.filter((w) => (w.division || 'OB') === kordDivision);
+
+  // Scoped Peer Inspections for this coordinator's division
+  const divisionPeerInspections = peerInspections.filter((p) => (p.division || 'OB') === kordDivision);
 
   // Calculate current average score (1 - 4)
   const categoryValues: number[] = Object.values(categoryScores);
@@ -165,7 +194,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
 
   const handleSetAllCategories = (scoreVal: number) => {
     const updated: Record<string, number> = {};
-    EVALUATION_CATEGORIES.forEach((cat) => {
+    activeEvaluationCategories.forEach((cat) => {
       updated[cat] = scoreVal;
     });
     setCategoryScores(updated);
@@ -190,6 +219,8 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
       userId: targetStaff.id,
       userName: targetStaff.name,
       unit: targetStaff.unit,
+      division: kordDivision,
+      evaluationType: kordDivision === 'PLH' ? 'PLH_4' : 'OB_15',
       kordinatorId: activeUser.id,
       kordinatorName: activeUser.name,
       score: currentAverageScore,
@@ -197,33 +228,49 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
       categoryNotes: { ...categoryNotes },
       notes:
         scoreNotes.trim() ||
-        `Evaluasi kebersihan standar Lazuardi GCS per ${dateFormatted} (Rata-rata: ${currentAverageScore}/4).`,
+        (kordDivision === 'PLH'
+          ? `Evaluasi 4 kriteria kinerja PLH per ${dateFormatted} (Rata-rata: ${currentAverageScore}/4).`
+          : `Evaluasi kebersihan standar Lazuardi GCS per ${dateFormatted} (Rata-rata: ${currentAverageScore}/4).`),
       timestamp: new Date().toISOString(),
     };
 
     onSubmitWeeklyScore(newWeeklyScore);
-    setScoreSuccessMsg(`Berhasil menyimpan penilaian 15 kategori untuk ${targetStaff.name} pada ${dateFormatted}!`);
+    setScoreSuccessMsg(
+      `Berhasil menyimpan penilaian ${
+        kordDivision === 'PLH' ? '4 Kriteria PLH' : '15 Kategori OB'
+      } untuk ${targetStaff.name} pada ${dateFormatted}!`
+    );
     setScoreNotes('');
     setTimeout(() => setScoreSuccessMsg(null), 3500);
   };
 
-  // Handle Create Job Bareng by Coordinator
+  // Handle Create Job Bareng or Insidental by Coordinator (STRICTLY RESTRICTED TO COORDINATOR'S DIVISION)
   const handleSaveJobBareng = (e: React.FormEvent) => {
     e.preventDefault();
     if (!jbTitle.trim()) return;
 
-    const assignedStaffUsers = allUsers.filter((u) => jbSelectedUserIds.includes(u.id));
+    const assignedStaffUsers = divisionStaff.filter((u) => jbSelectedUserIds.includes(u.id));
 
     const newJob: JobBareng = {
       id: `jb-${Date.now()}`,
       title: jbTitle.trim(),
-      description: jbDescription.trim() || 'Pekerjaan insidental kebersihan bersama unit Facility Management.',
+      description:
+        jbDescription.trim() ||
+        (jbTaskType === 'insidental'
+          ? 'Penanganan insidental tanggap darurat lingkungan hidup.'
+          : 'Pekerjaan bersama tim Facility Management.'),
+      taskType: jbTaskType,
+      incidentCategory:
+        jbTaskType === 'insidental'
+          ? jbIncidentCategory || (kordDivision === 'PLH' ? 'Pohon Tumbang & Dahan Patah' : 'Insidental Kebersihan')
+          : undefined,
+      division: kordDivision, // STRICTLY RESTRICTED TO COORDINATOR'S DIVISION!
       date: today,
       timeTarget: jbTime,
       targetUnit: jbUnit,
       targetArea: jbArea,
       createdBy: activeUser.id,
-      createdByName: `${activeUser.name} (Kordinator)`,
+      createdByName: `${activeUser.name} (${kordDivision === 'PLH' ? 'Kord PLH' : 'Kord OB'})`,
       status: 'Aktif',
       assignmentType: jbAssignmentType,
       assignedUserIds: jbAssignmentType === 'specific' ? jbSelectedUserIds : undefined,
@@ -239,6 +286,8 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
     setIsCreatingJob(false);
     setJbTitle('');
     setJbDescription('');
+    setJbIncidentCategory('');
+    setJbTaskType('job_bareng');
     setJbAssignmentType('all');
     setJbSelectedUserIds([]);
   };
@@ -259,6 +308,63 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
 
   return (
     <div className="space-y-4 pb-20">
+      {/* Coordinator Division Badge Banner */}
+      <div
+        className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 shadow-xs ${
+          kordDivision === 'PLH'
+            ? 'bg-gradient-to-r from-emerald-50 via-teal-50/70 to-white border-emerald-200/90 text-emerald-950'
+            : 'bg-gradient-to-r from-sky-50 via-slate-50/70 to-white border-sky-200/90 text-slate-900'
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <div
+            className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg shadow-2xs border ${
+              kordDivision === 'PLH'
+                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                : 'bg-sky-100 text-sky-800 border-sky-300'
+            }`}
+          >
+            {kordDivision === 'PLH' ? '🌿' : '🧹'}
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-black text-xs uppercase tracking-wider">
+                {kordDivision === 'PLH'
+                  ? 'Kordinator Divisi PLH (Pekerja Lingkungan Hidup)'
+                  : 'Kordinator Divisi OB (Office Boy/Girl)'}
+              </span>
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  kordDivision === 'PLH'
+                    ? 'bg-emerald-200/70 text-emerald-900 border-emerald-300'
+                    : 'bg-sky-200/70 text-sky-900 border-sky-300'
+                }`}
+              >
+                Khusus Tim {kordDivision}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-600 mt-0.5">
+              {kordDivision === 'PLH'
+                ? 'Area Tanggung Jawab: Kebersihan Taman, Halaman Luar, Drainase & Pemilahan Sampah'
+                : 'Area Tanggung Jawab: Kebersihan Ruang Kelas, Koridor, Toilet & Fasilitas Gedung Unit'}
+            </p>
+          </div>
+        </div>
+
+        <div className="hidden sm:flex items-center gap-2">
+          <span className="text-[11px] text-slate-500 font-medium">Anggota Terdaftar:</span>
+          <span
+            className={`px-2.5 py-1 rounded-lg text-xs font-black border ${
+              kordDivision === 'PLH'
+                ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                : 'bg-sky-100 text-sky-900 border-sky-300'
+            }`}
+          >
+            {divisionStaff.length} Petugas
+          </span>
+        </div>
+      </div>
+
       {/* Coordinator Top Navigation Tabs */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 p-1 bg-slate-100/90 rounded-xl text-xs font-semibold border border-slate-200/60">
         <button
@@ -319,6 +425,18 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
         >
           <Users className="w-3.5 h-3.5" />
           <span>Tugas Harian Saya</span>
+        </button>
+
+        <button
+          onClick={() => setActiveKordTab('plh_pohon')}
+          className={`py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            activeKordTab === 'plh_pohon'
+              ? 'bg-emerald-700 text-white shadow-xs font-bold'
+              : 'text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50'
+          }`}
+        >
+          <TreePine className="w-3.5 h-3.5" />
+          <span>Work Order Pohon & Masjid</span>
         </button>
       </div>
 
@@ -518,7 +636,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
           {/* Active Job Bareng Cards Stream */}
           <div className="space-y-3">
             {(() => {
-              const activeJobsToday = jobBarengList.filter((j) => {
+              const activeJobsToday = divisionJobBareng.filter((j) => {
                 if (j.status === 'Dibatalkan') return false;
                 if (isJobBarengExpired(j)) return false;
                 const jDate = normalizeDateString(j.date) || normalizeDateString(j.createdAt) || today;
@@ -530,7 +648,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                   <div className="flex items-center justify-between px-1">
                     <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-amber-600" />
-                      <span>Daftar Job Bareng Hari Ini ({activeJobsToday.length})</span>
+                      <span>Daftar Job Bareng Tim {kordDivision === 'PLH' ? 'PLH' : 'OB'} Hari Ini ({activeJobsToday.length})</span>
                     </h4>
                     <span className="text-xs text-slate-500">
                       Otomatis diperbarui per hari ({today})
@@ -550,7 +668,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                   ) : (
                     <div className="p-8 text-center bg-white border border-slate-200/80 rounded-2xl text-slate-400 text-xs space-y-2">
                       <Sparkles className="w-8 h-8 text-slate-300 mx-auto" />
-                      <p className="font-medium text-slate-600">Belum ada tugas Job Bareng aktif untuk hari ini ({today}).</p>
+                      <p className="font-medium text-slate-600">Belum ada tugas Job Bareng aktif untuk tim {kordDivision === 'PLH' ? 'PLH' : 'OB'} hari ini ({today}).</p>
                       <p className="text-[11px] text-slate-400">
                         Tugas Job Bareng hari sebelumnya otomatis diarsipkan agar tidak menumpuk. Gunakan tombol <strong>"+ Instruksikan Job Bareng Baru"</strong> jika ada pekerjaan insidental baru hari ini.
                       </p>
@@ -563,15 +681,24 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
         </div>
       )}
 
-      {/* CREATE JOB BARENG MODAL (KORDINATOR) */}
+      {/* CREATE JOB BARENG / INSIDENTAL MODAL (KORDINATOR) */}
       {isCreatingJob && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white border border-slate-200/80 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl space-y-0 text-xs">
-            <div className="flex justify-between items-center px-5 py-4 bg-slate-900 border-b border-slate-800 text-white">
-              <h3 className="font-bold text-sm text-white flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                Instruksikan Tugas Job Bareng / Insidental
-              </h3>
+          <div className="bg-white border border-slate-200/80 rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden shadow-2xl space-y-0 text-xs">
+            <div className="flex justify-between items-center px-5 py-4 bg-slate-900 border-b border-slate-800 text-white shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className={`p-1.5 rounded-lg ${kordDivision === 'PLH' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                  {jbTaskType === 'insidental' ? <Zap className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-white">
+                    Instruksikan Tugas {jbTaskType === 'insidental' ? 'Insidental Darurat' : 'Job Bareng Tim'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Divisi: <span className="font-bold text-emerald-400">{kordDivision}</span> • Khusus Tim Internal Kordinator
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={() => setIsCreatingJob(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
@@ -580,15 +707,122 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleSaveJobBareng} className="p-5 space-y-3.5">
+            <form onSubmit={handleSaveJobBareng} className="p-5 space-y-4 overflow-y-auto flex-1">
+              {/* Partisi Jenis Tugas: Job Bareng vs Insidental */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-1.5">
+                  Pilih Kategori Tugas (Partisi):
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setJbTaskType('job_bareng');
+                      if (jbTitle.includes('Pohon Tumbang') || jbTitle.includes('Dahan Patah') || jbTitle.includes('Saluran')) {
+                        setJbTitle('');
+                      }
+                    }}
+                    className={`p-3 rounded-xl border text-left transition cursor-pointer flex flex-col gap-0.5 ${
+                      jbTaskType === 'job_bareng'
+                        ? 'bg-amber-50 border-amber-400 text-amber-950 ring-2 ring-amber-400/30 shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-bold text-xs">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Job Bareng</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500">
+                      Kerja bakti bersama terjadwal / pembersihan serentak tim {kordDivision}.
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setJbTaskType('insidental');
+                      if (!jbIncidentCategory) {
+                        setJbIncidentCategory(kordDivision === 'PLH' ? 'Pohon Tumbang' : 'Pembersihan Pasca Hujan');
+                      }
+                    }}
+                    className={`p-3 rounded-xl border text-left transition cursor-pointer flex flex-col gap-0.5 ${
+                      jbTaskType === 'insidental'
+                        ? 'bg-rose-50 border-rose-400 text-rose-950 ring-2 ring-rose-400/30 shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-rose-700">
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Tugas Insidental</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500">
+                      Keadaan mendesak/darurat (pohon tumbang, dahan patah, bocor, dll).
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Insidental Quick Categories */}
+              {jbTaskType === 'insidental' && (
+                <div className="p-3 bg-rose-50/70 border border-rose-200 rounded-xl space-y-2 animate-in fade-in">
+                  <label className="block font-bold text-rose-900 text-xs">
+                    Kategori Kejadian Insidental {kordDivision === 'PLH' ? 'Lingkungan Hidup' : 'Kebersihan'}:
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(kordDivision === 'PLH'
+                      ? [
+                          'Pohon Tumbang',
+                          'Dahan Patah',
+                          'Saluran Tersumbat',
+                          'Tanaman Roboh / Badai',
+                          'Sampah Luar Berserakan',
+                          'Kerusakan Area Taman',
+                        ]
+                      : [
+                          'Tumpahan / Genangan Air',
+                          'Pembersihan Pasca Acara',
+                          'Kaca Gedung Kotor / Pecah',
+                          'Kloset / Saluran Mampet',
+                          'Insidental Khusus Unit',
+                        ]
+                    ).map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => {
+                          setJbIncidentCategory(cat);
+                          if (!jbTitle || jbTitle.startsWith('Penanganan Insidental') || jbTitle.startsWith('Pohon') || jbTitle.startsWith('Dahan') || jbTitle.startsWith('Saluran')) {
+                            setJbTitle(`Penanganan Insidental: ${cat} di ${jbArea}`);
+                          }
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer border ${
+                          jbIncidentCategory === cat
+                            ? 'bg-rose-600 text-white border-rose-700 shadow-xs'
+                            : 'bg-white text-rose-800 border-rose-200 hover:bg-rose-100'
+                        }`}
+                      >
+                        {cat === 'Pohon Tumbang' && '🌲 '}
+                        {cat === 'Dahan Patah' && '🌿 '}
+                        {cat === 'Saluran Tersumbat' && '🌊 '}
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  Judul Pekerjaan Insidental / Bersama:
+                  Judul {jbTaskType === 'insidental' ? 'Insidental' : 'Job Bareng'}:
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="Contoh: Pembersihan Lapangan Pasca Acara / Cuci Kaca Gedung"
+                  placeholder={
+                    jbTaskType === 'insidental'
+                      ? 'Contoh: Pemotongan & Evakuasi Pohon Tumbang di Area Pos 1'
+                      : 'Contoh: Pembersihan Serentak & Perapihan Taman'
+                  }
                   value={jbTitle}
                   onChange={(e) => setJbTitle(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 font-medium"
@@ -599,56 +833,107 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                 <label className="block font-bold text-slate-700 mb-1">Deskripsi / Arahan Singkat:</label>
                 <textarea
                   rows={2}
-                  placeholder="Arahan pembagian kerja, titik fokus pembersihan, atau peralatan yang disiapkan..."
+                  placeholder={
+                    jbTaskType === 'insidental'
+                      ? 'Arahan keselamatan, perkakas yang disiapkan (chainsaw/gergaji, tali, karung), dan batas pengerjaan...'
+                      : 'Arahan pembagian tugas, area prioritas, dan perlengkapan...'
+                  }
                   value={jbDescription}
                   onChange={(e) => setJbDescription(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 font-medium"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Target Unit:</label>
-                  <select
-                    value={jbUnit}
-                    onChange={(e) => setJbUnit(e.target.value as UnitType)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-amber-500"
-                  >
-                    <option value="Semua Unit">Semua Unit</option>
-                    <option value="TK">TK</option>
-                    <option value="SD">SD</option>
-                    <option value="SMP">SMP</option>
-                    <option value="Pelangi Direktorat">Pelangi Direktorat</option>
-                    <option value="Ar Razi">Ar Razi</option>
-                    <option value="Khaldun">Khaldun</option>
-                  </select>
+              {/* Area & Unit Selector */}
+              {kordDivision === 'PLH' ? (
+                <div className="space-y-2 p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-emerald-950 text-xs">
+                      5 Area Spesifik Tugas Luar Ruang PLH:
+                    </label>
+                    <span className="text-[10px] text-emerald-700 font-semibold">Bukan TK/SD/SMP</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                    {PLH_AREAS.map((areaName) => (
+                      <button
+                        key={areaName}
+                        type="button"
+                        onClick={() => {
+                          setJbArea(areaName);
+                          if (jbTitle.includes('di Area') || jbTitle.startsWith('Penanganan Insidental')) {
+                            setJbTitle(jbTitle.replace(/di Area.*$/, `di ${areaName}`));
+                          }
+                        }}
+                        className={`p-2 rounded-lg font-bold text-left transition text-[11px] border cursor-pointer ${
+                          jbArea === areaName
+                            ? 'bg-emerald-700 text-white border-emerald-800 shadow-xs ring-2 ring-emerald-400/50'
+                            : 'bg-white text-emerald-900 border-emerald-200 hover:bg-emerald-100'
+                        }`}
+                      >
+                        🌿 {areaName}
+                      </button>
+                    ))}
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Atau rincian titik lokasi (contoh: Area Pos 1 - Dekat Gapura Utama)"
+                      value={jbArea}
+                      onChange={(e) => setJbArea(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-lg border border-emerald-300 bg-white font-medium text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 mt-1"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Area Lokasi:</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: Selasar Lantai 2"
-                    value={jbArea}
-                    onChange={(e) => setJbArea(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium focus:ring-2 focus:ring-amber-500"
-                  />
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Target Unit:</label>
+                    <select
+                      value={jbUnit}
+                      onChange={(e) => setJbUnit(e.target.value as UnitType)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-amber-500"
+                    >
+                      <option value="Semua Unit">Semua Unit</option>
+                      <option value="TK">TK</option>
+                      <option value="SD">SD</option>
+                      <option value="SMP">SMP</option>
+                      <option value="Pelangi Direktorat">Pelangi Direktorat</option>
+                      <option value="Ar Razi">Ar Razi</option>
+                      <option value="Khaldun">Khaldun</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Area Lokasi:</label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: Selasar Lantai 2"
+                      value={jbArea}
+                      onChange={(e) => setJbArea(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Target Waktu Pengerjaan:</label>
                 <input
                   type="text"
-                  placeholder="Contoh: 13:00 - 15:30 WIB"
+                  placeholder="Contoh: 13:00 - 15:30 WIB atau Segera (Insidental)"
                   value={jbTime}
                   onChange={(e) => setJbTime(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium focus:ring-2 focus:ring-amber-500"
                 />
               </div>
 
-              {/* Target Penugasan: Semua User vs Pilih Beberapa User */}
+              {/* Target Penugasan: Hanya Tim Sendiri */}
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <label className="block font-bold text-slate-800">Target Petugas Pelaksana:</label>
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-800">Target Petugas Pelaksana:</label>
+                  <span className="px-2 py-0.5 rounded-md bg-slate-200 text-slate-700 font-bold text-[10px]">
+                    Tim Divisi {kordDivision} ({divisionStaff.length} orang)
+                  </span>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -662,7 +947,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                         : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
                     }`}
                   >
-                    Semua Petugas
+                    Semua Tim {kordDivision}
                   </button>
                   <button
                     type="button"
@@ -673,7 +958,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                         : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
                     }`}
                   >
-                    Pilih Petugas Khusus
+                    Pilih Petugas Tertentu
                   </button>
                 </div>
 
@@ -687,10 +972,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                         <button
                           type="button"
                           onClick={() => {
-                            const staffList = allUsers
-                              .filter((u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator'))
-                              .filter((u) => jbUnit === 'Semua Unit' || u.unit === jbUnit || u.unit === 'Semua Unit')
-                              .map((u) => u.id);
+                            const staffList = divisionStaff.map((u) => u.id);
                             setJbSelectedUserIds(staffList);
                           }}
                           className="text-amber-600 hover:underline font-bold"
@@ -709,42 +991,43 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                     </div>
 
                     <div className="max-h-36 overflow-y-auto space-y-1 bg-white p-2 rounded-xl border border-slate-200">
-                      {allUsers
-                        .filter((u) => u.status === 'Aktif' && (u.role === 'user' || u.role === 'kordinator'))
-                        .filter((u) => jbUnit === 'Semua Unit' || u.unit === jbUnit || u.unit === 'Semua Unit')
-                        .map((u) => {
-                          const isChecked = jbSelectedUserIds.includes(u.id);
-                          return (
-                            <label
-                              key={u.id}
-                              className={`flex items-center gap-2 p-1.5 rounded-lg border text-xs cursor-pointer transition ${
-                                isChecked
-                                  ? 'bg-amber-50 border-amber-300 font-bold text-amber-900'
-                                  : 'bg-white border-transparent hover:bg-slate-50 text-slate-700'
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setJbSelectedUserIds([...jbSelectedUserIds, u.id]);
-                                  } else {
-                                    setJbSelectedUserIds(jbSelectedUserIds.filter((id) => id !== u.id));
-                                  }
-                                }}
-                                className="rounded text-amber-600 focus:ring-amber-500"
-                              />
-                              <span className="truncate">{u.name}</span>
-                              <span className="text-[10px] text-slate-400 font-normal ml-auto">
-                                Unit {u.unit} {u.role === 'kordinator' ? '(Kord)' : ''}
-                              </span>
-                            </label>
-                          );
-                        })}
+                      {divisionStaff.map((u) => {
+                        const isChecked = jbSelectedUserIds.includes(u.id);
+                        return (
+                          <label
+                            key={u.id}
+                            className={`flex items-center gap-2 p-1.5 rounded-lg border text-xs cursor-pointer transition ${
+                              isChecked
+                                ? 'bg-amber-50 border-amber-300 font-bold text-amber-900'
+                                : 'bg-white border-transparent hover:bg-slate-50 text-slate-700'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setJbSelectedUserIds([...jbSelectedUserIds, u.id]);
+                                } else {
+                                  setJbSelectedUserIds(jbSelectedUserIds.filter((id) => id !== u.id));
+                                }
+                              }}
+                              className="rounded text-amber-600 focus:ring-amber-500"
+                            />
+                            <span className="truncate">{u.name}</span>
+                            <span className="text-[10px] text-slate-400 font-normal ml-auto">
+                              Unit {u.unit} {u.role === 'kordinator' ? '(Kord)' : ''}
+                            </span>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
+
+                <p className="text-[10px] text-slate-500 italic">
+                  * Sesuai ketentuan, Kordinator hanya dapat menugaskan tim divisinya sendiri ({kordDivision}). Penugasan lintas divisi dilakukan oleh Admin.
+                </p>
               </div>
 
               <div className="flex gap-2 pt-2">
@@ -757,9 +1040,14 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="flex-2 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold shadow-md transition cursor-pointer"
+                  className={`flex-2 py-2.5 rounded-xl font-bold shadow-md transition cursor-pointer text-white flex items-center justify-center gap-2 ${
+                    jbTaskType === 'insidental'
+                      ? 'bg-rose-600 hover:bg-rose-700'
+                      : 'bg-slate-900 hover:bg-slate-800'
+                  }`}
                 >
-                  Publikasikan Job Bareng
+                  {jbTaskType === 'insidental' ? <Zap className="w-4 h-4" /> : <Sparkles className="w-4 h-4 text-amber-400" />}
+                  <span>Publikasikan {jbTaskType === 'insidental' ? 'Tugas Insidental' : 'Job Bareng'}</span>
                 </button>
               </div>
             </form>
@@ -767,20 +1055,24 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
         </div>
       )}
 
-      {/* TAB 2: PENILAIAN MINGGUAN (1-4 DENGAN 15 KATEGORI) */}
+      {/* TAB 2: PENILAIAN MINGGUAN (1-4 DENGAN 15 KATEGORI / 4 KRITERIA PLH) */}
       {activeKordTab === 'weekly_rating' && (
         <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-xs space-y-5 animate-in fade-in duration-150">
           <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 flex-wrap">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center shrink-0">
-                <Award className="w-5 h-5" />
+              <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${
+                kordDivision === 'PLH' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-amber-50 border-amber-200 text-amber-700'
+              }`}>
+                {kordDivision === 'PLH' ? <TreePine className="w-5 h-5" /> : <Award className="w-5 h-5" />}
               </div>
               <div>
                 <h3 className="font-bold text-base text-slate-900 tracking-tight">
-                  Form Penilaian Mingguan Kordinator (Skala 1 - 4)
+                  Form Penilaian Mingguan Kordinator {kordDivision === 'PLH' ? 'PLH (4 Kriteria Kinerja)' : 'OB (15 Kategori SOP)'}
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Evaluasi mingguan per-petugas mencakup 15 kategori kebersihan & sanitasi standar Lazuardi GCS.
+                  {kordDivision === 'PLH'
+                    ? 'Evaluasi mingguan khusus tim PLH mencakup 4 kriteria: Kerapihan taman area, Keaktifan job bareng, Masukan/inisiatif, dan Kebersihan di wilayahnya.'
+                    : 'Evaluasi mingguan per-petugas mencakup 15 kategori kebersihan & sanitasi standar Lazuardi GCS.'}
                 </p>
               </div>
             </div>
@@ -815,21 +1107,21 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
             {/* Choose Target Staff */}
             <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200/80">
               <label className="block font-bold text-slate-800 mb-1.5 text-xs">
-                Pilih Petugas OB / OG yang Dievaluasi:
+                Pilih Petugas {kordDivision === 'PLH' ? 'PLH (Lingkungan Hidup)' : 'OB / OG'} yang Dievaluasi:
               </label>
               <select
                 value={selectedStaffId}
                 onChange={(e) => setSelectedStaffId(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs sm:text-sm"
               >
-                {obOgStaff.map((u) => (
+                {divisionStaff.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.name} — Unit {u.unit} (Status: {u.status})
+                    {u.name} — Unit {u.unit} (Divisi: {u.division || 'OB'})
                   </option>
                 ))}
               </select>
               <p className="text-[11px] text-slate-500 mt-1.5">
-                * Catatan: Nilai ini hanya dapat dilihat oleh Kordinator dan Admin, tidak tampil pada akun petugas.
+                * Catatan: Nilai ini hanya dapat dilihat oleh Kordinator {kordDivision} dan Admin, tidak tampil pada akun petugas.
               </p>
             </div>
 
@@ -842,14 +1134,14 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                   onClick={() => handleSetAllCategories(4)}
                   className="px-2.5 py-1 bg-white hover:bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold text-[11px] rounded-lg cursor-pointer transition shadow-2xs"
                 >
-                  Semua Nilai 4 (Kinclong)
+                  Semua Nilai 4 ({kordDivision === 'PLH' ? 'Sangat Baik' : 'Kinclong'})
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSetAllCategories(3)}
                   className="px-2.5 py-1 bg-white hover:bg-sky-50 border border-sky-300 text-sky-800 font-bold text-[11px] rounded-lg cursor-pointer transition shadow-2xs"
                 >
-                  Semua Nilai 3 (Standar Kebersihan)
+                  Semua Nilai 3 (Standar Baik)
                 </button>
               </div>
 
@@ -860,32 +1152,38 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                 <span>•</span>
                 <span>3 (Baik)</span>
                 <span>•</span>
-                <span>4 (Sangat Bersih)</span>
+                <span>4 (Sangat Baik / Bersih)</span>
               </div>
             </div>
 
-            {/* 15 Categories Scoring Grid */}
+            {/* Categories Scoring Grid (4 PLH vs 15 OB) */}
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
                 <h4 className="font-bold text-slate-900 text-xs tracking-tight">
-                  Daftar 15 Kategori Penilaian Kebersihan:
+                  {kordDivision === 'PLH'
+                    ? '4 Kriteria Penilaian Kinerja Petugas PLH:'
+                    : 'Daftar 15 Kategori Penilaian Kebersihan Wajib OB:'}
                 </h4>
                 <span className="text-[11px] text-slate-500 font-semibold">
-                  15 Kategori Wajib Lazuardi
+                  {kordDivision === 'PLH' ? '4 Kriteria Khusus PLH' : '15 Kategori Wajib Lazuardi'}
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                {EVALUATION_CATEGORIES.map((category, idx) => {
+              <div className={`grid gap-2.5 ${kordDivision === 'PLH' ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 md:grid-cols-2'}`}>
+                {activeEvaluationCategories.map((category, idx) => {
                   const currentCatScore = categoryScores[category] || 4;
                   return (
                     <div
                       key={category}
-                      className="p-3 bg-white border border-slate-200/90 rounded-xl space-y-2 hover:border-slate-300 transition shadow-2xs"
+                      className={`p-3.5 bg-white border rounded-xl space-y-2 hover:border-slate-300 transition shadow-2xs ${
+                        kordDivision === 'PLH' ? 'border-emerald-200/90 bg-linear-to-b from-white to-emerald-50/20' : 'border-slate-200/90'
+                      }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 font-bold text-[10px] flex items-center justify-center shrink-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`w-6 h-6 rounded-full font-bold text-xs flex items-center justify-center shrink-0 ${
+                            kordDivision === 'PLH' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                          }`}>
                             {idx + 1}
                           </span>
                           <span className="font-bold text-slate-900 text-xs truncate">
@@ -893,7 +1191,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                           </span>
                         </div>
                         <span
-                          className={`font-black text-xs px-2 py-0.5 rounded-md border ${getScoreBadgeColor(
+                          className={`font-black text-xs px-2.5 py-0.5 rounded-md border ${getScoreBadgeColor(
                             currentCatScore
                           )}`}
                         >
@@ -963,7 +1261,11 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                 rows={3}
                 value={scoreNotes}
                 onChange={(e) => setScoreNotes(e.target.value)}
-                placeholder="Tuliskan catatan detail (misal: Lantai koridor dan nat sudah sangat bersih, perhatikan sela debu di atas rak dan daun tanaman indoor)..."
+                placeholder={
+                  kordDivision === 'PLH'
+                    ? 'Tuliskan catatan detail (misal: Kerapihan rumput di Area Pos 1 sangat baik, evakuasi dahan patah cepat tanggap, pertahankan kebersihan selokan luar)...'
+                    : 'Tuliskan catatan detail (misal: Lantai koridor dan nat sudah sangat bersih, perhatikan sela debu di atas rak dan daun tanaman indoor)...'
+                }
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-800 text-xs leading-relaxed"
               />
             </div>
@@ -973,24 +1275,26 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
               className="w-full py-3.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
             >
               <Award className="w-4 h-4 text-amber-400" />
-              <span>Simpan Penilaian 15 Kategori ({saturdayOptions.find((o) => o.isoDate === selectedSaturdayDate)?.formattedFull || formatSaturdayDate(selectedSaturdayDate)})</span>
+              <span>
+                Simpan Penilaian {kordDivision === 'PLH' ? '4 Kriteria PLH' : '15 Kategori OB'} ({saturdayOptions.find((o) => o.isoDate === selectedSaturdayDate)?.formattedFull || formatSaturdayDate(selectedSaturdayDate)})
+              </span>
             </button>
           </form>
 
-          {/* History of Weekly Scores with 15-category Accordion Breakdown */}
+          {/* History of Weekly Scores with Category Breakdown */}
           <div className="pt-5 border-t border-slate-100 space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
                 <FileSpreadsheet className="w-4 h-4 text-sky-600" />
-                <span>Riwayat Penilaian Mingguan Petugas (Kordinator & Admin):</span>
+                <span>Riwayat Penilaian Mingguan Petugas {kordDivision} (Kordinator & Admin):</span>
               </h4>
               <span className="text-[11px] text-slate-500 font-semibold">
-                {weeklyScores.length} Data Tersimpan
+                {divisionWeeklyScores.length} Data Tersimpan
               </span>
             </div>
 
             <div className="space-y-2.5">
-              {weeklyScores.map((ws) => {
+              {divisionWeeklyScores.map((ws) => {
                 const isExpanded = expandedScoreId === ws.id;
                 const formattedDate = ws.saturdayDate ? formatSaturdayDate(ws.saturdayDate) : (ws.dateRange || `Evaluasi Pekan Ini`);
                 return (
@@ -1010,6 +1314,13 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                           <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-bold text-[10px] flex items-center gap-1">
                             <Calendar className="w-3 h-3 text-amber-700" />
                             {formattedDate}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${
+                            ws.evaluationType === 'PLH_4' || ws.division === 'PLH'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-sky-100 text-sky-800'
+                          }`}>
+                            {ws.evaluationType === 'PLH_4' || ws.division === 'PLH' ? '🌿 4 Kriteria PLH' : '🧹 15 Kategori OB'}
                           </span>
                         </div>
                         <p className="text-slate-600 text-[11px] mt-0.5 italic">
@@ -1033,7 +1344,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                           }
                           className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
                         >
-                          <span>{isExpanded ? 'Tutup Detail' : '15 Kategori'}</span>
+                          <span>{isExpanded ? 'Tutup Detail' : ws.evaluationType === 'PLH_4' || ws.division === 'PLH' ? '4 Kriteria' : '15 Kategori'}</span>
                           {isExpanded ? (
                             <ChevronUp className="w-3 h-3" />
                           ) : (
@@ -1047,25 +1358,27 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                     {isExpanded && ws.categoryScores && (
                       <div className="pt-2 border-t border-slate-200 space-y-2 animate-in fade-in duration-150">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Rincian Nilai 15 Kategori:
+                          {ws.evaluationType === 'PLH_4' || ws.division === 'PLH'
+                            ? 'Rincian Nilai 4 Kriteria PLH:'
+                            : 'Rincian Nilai 15 Kategori OB:'}
                         </span>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                          {EVALUATION_CATEGORIES.map((cat) => {
-                            const val = ws.categoryScores?.[cat] || 4;
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5">
+                          {Object.entries(ws.categoryScores).map(([cat, val]) => {
+                            const scoreNum = typeof val === 'number' ? val : Number(val) || 4;
                             return (
                               <div
                                 key={cat}
                                 className="p-2 bg-white rounded-lg border border-slate-200/80 flex items-center justify-between text-[11px]"
                               >
-                                <span className="text-slate-700 truncate pr-1">
+                                <span className="text-slate-700 truncate pr-1 font-medium">
                                   {cat}
                                 </span>
                                 <span
-                                  className={`font-black px-1.5 py-0.2 rounded ${getScoreBadgeColor(
-                                    val
+                                  className={`font-black px-2 py-0.5 rounded text-xs ${getScoreBadgeColor(
+                                    scoreNum
                                   )}`}
                                 >
-                                  {val}
+                                  {scoreNum}
                                 </span>
                               </div>
                             );
@@ -1073,7 +1386,11 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                         </div>
                         <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1">
                           <span>Dinilai oleh: {ws.kordinatorName || 'Kordinator'}</span>
-                          <span>Tanggal Evaluasi: {formattedDate}</span>
+                          <span className="font-semibold text-slate-600">
+                            {ws.evaluationType === 'PLH_4' || ws.division === 'PLH'
+                              ? '🌿 Evaluasi Kinerja PLH'
+                              : '🧹 Standar Kebersihan OB'}
+                          </span>
                         </div>
                       </div>
                     )}
@@ -1108,8 +1425,8 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
 
           {/* Inspection Records List */}
           <div className="space-y-2.5">
-            {peerInspections.length > 0 ? (
-              peerInspections.map((p) => {
+            {divisionPeerInspections.length > 0 ? (
+              divisionPeerInspections.map((p) => {
                 const isCompliant = p.status === 'Sesuai Standar Kebersihan' || p.status === 'Sesuai Standar SOP' || !p.status;
                 const passedCount = p.checklistItems ? p.checklistItems.filter((c) => c.passed).length : 0;
                 const totalChecklist = p.checklistItems ? p.checklistItems.length : 0;
@@ -1163,7 +1480,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                 );
               })
             ) : (
-              <p className="p-6 text-center text-slate-400 text-xs">Belum ada inspeksi unit.</p>
+              <p className="p-6 text-center text-slate-400 text-xs">Belum ada inspeksi unit tim {kordDivision}.</p>
             )}
           </div>
         </div>
@@ -1174,25 +1491,33 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
         <div className="space-y-3 animate-in fade-in duration-150">
           <div className="bg-sky-50/80 border border-sky-200 rounded-xl p-3 text-xs text-sky-950 flex items-center justify-between">
             <span>
-              <strong>Peran Kordinator:</strong> Selain memonitor dan memberi nilai, Kordinator juga
+              <strong>Peran Kordinator {kordDivision}:</strong> Selain memonitor dan memberi nilai, Kordinator juga
               mengerjakan tugas standar kebersihan di unit kerjanya.
             </span>
           </div>
 
           <UserTaskView
             activeUser={activeUser}
-            masterTasks={masterTasks}
-            taskLogs={taskLogs}
-            jobBarengList={jobBarengList}
-            dinasRequests={dinasRequests}
-            peerInspections={peerInspections}
-            weeklyScores={weeklyScores}
+            masterTasks={masterTasks.filter((t) => (t.division || 'OB') === kordDivision)}
+            taskLogs={taskLogs.filter((l) => (l.division || 'OB') === kordDivision)}
+            jobBarengList={divisionJobBareng}
+            dinasRequests={dinasRequests.filter((d) => (d.division || 'OB') === kordDivision)}
+            peerInspections={divisionPeerInspections}
+            weeklyScores={divisionWeeklyScores}
             onStartTask={onStartTask}
             onJoinJobBareng={onJoinJobBareng}
             onCompleteJobBareng={onCompleteJobBareng}
             onOpenDinasModal={onOpenDinasModal}
             onOpenPeerInspectionModal={onOpenPeerInspectionModal}
           />
+        </div>
+      )}
+
+      {/* TAB 5: WORK ORDER POHON & ROLLING PIKET MASJID */}
+      {activeKordTab === 'plh_pohon' && (
+        <div className="space-y-4 animate-in fade-in duration-150">
+          <MasjidRollingCard />
+          <TreeWorkOrderView activeUser={activeUser} />
         </div>
       )}
 

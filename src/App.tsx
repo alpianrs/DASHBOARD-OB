@@ -224,6 +224,7 @@ export default function App() {
         userName: activeUser.name,
         userRole: activeUser.role,
         unit: activeUser.unit,
+        division: activeUser.division || activeTaskTarget.division || 'OB',
         taskId: activeTaskTarget.id,
         taskTitle: activeTaskTarget.title,
         category: activeTaskTarget.category,
@@ -291,6 +292,7 @@ export default function App() {
         userName: activeUser.name,
         userRole: activeUser.role,
         unit: activeUser.unit,
+        division: activeUser.division || targetJob.division || 'OB',
         taskId: targetJob.id,
         taskTitle: `[JOB BARENG] ${targetJob.title}`,
         category: 'Job Bareng',
@@ -303,6 +305,7 @@ export default function App() {
 
       StorageService.addTaskLog(newLog);
       setTaskLogs(StorageService.getTaskLogs());
+      setJobBarengList(StorageService.getJobBareng());
 
       confetti({ particleCount: 30, spread: 55, origin: { y: 0.7 } });
       showToast('Berhasil menyelesaikan Job Bareng! Tersimpan & sedang disinkronkan.');
@@ -332,6 +335,7 @@ export default function App() {
       if (existingLogIdx >= 0) {
         targetLog = {
           ...currentLogs[existingLogIdx],
+          division: currentLogs[existingLogIdx].division || activeUser.division || targetTask.division || 'OB',
           photoUrl: photoDataUrl,
           notes: notes
             ? `${currentLogs[existingLogIdx].notes ? currentLogs[existingLogIdx].notes + ' | ' : ''}${notes}`
@@ -350,6 +354,7 @@ export default function App() {
           userName: activeUser.name,
           userRole: activeUser.role,
           unit: activeUser.unit,
+          division: activeUser.division || targetTask.division || 'OB',
           taskId: targetTask.id,
           taskTitle: targetTask.title,
           category: targetTask.category,

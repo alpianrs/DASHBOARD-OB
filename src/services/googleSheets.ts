@@ -141,64 +141,75 @@ function saveBase64ImageToDrive(base64Str, filename) {
 function setupDatabase() {
   var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
   
-  // 1. Setup Sheet: Users (dengan kolom Password)
-  var usersHeader = ["ID", "Username", "Password", "Name", "Role", "Unit", "Status", "Phone"];
+  // 1. Setup Sheet: Users (dengan kolom Password & Division)
+  var usersHeader = ["ID", "Username", "Password", "Name", "Role", "Unit", "Status", "Phone", "Division"];
   var initialUsers = [
-    ["u-admin-1", "admin", "password123", "Alpian (Admin FM)", "admin", "Pelangi Direktorat", "Aktif", "08123456789"],
-    ["u-kord-tk", "kordinator_tk", "password123", "Kordinator Unit TK", "kordinator", "TK", "Aktif", "08129876543"],
-    ["u-kord-sd", "kordinator_sd", "password123", "Kordinator Unit SD", "kordinator", "SD", "Aktif", "08129876544"],
-    ["u-kord-smp", "kordinator_smp", "password123", "Kordinator Unit SMP", "kordinator", "SMP", "Aktif", "08129876545"],
-    ["u-ob-1", "budi_tk", "password123", "Budi Santoso", "user", "TK", "Aktif", "08120000001"],
-    ["u-ob-2", "agus_sd", "password123", "Agus Setiawan", "user", "SD", "Aktif", "08120000002"],
-    ["u-ob-3", "joko_smp", "password123", "Joko Susilo", "user", "SMP", "Aktif", "08120000003"],
-    ["u-ob-4", "hendra_dir", "password123", "Hendra Wijaya", "user", "Pelangi Direktorat", "Aktif", "08120000004"],
-    ["u-ob-5", "deni_arazi", "password123", "Deni Prasetyo", "user", "Gedung Ar Razi", "Aktif", "08120000005"],
-    ["u-ob-6", "rizky_khaldun", "password123", "Rizky Firmansyah", "user", "Gedung Ibnu Khaldun", "Aktif", "08120000006"]
+    ["u-admin-1", "admin", "password123", "Alpian (Admin FM)", "admin", "Pelangi Direktorat", "Aktif", "08123456789", "OB"],
+    ["u-kord-tk", "kordinator_tk", "password123", "Kordinator Unit TK", "kordinator", "TK", "Aktif", "08129876543", "OB"],
+    ["u-kord-sd", "kordinator_sd", "password123", "Kordinator Unit SD", "kordinator", "SD", "Aktif", "08129876544", "OB"],
+    ["u-kord-smp", "kordinator_smp", "password123", "Kordinator Unit SMP", "kordinator", "SMP", "Aktif", "08129876545", "OB"],
+    ["u-ob-1", "budi_tk", "password123", "Budi Santoso", "user", "TK", "Aktif", "08120000001", "OB"],
+    ["u-ob-2", "agus_sd", "password123", "Agus Setiawan", "user", "SD", "Aktif", "08120000002", "OB"],
+    ["u-ob-3", "joko_smp", "password123", "Joko Susilo", "user", "SMP", "Aktif", "08120000003", "OB"],
+    ["u-ob-4", "hendra_dir", "password123", "Hendra Wijaya", "user", "Pelangi Direktorat", "Aktif", "08120000004", "OB"],
+    ["u-ob-5", "deni_arazi", "password123", "Deni Prasetyo", "user", "Gedung Ar Razi", "Aktif", "08120000005", "OB"],
+    ["u-ob-6", "rizky_khaldun", "password123", "Rizky Firmansyah", "user", "Gedung Ibnu Khaldun", "Aktif", "08120000006", "OB"],
+    ["u-kord-plh", "kordinator_plh", "password123", "Kordinator PLH (Taman & Lingkungan)", "kordinator", "Semua Unit", "Aktif", "08129999001", "PLH"],
+    ["u-plh-1", "asep_plh", "password123", "Asep Sunandar (PLH)", "user", "TK", "Aktif", "08129999002", "PLH"],
+    ["u-plh-2", "dadang_plh", "password123", "Dadang Hidayat (PLH)", "user", "SD", "Aktif", "08129999003", "PLH"],
+    ["u-plh-3", "cecep_plh", "password123", "Cecep Supriatna (PLH)", "user", "SMP", "Aktif", "08129999004", "PLH"],
+    ["u-plh-4", "ujang_plh", "password123", "Ujang Suherman (PLH)", "user", "Pelangi Direktorat", "Aktif", "08129999005", "PLH"]
   ];
   createOrSetupSheet(ss, "Users", usersHeader, initialUsers, "#0f172a");
 
-  // 2. Setup Sheet: MasterTask (Standar Kebersihan Lazuardi)
-  var masterTaskHeader = ["ID", "Title", "Unit", "Category", "TimingType", "Instructions", "PhotoRequired", "IsActive", "Area", "Assignee", "StandardPhotoURL"];
+  // 2. Setup Sheet: MasterTask (Standar Kebersihan & Pemeliharaan Lingkungan)
+  var masterTaskHeader = ["ID", "Title", "Unit", "Category", "TimingType", "Instructions", "PhotoRequired", "IsActive", "Area", "Assignee", "StandardPhotoURL", "Division"];
   var initialMasterTasks = [
-    // Pre-Readiness Pagi (00:00 - 09:00 WIB)
-    ["mt-001", "Pre-Readiness: Pembersihan & Sanitasi Toilet", "Semua Unit", "Harian", "pre_readiness", "Kuras & bersihkan kloset | Isi sabun cuci tangan & tisu | Pel lantai disinfektan", "YA", "AKTIF", "Toilet & Selasar", "Budi Santoso (OB)", "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80"],
-    ["mt-002", "Pre-Readiness: Sapu, Pel & Kerapihan Ruang Kelas", "Semua Unit", "Harian", "pre_readiness", "Sapu bersih debu & sampah kolong meja | Pel lantai wangi | Rapikan formasi meja-kursi", "YA", "AKTIF", "Ruang Kelas", "Siti Aminah (OG)", "https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=800&q=80"],
-    ["mt-003", "Pre-Readiness: Penyemprotan Disinfektan Handle Pintu & Meja Guru", "Semua Unit", "Harian", "pre_readiness", "Lap handle pintu & saklar | Bersihkan meja & kursi guru", "YA", "AKTIF", "Area Umum & Guru", "Agus Setiawan (OB)", ""],
-    ["mt-004", "Pre-Readiness: Pengosongan Seluruh Tempat Sampah", "Semua Unit", "Harian", "pre_readiness", "Angkut seluruh tempat sampah kelas & selasar ke TPS | Pasang trashbag baru", "YA", "AKTIF", "Selasar & Koridor", "Ratih Purwasih (OG)", ""],
+    // Pre-Readiness Pagi (00:00 - 09:00 WIB) OB
+    ["mt-001", "Pre-Readiness: Pembersihan & Sanitasi Toilet", "Semua Unit", "Harian", "pre_readiness", "Kuras & bersihkan kloset | Isi sabun cuci tangan & tisu | Pel lantai disinfektan", "YA", "AKTIF", "Toilet & Selasar", "Budi Santoso (OB)", "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80", "OB"],
+    ["mt-002", "Pre-Readiness: Sapu, Pel & Kerapihan Ruang Kelas", "Semua Unit", "Harian", "pre_readiness", "Sapu bersih debu & sampah kolong meja | Pel lantai wangi | Rapikan formasi meja-kursi", "YA", "AKTIF", "Ruang Kelas", "Siti Aminah (OG)", "https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=800&q=80", "OB"],
+    ["mt-003", "Pre-Readiness: Penyemprotan Disinfektan Handle Pintu & Meja Guru", "Semua Unit", "Harian", "pre_readiness", "Lap handle pintu & saklar | Bersihkan meja & kursi guru", "YA", "AKTIF", "Area Umum & Guru", "Agus Setiawan (OB)", "", "OB"],
+    ["mt-004", "Pre-Readiness: Pengosongan Seluruh Tempat Sampah", "Semua Unit", "Harian", "pre_readiness", "Angkut seluruh tempat sampah kelas & selasar ke TPS | Pasang trashbag baru", "YA", "AKTIF", "Selasar & Koridor", "Ratih Purwasih (OG)", "", "OB"],
     
-    // Anytime / Operasional Harian
-    ["mt-005", "Pembersihan Rutin Selasar, Koridor & Tangga", "Semua Unit", "Harian", "anytime", "Sapu selasar | Pel jika ada noda atau licin | Cek kebersihan handrail tangga", "YA", "AKTIF", "Koridor & Tangga", "Semua Petugas", "https://images.unsplash.com/photo-1517502884422-41eaead166d4?auto=format&fit=crop&w=800&q=80"],
-    ["mt-006", "Pengecekan Dispenser & Air Minum Galon", "Semua Unit", "Harian", "anytime", "Cek ketersediaan air galon siswa & guru | Lap baki tetesan dispenser", "TIDAK", "AKTIF", "Pantry & Koridor", "Semua Petugas", ""],
+    // Anytime / Operasional Harian OB
+    ["mt-005", "Pembersihan Rutin Selasar, Koridor & Tangga", "Semua Unit", "Harian", "anytime", "Sapu selasar | Pel jika ada noda atau licin | Cek kebersihan handrail tangga", "YA", "AKTIF", "Koridor & Tangga", "Semua Petugas", "https://images.unsplash.com/photo-1517502884422-41eaead166d4?auto=format&fit=crop&w=800&q=80", "OB"],
+    ["mt-006", "Pengecekan Dispenser & Air Minum Galon", "Semua Unit", "Harian", "anytime", "Cek ketersediaan air galon siswa & guru | Lap baki tetesan dispenser", "TIDAK", "AKTIF", "Pantry & Koridor", "Semua Petugas", "", "OB"],
 
-    // Clock Out Sore / Penutupan (09:00 - 23:59 WIB)
-    ["mt-007", "Clock Out: Penguncian Pintu, Jendela & Matikan AC/Lampu", "Semua Unit", "Harian", "clock_out", "Pastikan seluruh AC & lampu mati | Kunci jendela & pintu ruangan", "YA", "AKTIF", "Seluruh Ruangan Unit", "Hendra Wijaya (OB)", ""],
-    ["mt-008", "Clock Out: Pembersihan Akhir Toilet & Wastafel", "Semua Unit", "Harian", "clock_out", "Keringkan lantai | Matikan keran air | Pastikan tidak ada air terbuang", "YA", "AKTIF", "Toilet Unit", "Maya Indah (OG)", "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80"],
-    ["mt-009", "Clock Out: Pengangkutan Sampah Sore ke TPS Akhir", "Semua Unit", "Harian", "clock_out", "Pastikan tidak ada sisa sampah organik di dalam gedung", "YA", "AKTIF", "TPS Luar", "Dodi Firmansyah (OB)", ""],
+    // Clock Out Sore / Penutupan OB
+    ["mt-007", "Clock Out: Penguncian Pintu, Jendela & Matikan AC/Lampu", "Semua Unit", "Harian", "clock_out", "Pastikan seluruh AC & lampu mati | Kunci jendela & pintu ruangan", "YA", "AKTIF", "Seluruh Ruangan Unit", "Hendra Wijaya (OB)", "", "OB"],
+    ["mt-008", "Clock Out: Pembersihan Akhir Toilet & Wastafel", "Semua Unit", "Harian", "clock_out", "Keringkan lantai | Matikan keran air | Pastikan tidak ada air terbuang", "YA", "AKTIF", "Toilet Unit", "Maya Indah (OG)", "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80", "OB"],
+    ["mt-009", "Clock Out: Pengangkutan Sampah Sore ke TPS Akhir", "Semua Unit", "Harian", "clock_out", "Pastikan tidak ada sisa sampah organik di dalam gedung", "YA", "AKTIF", "TPS Luar", "Dodi Firmansyah (OB)", "", "OB"],
 
-    // Job Bareng (Kolom F ada kata 'Job Bareng' / Kategori 'Job Bareng')
-    ["mt-010", "General Cleaning Lapangan & Area Parkir (Job Bareng)", "Semua Unit", "Job Bareng", "anytime", "Pembersihan bersama tim FM seluruh unit | Sapu daun gugur | Semprot saluran drainase", "YA", "AKTIF", "Lapangan & Parkir", "Semua Petugas", ""],
-    ["mt-011", "Cuci Toren & Filter Air Utama (Job Bareng)", "Semua Unit", "Job Bareng", "anytime", "Pembersihan toren air bersama tim teknik & FM", "YA", "AKTIF", "Rooftop Toren", "Semua Petugas", ""],
+    // Job Bareng OB
+    ["mt-010", "General Cleaning Lapangan & Area Parkir (Job Bareng)", "Semua Unit", "Job Bareng", "anytime", "Pembersihan bersama tim FM seluruh unit | Sapu daun gugur | Semprot saluran drainase", "YA", "AKTIF", "Lapangan & Parkir", "Semua Petugas", "", "OB"],
+    ["mt-011", "Cuci Toren & Filter Air Utama (Job Bareng)", "Semua Unit", "Job Bareng", "anytime", "Pembersihan toren air bersama tim teknik & FM", "YA", "AKTIF", "Rooftop Toren", "Semua Petugas", "", "OB"],
 
-    // Mingguan & Bulanan
-    ["mt-012", "Pembersihan Kaca Jendela Luar & Dalam", "Semua Unit", "Mingguan", "anytime", "Gunakan wiper & pembersih kaca | Lap bingkai kusen", "YA", "AKTIF", "Jendela Gedung", "Ilham Saputra (OB)", "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80"],
-    ["mt-013", "Deep Cleaning Saluran Air & Drainase Selokan", "Semua Unit", "Mingguan", "anytime", "Angkat endapan lumpur | Pastikan aliran air lancar bebas jentik", "YA", "AKTIF", "Saluran Selokan", "Fajar Ramadhan (OB)", ""],
-    ["mt-014", "Pembersihan Sawang Langit-langit & Plafon Tinggi", "Semua Unit", "Bulanan", "anytime", "Gunakan stik panjang sawang | Bersihkan exhaust fan", "YA", "AKTIF", "Plafon & Exhaust", "Semua Petugas", ""]
+    // Mingguan & Bulanan OB
+    ["mt-012", "Pembersihan Kaca Jendela Luar & Dalam", "Semua Unit", "Mingguan", "anytime", "Gunakan wiper & pembersih kaca | Lap bingkai kusen", "YA", "AKTIF", "Jendela Gedung", "Ilham Saputra (OB)", "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80", "OB"],
+    ["mt-013", "Deep Cleaning Saluran Air & Drainase Selokan", "Semua Unit", "Mingguan", "anytime", "Angkat endapan lumpur | Pastikan aliran air lancar bebas jentik", "YA", "AKTIF", "Saluran Selokan", "Fajar Ramadhan (OB)", "", "OB"],
+    ["mt-014", "Pembersihan Sawang Langit-langit & Plafon Tinggi", "Semua Unit", "Bulanan", "anytime", "Gunakan stik panjang sawang | Bersihkan exhaust fan", "YA", "AKTIF", "Plafon & Exhaust", "Semua Petugas", "", "OB"],
+
+    // PLH Tasks (Pemeliharaan Lingkungan Hidup & Taman)
+    ["mt-plh-01", "Pre-Readiness: Penyiraman Seluruh Area Taman & Tanaman Pot", "Semua Unit", "Harian", "pre_readiness", "Siram tanaman merata pagi hari | Cek kelembapan media tanam", "YA", "AKTIF", "Area Taman & Pot", "Semua Petugas", "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80", "PLH"],
+    ["mt-plh-02", "Pre-Readiness: Pembersihan Daun Kering & Rumput Liar Area Depan", "Semua Unit", "Harian", "pre_readiness", "Sapu guguran daun | Cabut gulma pengganggu | Angkut ke komposter", "YA", "AKTIF", "Taman Depan & Gerbang", "Semua Petugas", "", "PLH"],
+    ["mt-plh-03", "Pembersihan Kolam Ikan & Filter Sirkulasi Air", "Semua Unit", "Harian", "anytime", "Bersihkan serasah di permukaan kolam | Cek fungsi pompa dan filter air", "YA", "AKTIF", "Kolam Ikan & Taman", "Semua Petugas", "", "PLH"],
+    ["mt-plh-04", "Clock Out: Perapihan Selang Air, Pompa & Peralatan Berkebun", "Semua Unit", "Harian", "clock_out", "Gulung selang air | Bersihkan gunting dahan & cangkul | Kunci gudang alat PLH", "YA", "AKTIF", "Gudang PLH & Taman", "Semua Petugas", "", "PLH"]
   ];
   createOrSetupSheet(ss, "MasterTask", masterTaskHeader, initialMasterTasks, "#1e3a8a");
 
-  // 3. Setup Sheet: TaskLogs (Mencatat Keterlambatan, Alasan, Status Laporan, dan Foto Drive)
+  // 3. Setup Sheet: TaskLogs (Mencatat Keterlambatan, Alasan, Status Laporan, Foto Drive, dan Divisi)
   var taskLogsHeader = [
     "ID", "Timestamp", "Date", "UserID", "UserName", "Unit", 
     "TaskTitle", "Category", "TimingType", "Status", "IsLate", 
     "LateReason", "LateReportStatus", "PhotoURL", "Notes", "KordinatorScore", "KordinatorNotes", 
-    "PeerInspector", "PeerStatus", "PeerNotes"
+    "PeerInspector", "PeerStatus", "PeerNotes", "Division"
   ];
   createOrSetupSheet(ss, "TaskLogs", taskLogsHeader, [], "#065f46");
 
   // 4. Setup Sheet: JobBareng (Tugas Insidental)
-  var jobBarengHeader = ["ID", "Title", "Description", "Date", "TargetUnit", "TargetArea", "Status", "Participants", "CompletedUsers", "CreatedAt", "AssignmentType", "AssignedUsers"];
+  var jobBarengHeader = ["ID", "Title", "Description", "Date", "TargetUnit", "TargetArea", "Status", "Participants", "CompletedUsers", "CreatedAt", "AssignmentType", "AssignedUsers", "Division"];
   var initialJobBareng = [
-    ["jb-001", "Kerja Bakti Lapangan & Area Parkir Utama", "Pembersihan massal menyambut acara sekolah. Seluruh OB/OG bergabung.", Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd"), "Semua Unit", "Lapangan Utama", "Aktif", "u-ob-1, u-ob-2, u-ob-3", "", new Date().toISOString(), "all", "Semua Petugas"]
+    ["jb-001", "Kerja Bakti Lapangan & Area Parkir Utama", "Pembersihan massal menyambut acara sekolah. Seluruh OB/OG bergabung.", Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd"), "Semua Unit", "Lapangan Utama", "Aktif", "u-ob-1, u-ob-2, u-ob-3", "", new Date().toISOString(), "all", "Semua Petugas", "OB"]
   ];
   createOrSetupSheet(ss, "JobBareng", jobBarengHeader, initialJobBareng, "#3730a3");
 
@@ -214,7 +225,19 @@ function setupDatabase() {
   var weeklyHeader = ["ID", "UserID", "UserName", "Unit", "SaturdayDate", "Year", "DateRange", "Score", "KordinatorName", "CategoryScoresJSON", "Notes", "Timestamp"];
   createOrSetupSheet(ss, "WeeklyScores", weeklyHeader, [], "#1f2937");
 
-  return { success: true, message: "Database Lazuardi FM berhasil disetup otomatis!" };
+  // 8. Setup Sheet: WorkOrder_Pohon (Work Order Khusus Pohon & Penanganan Treatment Vendor Luar)
+  var treeWorkOrdersHeader = [
+    "ID", "Date", "Area", "TreeName", "Condition", "TreatmentNeeded",
+    "HandlerType", "VendorName", "VendorCost", "ScheduledWeek", "Urgency",
+    "Status", "Notes", "PhotoBeforeURL", "PhotoAfterURL", "ReportedBy", "ReportedByName",
+    "CompletedAt", "CompletedByName", "CreatedAt"
+  ];
+  var initialTreeOrders = [
+    ["two-2026-001", "2026-09-21", "Area Kolam Renang", "Pohon Trembesi Rimbun Dekat Kolam", "Rimbun", "Penebangan / Topping Pohon Tinggi (Vendor Luar)", "Vendor Luar", "CV Duta Hijau Pertamanan", 2500000, "Minggu ke-4 September 2026", "Tinggi / Bahaya", "Dijadwalkan", "Pohon sangat rimbun tinggi ±12 meter, dahan menyentuh kabel listrik PLN.", "https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=800&q=80", "", "u-plh-01", "Bambang Irawan (PLH)", "", "", new Date().toISOString()]
+  ];
+  createOrSetupSheet(ss, "WorkOrder_Pohon", treeWorkOrdersHeader, initialTreeOrders, "#15803d");
+
+  return { success: true, message: "Database Lazuardi FM (termasuk WorkOrder_Pohon) berhasil disetup otomatis!" };
 }
 
 // Helper: Buat sheet dengan format profesional jika belum ada
@@ -901,6 +924,7 @@ export const GoogleSheetsService = {
       log.peerInspectorName || '',
       (log as any).peerStatus || log.peerScore || '',
       log.peerNotes || '',
+      log.division || 'OB',
     ];
 
     // Enqueue to pending queue first for offline resilience (avoid duplicating heavy base64 inside both logRow & log payload)
@@ -943,7 +967,7 @@ export const GoogleSheetsService = {
     if (token) {
       try {
         await fetch(
-          `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/TaskLogs!A:T:append?valueInputOption=USER_ENTERED`,
+          `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/TaskLogs!A:U:append?valueInputOption=USER_ENTERED`,
           {
             method: 'POST',
             headers: {
@@ -1064,7 +1088,7 @@ export const GoogleSheetsService = {
     const now = new Date().toISOString();
     const users = usersInput || StorageService.getUsers();
     const userRows = [
-      ['ID', 'Username', 'Password', 'Name', 'Role', 'Unit', 'Status', 'Phone'],
+      ['ID', 'Username', 'Password', 'Name', 'Role', 'Unit', 'Status', 'Phone', 'Division'],
       ...users.map((u) => [
         u.id,
         u.username,
@@ -1074,6 +1098,7 @@ export const GoogleSheetsService = {
         u.unit,
         u.status,
         u.phone || '',
+        u.division || 'OB',
       ]),
     ];
 
@@ -1097,7 +1122,7 @@ export const GoogleSheetsService = {
     if (token) {
       try {
         await fetch(
-          `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/Users!A1:H${userRows.length + 10}?valueInputOption=USER_ENTERED`,
+          `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/Users!A1:I${userRows.length + 10}?valueInputOption=USER_ENTERED`,
           {
             method: 'PUT',
             headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -1120,7 +1145,7 @@ export const GoogleSheetsService = {
     const now = new Date().toISOString();
     const tasks = tasksInput || StorageService.getMasterTasks();
     const taskRows = [
-      ['ID', 'Title', 'Unit', 'Category', 'TimingType', 'Instructions', 'PhotoRequired', 'IsActive', 'Area', 'Assignee', 'StandardPhotoURL'],
+      ['ID', 'Title', 'Unit', 'Category', 'TimingType', 'Instructions', 'PhotoRequired', 'IsActive', 'Area', 'Assignee', 'StandardPhotoURL', 'Division'],
       ...tasks.map((t) => [
         t.id,
         t.title,
@@ -1133,6 +1158,7 @@ export const GoogleSheetsService = {
         t.area || '',
         t.assignee || 'Semua Petugas',
         t.standardPhotoUrl || '',
+        t.division || 'OB',
       ]),
     ];
 
@@ -1156,7 +1182,7 @@ export const GoogleSheetsService = {
     if (token) {
       try {
         await fetch(
-          `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/MasterTask!A1:K${taskRows.length + 10}?valueInputOption=USER_ENTERED`,
+          `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/MasterTask!A1:L${taskRows.length + 10}?valueInputOption=USER_ENTERED`,
           {
             method: 'PUT',
             headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -1180,7 +1206,7 @@ export const GoogleSheetsService = {
     const users = StorageService.getUsers();
     const jobs = jobsInput || StorageService.getJobBareng();
     const jobRows = [
-      ['ID', 'Title', 'Description', 'Date', 'TargetUnit', 'TargetArea', 'Status', 'Participants', 'CompletedUsers', 'CreatedAt', 'AssignmentType', 'AssignedUsers'],
+      ['ID', 'Title', 'Description', 'Date', 'TargetUnit', 'TargetArea', 'Status', 'Participants', 'CompletedUsers', 'CreatedAt', 'AssignmentType', 'AssignedUsers', 'Division'],
       ...jobs.map((j) => {
         const participantDisplay = (j.participantNames && j.participantNames.length > 0)
           ? j.participantNames.join(', ')
@@ -1216,6 +1242,7 @@ export const GoogleSheetsService = {
           j.createdAt,
           j.assignmentType || 'all',
           assignedDisplay || 'Semua Petugas',
+          j.division || 'OB',
         ];
       }),
     ];
@@ -1240,7 +1267,7 @@ export const GoogleSheetsService = {
     if (token) {
       try {
         await fetch(
-          `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/JobBareng!A1:L${jobRows.length + 10}?valueInputOption=USER_ENTERED`,
+          `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/JobBareng!A1:M${jobRows.length + 10}?valueInputOption=USER_ENTERED`,
           {
             method: 'PUT',
             headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -1412,7 +1439,7 @@ export const GoogleSheetsService = {
     // 1. Prepare Users values (Include Password column for Google Sheet direct management)
     const users = StorageService.getUsers();
     const userRows = [
-      ['ID', 'Username', 'Password', 'Name', 'Role', 'Unit', 'Status', 'Phone'],
+      ['ID', 'Username', 'Password', 'Name', 'Role', 'Unit', 'Status', 'Phone', 'Division'],
       ...users.map((u) => [
         u.id,
         u.username,
@@ -1422,13 +1449,14 @@ export const GoogleSheetsService = {
         u.unit,
         u.status,
         u.phone || '',
+        u.division || 'OB',
       ]),
     ];
 
     // 2. Prepare MasterTask values
     const tasks = StorageService.getMasterTasks();
     const taskRows = [
-      ['ID', 'Title', 'Unit', 'Category', 'TimingType', 'Instructions', 'PhotoRequired', 'IsActive', 'Area', 'Assignee', 'StandardPhotoURL'],
+      ['ID', 'Title', 'Unit', 'Category', 'TimingType', 'Instructions', 'PhotoRequired', 'IsActive', 'Area', 'Assignee', 'StandardPhotoURL', 'Division'],
       ...tasks.map((t) => [
         t.id,
         t.title,
@@ -1441,6 +1469,7 @@ export const GoogleSheetsService = {
         t.area || '',
         t.assignee || 'Semua Petugas',
         t.standardPhotoUrl || '',
+        t.division || 'OB',
       ]),
     ];
 
@@ -1468,6 +1497,7 @@ export const GoogleSheetsService = {
         'PeerInspector',
         'PeerStatus',
         'PeerNotes',
+        'Division',
       ],
       ...logs.map((l) => {
         const isLate = l.isLate || l.status === 'Terlambat';
@@ -1509,6 +1539,7 @@ export const GoogleSheetsService = {
           l.peerInspectorName || '',
           (l as any).peerStatus || l.peerScore || '',
           l.peerNotes || '',
+          l.division || 'OB',
         ];
       }),
     ];
@@ -1516,7 +1547,7 @@ export const GoogleSheetsService = {
     // 4. Prepare JobBareng values
     const jobs = StorageService.getJobBareng();
     const jobRows = [
-      ['ID', 'Title', 'Description', 'Date', 'TargetUnit', 'TargetArea', 'Status', 'Participants', 'CompletedUsers', 'CreatedAt', 'AssignmentType', 'AssignedUsers'],
+      ['ID', 'Title', 'Description', 'Date', 'TargetUnit', 'TargetArea', 'Status', 'Participants', 'CompletedUsers', 'CreatedAt', 'AssignmentType', 'AssignedUsers', 'Division'],
       ...jobs.map((j) => {
         const participantDisplay = (j.participantNames && j.participantNames.length > 0)
           ? j.participantNames.join(', ')
@@ -1552,6 +1583,7 @@ export const GoogleSheetsService = {
           j.createdAt,
           j.assignmentType || 'all',
           assignedDisplay || 'Semua Petugas',
+          j.division || 'OB',
         ];
       }),
     ];
@@ -1662,10 +1694,10 @@ export const GoogleSheetsService = {
 
     try {
       const batchData = [
-        { range: 'Users!A1:H' + (userRows.length + 10), values: userRows },
-        { range: 'MasterTask!A1:K' + (taskRows.length + 10), values: taskRows },
-        { range: 'TaskLogs!A1:T' + (logRows.length + 20), values: logRows },
-        { range: 'JobBareng!A1:L' + (jobRows.length + 10), values: jobRows },
+        { range: 'Users!A1:I' + (userRows.length + 10), values: userRows },
+        { range: 'MasterTask!A1:L' + (taskRows.length + 10), values: taskRows },
+        { range: 'TaskLogs!A1:U' + (logRows.length + 20), values: logRows },
+        { range: 'JobBareng!A1:M' + (jobRows.length + 10), values: jobRows },
         { range: 'DinasRequests!A1:K' + (dinasRows.length + 10), values: dinasRows },
         { range: 'PeerInspections!A1:N' + (peerRows.length + 10), values: peerRows },
         { range: 'WeeklyScores!A1:L' + (weeklyRows.length + 10), values: weeklyRows },
@@ -1749,6 +1781,10 @@ export const GoogleSheetsService = {
                 const unit = hasColPassword ? String(row[5] || 'TK').trim() : String(row[4] || 'TK').trim();
                 const status = hasColPassword ? String(row[6] || 'Aktif').trim() : String(row[5] || 'Aktif').trim();
                 const phone = hasColPassword ? String(row[7] || '').trim() : String(row[6] || '').trim();
+                const rawDivision = row[8] ? String(row[8]).trim().toUpperCase() : '';
+                const division: 'OB' | 'PLH' = (rawDivision === 'PLH' || rawDivision === 'OB')
+                  ? rawDivision
+                  : (username.toLowerCase().includes('plh') || name.toLowerCase().includes('plh') ? 'PLH' : 'OB');
 
                 return {
                   id: row[0] || `u-sheet-${i}`,
@@ -1759,6 +1795,7 @@ export const GoogleSheetsService = {
                   unit: unit as any,
                   status: (status.toLowerCase() === 'nonaktif' ? 'Nonaktif' : 'Aktif') as any,
                   phone,
+                  division,
                 };
               });
             if (parsedUsers.length > 0) {
@@ -1830,6 +1867,10 @@ export const GoogleSheetsService = {
                 const isActive = !inactiveWords.includes(String(row[7] || '').trim().toLowerCase());
                 const rawAssignee = String(row[9] || '').trim();
                 const standardPhotoUrl = String(row[10] || '').trim();
+                const rawDivision = row[11] ? String(row[11]).trim().toUpperCase() : '';
+                const taskDivision: 'OB' | 'PLH' = (rawDivision === 'PLH' || rawDivision === 'OB')
+                  ? rawDivision
+                  : (rawTitle.toLowerCase().includes('plh') || rawInstructions.toLowerCase().includes('plh') ? 'PLH' : 'OB');
 
                 const fallbackId = timingType === 'pre_readiness' 
                   ? `mt-pr-${String(i + 1).padStart(2, '0')}` 
@@ -1849,6 +1890,7 @@ export const GoogleSheetsService = {
                   area: String(row[8] || 'Area Unit').trim(),
                   assignee: rawAssignee || 'Semua Petugas',
                   standardPhotoUrl: standardPhotoUrl || undefined,
+                  division: taskDivision,
                 };
               });
             StorageService.saveMasterTasks(parsedTasks);
@@ -1925,6 +1967,19 @@ export const GoogleSheetsService = {
                 const peerScore = hasLateReportCol ? row[18] : row[17];
                 const peerNotes = hasLateReportCol ? row[19] : row[18];
 
+                let resolvedDivision: 'OB' | 'PLH' = 'OB';
+                const rawDivCol = String(row[20] || row[row.length - 1] || '').trim().toUpperCase();
+                if (rawDivCol === 'PLH' || rawDivCol === 'OB') {
+                  resolvedDivision = rawDivCol;
+                } else {
+                  const matchedUser = StorageService.getUsers().find((u) => u.id === row[3] || u.name === row[4]);
+                  if (matchedUser && matchedUser.division) {
+                    resolvedDivision = matchedUser.division;
+                  } else if (String(row[4] || '').toUpperCase().includes('PLH') || String(resolvedTaskTitle || '').toUpperCase().includes('PLH')) {
+                    resolvedDivision = 'PLH';
+                  }
+                }
+
                 return {
                   id: row[0] || `tl-${i}`,
                   timestamp: row[1] || now,
@@ -1947,6 +2002,7 @@ export const GoogleSheetsService = {
                   peerInspectorName: peerInspectorName || undefined,
                   peerScore: peerScore && !isNaN(Number(peerScore)) ? Number(peerScore) : undefined,
                   peerNotes: peerNotes || undefined,
+                  division: resolvedDivision,
                 };
               });
 
@@ -1968,6 +2024,11 @@ export const GoogleSheetsService = {
                 const completedRaw = row[8] ? String(row[8]).split(',').map((s) => s.trim()).filter(Boolean) : [];
                 const assignmentType = (row[10] && String(row[10]).toLowerCase() === 'specific') ? 'specific' : 'all';
                 const assignedRaw = row[11] ? String(row[11]).split(',').map((s) => s.trim()).filter(Boolean) : undefined;
+                const rawDivision = row[12] ? String(row[12]).trim().toUpperCase() : '';
+                const jobDivision: 'OB' | 'PLH' = (rawDivision === 'PLH' || rawDivision === 'OB')
+                  ? rawDivision
+                  : (String(row[1] || '').toUpperCase().includes('PLH') ? 'PLH' : 'OB');
+
                 return {
                   id: row[0] || `jb-${i}`,
                   title: row[1] || 'Job Bareng',
@@ -1984,6 +2045,7 @@ export const GoogleSheetsService = {
                   completedUserIds: completedRaw,
                   completedUserNames: completedRaw,
                   createdAt: row[9] || now,
+                  division: jobDivision,
                 };
               });
             StorageService.mergeJobBareng(parsedJobs);
@@ -2101,10 +2163,10 @@ export const GoogleSheetsService = {
 
     try {
       const ranges = [
-        'Users!A2:H',
-        'MasterTask!A2:K',
-        'TaskLogs!A2:T',
-        'JobBareng!A2:L',
+        'Users!A2:I',
+        'MasterTask!A2:L',
+        'TaskLogs!A2:U',
+        'JobBareng!A2:M',
         'DinasRequests!A2:K',
         'PeerInspections!A2:N',
         'WeeklyScores!A2:L',
@@ -2140,6 +2202,10 @@ export const GoogleSheetsService = {
             const unit = hasColPassword ? String(row[5] || 'TK').trim() : String(row[4] || 'TK').trim();
             const status = hasColPassword ? String(row[6] || 'Aktif').trim() : String(row[5] || 'Aktif').trim();
             const phone = hasColPassword ? String(row[7] || '').trim() : String(row[6] || '').trim();
+            const rawDivision = row[8] ? String(row[8]).trim().toUpperCase() : '';
+            const division: 'OB' | 'PLH' = (rawDivision === 'PLH' || rawDivision === 'OB')
+              ? rawDivision
+              : (username.toLowerCase().includes('plh') || name.toLowerCase().includes('plh') ? 'PLH' : 'OB');
 
             return {
               id: row[0] || `u-sheet-${i}`,
@@ -2150,6 +2216,7 @@ export const GoogleSheetsService = {
               unit: unit as any,
               status: (status.toLowerCase() === 'nonaktif' ? 'Nonaktif' : 'Aktif') as any,
               phone,
+              division,
             };
           });
         if (remoteUsers.length > 0) {
@@ -2222,6 +2289,10 @@ export const GoogleSheetsService = {
             const isActive = !inactiveWords.includes(String(row[7] || '').trim().toLowerCase());
             const rawAssignee = String(row[9] || '').trim();
             const standardPhotoUrl = String(row[10] || '').trim();
+            const rawDivision = row[11] ? String(row[11]).trim().toUpperCase() : '';
+            const taskDivision: 'OB' | 'PLH' = (rawDivision === 'PLH' || rawDivision === 'OB')
+              ? rawDivision
+              : (rawTitle.toLowerCase().includes('plh') || rawInstructions.toLowerCase().includes('plh') ? 'PLH' : 'OB');
 
             const fallbackId = timingType === 'pre_readiness' 
               ? `mt-pr-${String(i + 1).padStart(2, '0')}` 
@@ -2241,6 +2312,7 @@ export const GoogleSheetsService = {
               area: String(row[8] || 'Area Unit').trim(),
               assignee: rawAssignee || 'Semua Petugas',
               standardPhotoUrl: standardPhotoUrl || undefined,
+              division: taskDivision,
             };
           });
         if (remoteTasks.length > 0) {
@@ -2316,6 +2388,19 @@ export const GoogleSheetsService = {
             const peerStatus = hasLateReportCol ? row[18] : row[17];
             const peerNotes = hasLateReportCol ? row[19] : row[18];
 
+            let resolvedDivision: 'OB' | 'PLH' = 'OB';
+            const rawDivCol = String(row[20] || row[row.length - 1] || '').trim().toUpperCase();
+            if (rawDivCol === 'PLH' || rawDivCol === 'OB') {
+              resolvedDivision = rawDivCol;
+            } else {
+              const matchedUser = StorageService.getUsers().find((u) => u.id === row[3] || u.name === row[4]);
+              if (matchedUser && matchedUser.division) {
+                resolvedDivision = matchedUser.division;
+              } else if (String(row[4] || '').toUpperCase().includes('PLH') || String(resolvedTaskTitle || '').toUpperCase().includes('PLH')) {
+                resolvedDivision = 'PLH';
+              }
+            }
+
             return {
               id: row[0] || `tl-sheet-${i}`,
               timestamp: row[1] || now,
@@ -2337,6 +2422,7 @@ export const GoogleSheetsService = {
               peerInspectorName: peerInspectorName || undefined,
               peerStatus: peerStatus || undefined,
               peerNotes: peerNotes || undefined,
+              division: resolvedDivision,
             };
           });
 
@@ -2358,6 +2444,11 @@ export const GoogleSheetsService = {
             const completedRaw = row[8] ? String(row[8]).split(',').map((s) => s.trim()).filter(Boolean) : [];
             const assignmentType = (row[10] && String(row[10]).toLowerCase() === 'specific') ? 'specific' : 'all';
             const assignedRaw = row[11] ? String(row[11]).split(',').map((s) => s.trim()).filter(Boolean) : undefined;
+            const rawDivision = row[12] ? String(row[12]).trim().toUpperCase() : '';
+            const jobDivision: 'OB' | 'PLH' = (rawDivision === 'PLH' || rawDivision === 'OB')
+              ? rawDivision
+              : (String(row[1] || '').toUpperCase().includes('PLH') ? 'PLH' : 'OB');
+
             return {
               id: row[0] || `jb-${i}`,
               title: row[1] || 'Job Bareng',
@@ -2374,6 +2465,7 @@ export const GoogleSheetsService = {
               completedUserIds: completedRaw,
               completedUserNames: completedRaw,
               createdAt: row[9] || now,
+              division: jobDivision,
             };
           });
 
