@@ -12,6 +12,7 @@ import {
   DivisionType,
   PendingSyncItem,
   TreeWorkOrder,
+  DEFAULT_PLH_AREA_STAFF,
 } from '../types';
 import { isSameDay, getJakartaDateString, normalizeDateString } from '../utils/dateHelper';
 
@@ -66,6 +67,7 @@ export const SEED_PLH_USERS: User[] = [
     role: 'kordinator',
     division: 'PLH',
     unit: 'Semua Unit',
+    assignedArea: 'Semua Area (Supervisi)',
     status: 'Aktif',
     phone: '08129999001',
   },
@@ -76,7 +78,8 @@ export const SEED_PLH_USERS: User[] = [
     name: 'Bambang Irawan (PLH)',
     role: 'user',
     division: 'PLH',
-    unit: 'TK',
+    unit: 'Semua Unit',
+    assignedArea: 'Area Pos 1',
     status: 'Aktif',
     phone: '08129999002',
   },
@@ -87,7 +90,8 @@ export const SEED_PLH_USERS: User[] = [
     name: 'Surya Wijaya (PLH)',
     role: 'user',
     division: 'PLH',
-    unit: 'SD',
+    unit: 'Semua Unit',
+    assignedArea: 'Area Pos 2',
     status: 'Aktif',
     phone: '08129999003',
   },
@@ -98,7 +102,8 @@ export const SEED_PLH_USERS: User[] = [
     name: 'Kusnadi (PLH)',
     role: 'user',
     division: 'PLH',
-    unit: 'SMP',
+    unit: 'Semua Unit',
+    assignedArea: 'Area Khaldun',
     status: 'Aktif',
     phone: '08129999004',
   },
@@ -109,9 +114,22 @@ export const SEED_PLH_USERS: User[] = [
     name: 'Ahmad Fauzi (PLH)',
     role: 'user',
     division: 'PLH',
-    unit: 'Pelangi Direktorat',
+    unit: 'Semua Unit',
+    assignedArea: 'Area Ex Minifarm',
     status: 'Aktif',
     phone: '08129999005',
+  },
+  {
+    id: 'u-plh-05',
+    username: 'darmanto_plh',
+    password: 'password123',
+    name: 'Darmanto (PLH)',
+    role: 'user',
+    division: 'PLH',
+    unit: 'Semua Unit',
+    assignedArea: 'Area Kolam Renang',
+    status: 'Aktif',
+    phone: '08129999006',
   },
 ];
 
@@ -743,8 +761,10 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     notes: 'Pohon sangat rimbun dengan tinggi ±12 meter. Dahan atas menjuntai ke kabel listrik utama PLN dan atap tribun kolam. Membutuhkan mobil crane dan vendor berpengalaman.',
     photoBeforeUrl: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=800&q=80',
     status: 'Dijadwalkan',
-    reportedBy: 'u-plh-01',
-    reportedByName: 'Bambang Irawan (PLH)',
+    reportedBy: 'u-plh-05',
+    reportedByName: 'Darmanto (PLH)',
+    assignedStaffId: 'u-plh-05',
+    assignedStaffName: 'Darmanto (PLH)',
     syncedToSheet: true,
     createdAt: '2026-09-21T08:00:00.000Z',
   },
@@ -764,6 +784,8 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     status: 'Sedang Dikerjakan',
     reportedBy: 'u-plh-02',
     reportedByName: 'Surya Wijaya (PLH)',
+    assignedStaffId: 'u-plh-02',
+    assignedStaffName: 'Surya Wijaya (PLH)',
     syncedToSheet: true,
     createdAt: '2026-09-21T08:30:00.000Z',
   },
@@ -782,11 +804,54 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     status: 'Selesai',
     reportedBy: 'u-plh-03',
     reportedByName: 'Kusnadi (PLH)',
+    assignedStaffId: 'u-plh-03',
+    assignedStaffName: 'Kusnadi (PLH)',
     completedAt: '2026-09-20T14:30:00.000Z',
     completedBy: 'u-plh-03',
     completedByName: 'Kusnadi (PLH)',
     syncedToSheet: true,
     createdAt: '2026-09-20T09:00:00.000Z',
+  },
+  {
+    id: 'two-2026-004',
+    date: '2026-09-21',
+    area: 'Area Pos 1',
+    treeName: 'Pohon Beringin & Mahoni Pintu Masuk Gerbang Pos 1',
+    condition: 'Rimbun',
+    treatmentNeeded: 'Penjarangan Kanopi Rimbun',
+    handlerType: 'Internal PLH',
+    isLargeTreatment: false,
+    scheduledWeek: 'Minggu ke-4 September 2026',
+    urgency: 'Sedang',
+    notes: 'Dahan rimbun condong ke jalur drop-off penjemputan siswa. Perlu penjarangan kanopi agar pandangan pengemudi leluasa dan sirkulasi cahaya taman Pos 1 optimal.',
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80',
+    status: 'Perlu Penanganan',
+    reportedBy: 'u-plh-01',
+    reportedByName: 'Bambang Irawan (PLH)',
+    assignedStaffId: 'u-plh-01',
+    assignedStaffName: 'Bambang Irawan (PLH)',
+    syncedToSheet: true,
+    createdAt: '2026-09-21T07:45:00.000Z',
+  },
+  {
+    id: 'two-2026-005',
+    date: '2026-09-21',
+    area: 'Area Ex Minifarm',
+    treeName: 'Pohon Mangga & Sengon Samping Bedengan Pembibitan',
+    condition: 'Terserang Hama / Benalu',
+    treatmentNeeded: 'Pemberian Nutrisi / Obat Hama Batang',
+    handlerType: 'Internal PLH',
+    isLargeTreatment: false,
+    urgency: 'Sedang',
+    notes: 'Ditemukan sarang benalu pada dahan utama pohon mangga dan rayap pada pangkal batang sengon. Dilakukan pembersihan benalu manual dan penyemprotan insektisida organik.',
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=800&q=80',
+    status: 'Sedang Dikerjakan',
+    reportedBy: 'u-plh-04',
+    reportedByName: 'Ahmad Fauzi (PLH)',
+    assignedStaffId: 'u-plh-04',
+    assignedStaffName: 'Ahmad Fauzi (PLH)',
+    syncedToSheet: true,
+    createdAt: '2026-09-21T08:15:00.000Z',
   },
 ];
 
@@ -962,6 +1027,33 @@ export const StorageService = {
         needsResave = true;
       }
     }
+
+    // Ensure all PLH users have assignedArea properly set
+    updatedUsers = updatedUsers.map((u) => {
+      if (u.division === 'PLH' && !u.assignedArea) {
+        needsResave = true;
+        if (u.role === 'kordinator') {
+          return { ...u, assignedArea: 'Semua Area (Supervisi)' };
+        }
+        if (u.username === 'bambang_plh' || u.name.includes('Bambang')) {
+          return { ...u, assignedArea: 'Area Pos 1' };
+        }
+        if (u.username === 'surya_plh' || u.name.includes('Surya')) {
+          return { ...u, assignedArea: 'Area Pos 2' };
+        }
+        if (u.username === 'kusnadi_plh' || u.name.includes('Kusnadi')) {
+          return { ...u, assignedArea: 'Area Khaldun' };
+        }
+        if (u.username === 'fauzi_plh' || u.name.includes('Fauzi')) {
+          return { ...u, assignedArea: 'Area Ex Minifarm' };
+        }
+        if (u.username === 'darmanto_plh' || u.name.includes('Darmanto')) {
+          return { ...u, assignedArea: 'Area Kolam Renang' };
+        }
+        return { ...u, assignedArea: 'Area Pos 1' };
+      }
+      return u;
+    });
 
     if (
       needsResave ||
@@ -1479,7 +1571,30 @@ export const StorageService = {
       setStoredItem(STORAGE_KEYS.TREE_WORK_ORDERS, SEED_TREE_WORK_ORDERS);
       return SEED_TREE_WORK_ORDERS;
     }
-    return list;
+    let modified = false;
+    let enriched = list.map((order) => {
+      if (!order.assignedStaffName && DEFAULT_PLH_AREA_STAFF[order.area]) {
+        modified = true;
+        return {
+          ...order,
+          assignedStaffId: DEFAULT_PLH_AREA_STAFF[order.area].id,
+          assignedStaffName: DEFAULT_PLH_AREA_STAFF[order.area].name,
+        };
+      }
+      return order;
+    });
+
+    for (const seedOrder of SEED_TREE_WORK_ORDERS) {
+      if (!enriched.some((o) => o.id === seedOrder.id || (o.area === seedOrder.area && o.treeName === seedOrder.treeName))) {
+        enriched.push(seedOrder);
+        modified = true;
+      }
+    }
+
+    if (modified) {
+      setStoredItem(STORAGE_KEYS.TREE_WORK_ORDERS, enriched);
+    }
+    return enriched;
   },
   saveTreeWorkOrders: (orders: TreeWorkOrder[]): void => {
     setStoredItem(STORAGE_KEYS.TREE_WORK_ORDERS, orders || []);

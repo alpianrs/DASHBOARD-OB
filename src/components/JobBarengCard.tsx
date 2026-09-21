@@ -1,6 +1,7 @@
 import React from 'react';
-import { Sparkles, Users, CheckCircle, Clock, MapPin, ArrowRight, AlertTriangle, Trees } from 'lucide-react';
+import { Sparkles, Users, CheckCircle, Clock, MapPin, ArrowRight, AlertTriangle, Trees, Printer } from 'lucide-react';
 import { JobBareng, User } from '../types';
+import { generateJobBarengPdf, printHtmlAsPdf } from '../utils/pdfGenerator';
 
 interface JobBarengCardProps {
   job: JobBareng;
@@ -60,11 +61,27 @@ export const JobBarengCard: React.FC<JobBarengCardProps> = ({
             </span>
           </div>
 
-          <span className="text-[11px] font-semibold bg-slate-800 border border-slate-700 text-slate-300 px-2.5 py-0.5 rounded-md">
-            {job.assignmentType === 'specific'
-              ? `Khusus (${job.assignedUserIds?.length || 0} Petugas)`
-              : `Target: ${job.targetUnit}`}
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                printHtmlAsPdf(
+                  generateJobBarengPdf(job),
+                  `SPK_${job.division || 'Umum'}_${job.id}`
+                )
+              }
+              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-[10px] font-bold transition flex items-center gap-1 border border-slate-700 cursor-pointer"
+              title="Unduh Surat Perintah Kerja (SPK) / Work Order Divisi ini dalam format PDF"
+            >
+              <Printer className="w-3 h-3 text-sky-400" />
+              <span>SPK PDF</span>
+            </button>
+            <span className="text-[11px] font-semibold bg-slate-800 border border-slate-700 text-slate-300 px-2.5 py-0.5 rounded-md">
+              {job.assignmentType === 'specific'
+                ? `Khusus (${job.assignedUserIds?.length || 0} Petugas)`
+                : `Target: ${job.targetUnit}`}
+            </span>
+          </div>
         </div>
 
         {/* Title & Description */}

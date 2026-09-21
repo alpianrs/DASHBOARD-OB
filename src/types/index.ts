@@ -18,6 +18,7 @@ export interface User {
   role: UserRole;
   division?: DivisionType; // 'OB' or 'PLH' (Default 'OB' for full backward compatibility)
   unit: UnitType;
+  assignedArea?: string; // Khusus PLH: 'Area Pos 1', 'Area Pos 2', 'Area Khaldun', 'Area Ex Minifarm', 'Area Kolam Renang'
   status: 'Aktif' | 'Resign' | 'Cuti';
   phone?: string;
   avatarUrl?: string;
@@ -37,6 +38,15 @@ export const PLH_AREAS = [
 ] as const;
 
 export type PLHAreaType = typeof PLH_AREAS[number];
+
+// Pemetaan Standar Petugas Penanggung Jawab Area PLH
+export const DEFAULT_PLH_AREA_STAFF: Record<string, { id: string; name: string }> = {
+  'Area Pos 1': { id: 'u-plh-01', name: 'Bambang Irawan (PLH)' },
+  'Area Pos 2': { id: 'u-plh-02', name: 'Surya Wijaya (PLH)' },
+  'Area Khaldun': { id: 'u-plh-03', name: 'Kusnadi (PLH)' },
+  'Area Ex Minifarm': { id: 'u-plh-04', name: 'Ahmad Fauzi (PLH)' },
+  'Area Kolam Renang': { id: 'u-plh-05', name: 'Darmanto (PLH)' },
+};
 
 export interface MasterTask {
   id: string;
@@ -305,6 +315,8 @@ export interface TreeWorkOrder {
   status: 'Perlu Penanganan' | 'Dijadwalkan' | 'Sedang Dikerjakan' | 'Selesai';
   reportedBy: string;
   reportedByName: string;
+  assignedStaffId?: string; // Petugas penanggung jawab area pohon
+  assignedStaffName?: string; // Nama petugas penanggung jawab area
   completedAt?: string;
   completedBy?: string;
   completedByName?: string;

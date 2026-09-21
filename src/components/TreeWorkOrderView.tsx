@@ -19,6 +19,8 @@ import {
   Trash2,
   Edit3,
   Download,
+  FileText,
+  Printer,
 } from 'lucide-react';
 import {
   User,
@@ -27,9 +29,15 @@ import {
   TreeTreatmentType,
   TreeHandlerType,
   PLH_AREAS,
+  DEFAULT_PLH_AREA_STAFF,
 } from '../types';
 import { StorageService } from '../services/storage';
 import { getJakartaDateString, formatJakartaDisplayDate } from '../utils/dateHelper';
+import {
+  generateTreeWorkOrderPdf,
+  generateTreeAreaReportPdf,
+  printHtmlAsPdf,
+} from '../utils/pdfGenerator';
 
 interface TreeWorkOrderViewProps {
   activeUser: User;
@@ -46,7 +54,7 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     StorageService.getTreeWorkOrders()
   );
   const [activeTab, setActiveTab] = useState<
-    'all' | 'weekly_vendor' | 'internal' | 'urgent' | 'completed'
+    'all' | 'weekly_vendor' | 'internal' | 'urgent' | 'completed' | 'area_breakdown'
   >('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAreaFilter, setSelectedAreaFilter] = useState('Semua');
@@ -91,7 +99,11 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
 
   const openNewForm = () => {
     setEditingOrder(null);
-    setFormArea(PLH_AREAS[0]);
+    const defaultArea =
+      activeUser.assignedArea && PLH_AREAS.includes(activeUser.assignedArea as any)
+        ? activeUser.assignedArea
+        : PLH_AREAS[0];
+    setFormArea(defaultArea);
     setFormTreeName('');
     setFormCondition('Rimbun');
     setFormTreatment('Penjarangan Kanopi Rimbun');
@@ -133,11 +145,17 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     }
 
     const isLarge = formHandlerType === 'Vendor Luar' || formTreatment.includes('Vendor Luar') || formTreatment.includes('Topping');
+    const areaStaff = DEFAULT_PLH_AREA_STAFF[formArea] || {
+      id: activeUser.id,
+      name: activeUser.name,
+    };
 
     if (editingOrder) {
       const updated: TreeWorkOrder = {
         ...editingOrder,
         area: formArea,
+        assignedStaffId: editingOrder.assignedStaffId || areaStaff.id,
+        assignedStaffName: editingOrder.assignedStaffName || areaStaff.name,
         treeName: formTreeName.trim(),
         condition: formCondition,
         treatmentNeeded: formTreatment,
@@ -161,6 +179,8 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
         id: `two-${Date.now().toString(36)}`,
         date: today,
         area: formArea,
+        assignedStaffId: areaStaff.id,
+        assignedStaffName: areaStaff.name,
         treeName: formTreeName.trim(),
         condition: formCondition,
         treatmentNeeded: formTreatment,
@@ -376,6 +396,21 @@ function setupTabWorkOrderPohon() {
           </button>
           <button
             type="button"
+            onClick={() => {
+              const areaTitle = selectedAreaFilter === 'Semua' ? 'Seluruh Area Sekolah Lazuardi GCS' : selectedAreaFilter;
+              printHtmlAsPdf(
+                generateTreeAreaReportPdf(areaTitle, filteredOrders, activeUser.name),
+                `Rekap_Pohon_${selectedAreaFilter}`
+              );
+            }}
+            className="px-3 py-2 rounded-xl text-xs font-bold bg-white/15 hover:bg-white/25 border border-white/20 text-white transition cursor-pointer flex items-center gap-1.5"
+            title="Cetak dan Simpan sebagai Dokumen PDF Resmi"
+          >
+            <Printer className="w-3.5 h-3.5 text-emerald-300" />
+            <span>Cetak Rekap (PDF)</span>
+          </button>
+          <button
+            type="button"
             onClick={handleExportCSV}
             className="px-3 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20 text-white transition cursor-pointer flex items-center gap-1.5"
           >
@@ -402,6 +437,44 @@ function setupTabWorkOrderPohon() {
         </div>
       </div>
 
+      {/* PLH User Personal Area Banner */}
+      {activeUser.division === 'PLH' && (
+        <div className="p-4 bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 text-white rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm border border-emerald-700/50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-700/60 border border-emerald-500/30 flex items-center justify-center text-emerald-300 shrink-0">
+              <TreePine className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-sm text-white">Petugas PLH: {activeUser.name}</span>
+                <span className="px-2.5 py-0.5 rounded-md text-[11px] font-extrabold bg-emerald-400 text-emerald-950">
+                  {activeUser.assignedArea || 'Penanggung Jawab Area'}
+                </span>
+              </div>
+              <p className="text-xs text-emerald-200/90 mt-0.5">
+                Setiap staf PLH memegang area pohon masing-masing. Anda dapat langsung mengunduh laporan PDF resmi untuk area tanggung jawab Anda.
+              </p>
+            </div>
+          </div>
+          {activeUser.assignedArea && (
+            <button
+              type="button"
+              onClick={() => {
+                const areaOrders = orders.filter((o) => o.area === activeUser.assignedArea);
+                printHtmlAsPdf(
+                  generateTreeAreaReportPdf(activeUser.assignedArea!, areaOrders, activeUser.name),
+                  `Laporan_Area_${activeUser.assignedArea}`
+                );
+              }}
+              className="px-3.5 py-2 rounded-xl bg-white text-emerald-950 hover:bg-emerald-50 font-bold text-xs shrink-0 flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Unduh PDF Laporan Area Saya</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Filter Tabs */}
       <div className="flex items-center justify-between gap-2 flex-wrap bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 w-full sm:w-auto">
@@ -415,6 +488,18 @@ function setupTabWorkOrderPohon() {
             }`}
           >
             Semua Work Order ({orders.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('area_breakdown')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'area_breakdown'
+                ? 'bg-teal-700 text-white shadow-xs'
+                : 'text-teal-800 bg-teal-50 hover:bg-teal-100'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Laporan per Area PLH ({PLH_AREAS.length} Area)</span>
           </button>
           <button
             type="button"
@@ -506,8 +591,165 @@ function setupTabWorkOrderPohon() {
         </div>
       )}
 
-      {/* Work Orders List */}
-      {filteredOrders.length === 0 ? (
+      {/* Work Orders List or Area Breakdown */}
+      {activeTab === 'area_breakdown' ? (
+        <div className="space-y-4 animate-in fade-in duration-150">
+          <div className="p-4 bg-teal-50 border border-teal-200 rounded-2xl flex items-start gap-3">
+            <FileText className="w-5 h-5 text-teal-700 shrink-0 mt-0.5" />
+            <div className="text-xs text-teal-950">
+              <h4 className="font-bold text-teal-900 text-sm">
+                Rekapitulasi & Laporan Kerja Pemeliharaan Lingkungan Hidup (PLH) per 5 Area
+              </h4>
+              <p className="mt-0.5 text-teal-800">
+                Setiap petugas PLH memegang area pohon masing-masing (Pos 1, Pos 2, Khaldun, Ex Minifarm, Kolam Renang). Anda dapat mengunduh file PDF resmi lengkap dengan tabel rincian status pohon dan tanda tangan pengesahan Kordinator/Admin FM untuk setiap area.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {PLH_AREAS.map((area) => {
+              const staff = DEFAULT_PLH_AREA_STAFF[area] || { name: 'Petugas PLH', id: '' };
+              const areaOrders = orders.filter((o) => o.area === area);
+              const totalTrees = areaOrders.length;
+              const safeCount = areaOrders.filter((o) => o.condition === 'Normal / Sehat' || o.status === 'Selesai').length;
+              const pruningCount = areaOrders.filter((o) => o.condition === 'Rimbun' && o.status !== 'Selesai').length;
+              const urgentCount = areaOrders.filter((o) => o.urgency === 'Tinggi / Bahaya' && o.status !== 'Selesai').length;
+              const vendorCount = areaOrders.filter((o) => o.handlerType === 'Vendor Luar' || o.isLargeTreatment).length;
+              const totalCost = areaOrders.reduce((sum, o) => sum + (o.vendorCost || 0), 0);
+
+              const isUserArea = activeUser.assignedArea === area;
+
+              return (
+                <div
+                  key={area}
+                  className={`bg-white rounded-2xl border transition shadow-xs flex flex-col justify-between overflow-hidden ${
+                    isUserArea
+                      ? 'border-emerald-500 ring-2 ring-emerald-300/60'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="px-2.5 py-0.5 rounded-md text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-300">
+                            {area}
+                          </span>
+                          {isUserArea && (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-600 text-white">
+                              Area Anda
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="font-bold text-slate-900 text-sm mt-1.5 flex items-center gap-1.5">
+                          <span className="text-slate-500 font-normal text-xs">Penanggung Jawab:</span>
+                          <span className="text-emerald-950 font-black">{staff.name}</span>
+                        </h3>
+                      </div>
+                    </div>
+
+                    {/* Stats Matrix */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                        <span className="text-[10px] text-slate-500 font-bold block uppercase">Total Terdata</span>
+                        <span className="font-black text-slate-900 text-base">{totalTrees} Pohon</span>
+                      </div>
+                      <div className="p-2 bg-emerald-50/70 rounded-xl border border-emerald-100">
+                        <span className="text-[10px] text-emerald-700 font-bold block uppercase">Aman / Selesai</span>
+                        <span className="font-black text-emerald-800 text-base">{safeCount}</span>
+                      </div>
+                      <div className="p-2 bg-amber-50/70 rounded-xl border border-amber-100">
+                        <span className="text-[10px] text-amber-700 font-bold block uppercase">Perlu Pruning</span>
+                        <span className="font-black text-amber-800 text-base">{pruningCount}</span>
+                      </div>
+                      <div className="p-2 bg-rose-50/70 rounded-xl border border-rose-100">
+                        <span className="text-[10px] text-rose-700 font-bold block uppercase">Urgen / Rawan</span>
+                        <span className="font-black text-rose-800 text-base">{urgentCount}</span>
+                      </div>
+                    </div>
+
+                    {/* Vendor Treatment Box */}
+                    {vendorCount > 0 && (
+                      <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 flex items-center justify-between">
+                        <div>
+                          <span className="font-bold block text-[11px]">Treatment Vendor Luar:</span>
+                          <span className="text-[10px] text-amber-800">{vendorCount} pohon dijadwalkan</span>
+                        </div>
+                        {totalCost > 0 && (
+                          <span className="font-bold text-amber-950 text-xs">
+                            Rp {totalCost.toLocaleString('id-ID')}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Trees List preview */}
+                    <div className="space-y-1 pt-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Daftar Pohon di {area}:
+                      </span>
+                      {areaOrders.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic">Belum ada work order pohon tercatat.</p>
+                      ) : (
+                        <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                          {areaOrders.map((o) => (
+                            <div
+                              key={o.id}
+                              className="text-[11px] p-1.5 bg-slate-50 rounded-lg flex items-center justify-between border border-slate-200/60"
+                            >
+                              <span className="font-semibold text-slate-800 truncate max-w-[140px]">
+                                {o.treeName}
+                              </span>
+                              <span
+                                className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${
+                                  o.status === 'Selesai'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : o.urgency === 'Tinggi / Bahaya'
+                                    ? 'bg-rose-100 text-rose-800'
+                                    : 'bg-amber-100 text-amber-800'
+                                }`}
+                              >
+                                {o.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="p-3 bg-slate-50 border-t border-slate-200/80 flex items-center justify-between gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedAreaFilter(area);
+                        setActiveTab('all');
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-bold text-[11px] transition cursor-pointer"
+                    >
+                      Filter Area Ini
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        printHtmlAsPdf(
+                          generateTreeAreaReportPdf(area, areaOrders, staff.name),
+                          `Laporan_Area_${area}`
+                        );
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Unduh Laporan Area (PDF)</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : filteredOrders.length === 0 ? (
         <div className="p-12 text-center bg-white rounded-2xl border border-dashed border-slate-300">
           <TreePine className="w-12 h-12 text-slate-300 mx-auto mb-2" />
           <h3 className="font-bold text-slate-700 text-base">Belum Ada Work Order Pohon</h3>
@@ -663,7 +905,21 @@ function setupTabWorkOrderPohon() {
                     <span className="block">{formatJakartaDisplayDate(order.date)}</span>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        printHtmlAsPdf(
+                          generateTreeWorkOrderPdf(order),
+                          `SPK_Pohon_${order.id}`
+                        )
+                      }
+                      className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition cursor-pointer flex items-center gap-1 border border-slate-300"
+                      title="Unduh Surat Perintah Kerja (SPK) Pohon format PDF"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>SPK PDF</span>
+                    </button>
                     {!isFinished && (
                       <button
                         type="button"

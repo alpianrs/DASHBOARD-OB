@@ -42,6 +42,8 @@ import {
   Upload,
   Folder,
   TreePine,
+  Printer,
+  FileText,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -75,6 +77,7 @@ import { StorageService, isTaskAssignedToUser } from '../services/storage';
 import { GOOGLE_APPS_SCRIPT_CODE, GoogleSheetsService } from '../services/googleSheets';
 import { MasjidRollingCard } from './MasjidRollingCard';
 import { TreeWorkOrderView } from './TreeWorkOrderView';
+import { generateJobBarengPdf, printHtmlAsPdf } from '../utils/pdfGenerator';
 import {
   formatGoogleDriveImageUrl,
   getGoogleDriveViewLink,
@@ -2347,9 +2350,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {job.status}
                       </span>
                     </div>
-                    <span className="text-[11px] font-bold text-emerald-700">
-                      +{totalPointsAwarded} Poin Karyawan
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          printHtmlAsPdf(
+                            generateJobBarengPdf(job),
+                            `SPK_${job.division || 'Umum'}_${job.id}`
+                          )
+                        }
+                        className="px-2.5 py-1 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-[11px] flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                        title="Cetak Surat Perintah Kerja (SPK) format PDF"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Unduh SPK (PDF)</span>
+                      </button>
+                      <span className="text-[11px] font-bold text-emerald-700">
+                        +{totalPointsAwarded} Poin
+                      </span>
+                    </div>
                   </div>
                 </div>
 
