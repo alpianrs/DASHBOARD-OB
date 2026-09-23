@@ -79,6 +79,9 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
   const isPastPreReadiness = currentHour >= 9;
   const dayOffStatus = StorageService.isDayOffToday(today);
 
+  // Akses eksklusif modul Pohon & Masjid: Hanya untuk divisi PLH (staff & kordinator) atau Admin FM
+  const isPLH = (activeUser.division === 'PLH') || (activeUser.role === 'admin');
+
   // Check if user is on Dinas Luar today (either approved or pending)
   const activeDinasToday = dinasRequests.find(
     (d) =>
@@ -814,9 +817,9 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
         </div>
       </div>
 
-      {/* PLH Specific: Masjid Rolling Schedule Card */}
-      {(activeUser.division === 'PLH' || activeUser.role === 'admin' || activeUser.role === 'kordinator') && (
-        <MasjidRollingCard />
+      {/* PLH Specific: Masjid Rolling Schedule Card - Eksklusif PLH & Kordinator PLH */}
+      {isPLH && (
+        <MasjidRollingCard activeUser={activeUser} />
       )}
 
       {/* Tabs Navigation & Quick Actions */}
@@ -864,14 +867,16 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
           </button>
         </div>
 
-        {/* Quick Access to Tree Work Orders */}
-        <button
-          onClick={() => setShowTreeModal(true)}
-          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer whitespace-nowrap"
-        >
-          <TreePine className="w-3.5 h-3.5 text-emerald-200" />
-          <span>Work Order Pohon</span>
-        </button>
+        {/* Quick Access to Tree Work Orders - Eksklusif PLH & Kordinator PLH (Tidak muncul untuk OB) */}
+        {isPLH && (
+          <button
+            onClick={() => setShowTreeModal(true)}
+            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer whitespace-nowrap"
+          >
+            <TreePine className="w-3.5 h-3.5 text-emerald-200" />
+            <span>Work Order Pohon</span>
+          </button>
+        )}
       </div>
 
       {/* TAB CONTENT: HARIAN DENGAN RE-ORDERING OTOMATIS */}
@@ -1077,8 +1082,8 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
             </div>
           </div>
 
-          {/* PLH Specific: Work Order Pohon Mingguan (Treatment Besar / Vendor Luar) Banner */}
-          {(activeUser.division === 'PLH' || activeUser.role === 'admin' || activeUser.role === 'kordinator') && (
+          {/* PLH Specific: Work Order Pohon Mingguan (Treatment Besar / Vendor Luar) Banner - Eksklusif PLH */}
+          {isPLH && (
             <div className="bg-emerald-950 text-white border border-emerald-800 rounded-2xl p-4 shadow-sm space-y-2">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2.5">
@@ -1510,8 +1515,8 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
         </div>
       )}
 
-      {/* Modal / Overlay: Tree Work Order Management View */}
-      {showTreeModal && (
+      {/* Modal / Overlay: Tree Work Order Management View - Eksklusif PLH */}
+      {showTreeModal && isPLH && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
           <div className="bg-slate-50 w-full max-w-5xl rounded-3xl p-4 sm:p-6 shadow-2xl border border-slate-300 max-h-[92vh] overflow-y-auto relative">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4 sticky top-0 bg-slate-50/90 backdrop-blur-md z-10">

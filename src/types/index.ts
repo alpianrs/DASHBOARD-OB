@@ -320,6 +320,40 @@ export interface TreeWorkOrder {
   completedAt?: string;
   completedBy?: string;
   completedByName?: string;
+  lastCheckedDate?: string; // YYYY-MM-DD tanggal terakhir dilakukan pengecekan
+  lastCheckedTime?: string; // Jam pengecekan (e.g. "08:30 WIB")
+  lastCheckedByName?: string; // Petugas PLH yang melakukan pengecekan
+  checkStatusToday?: 'Sudah Dicek Aman' | 'Perlu Penanganan' | 'Sudah Dicek' | 'Belum Dicek';
+  inspectionNotes?: string;
   syncedToSheet?: boolean;
   createdAt: string;
 }
+
+// Master Inventaris Pohon Resmi per 5 Area Tanggung Jawab PLH Lazuardi GCS
+export const PLH_DEFAULT_TREES_BY_AREA: Record<string, string[]> = {
+  'Area Pos 1': [
+    'Pohon Mangga Arumanis Depan Pos 1',
+    'Pohon Beringin & Mahoni Pintu Masuk Gerbang Pos 1',
+    'Pohon Pucuk Merah Pagar Depan Pos 1',
+  ],
+  'Area Pos 2': [
+    'Pohon Ketapang Kencana Dekat Gerbang Pos 2',
+    'Pohon Mahoni Samping Pos 2',
+    'Pohon Palem Kenari Jalur Gerbang 2',
+  ],
+  'Area Khaldun': [
+    'Pohon Flamboyan Area Lanskap Khaldun',
+    'Pohon Angsana Belakang Gedung Khaldun',
+    'Pohon Tabebuya Kuning Koridor Khaldun',
+  ],
+  'Area Ex Minifarm': [
+    'Pohon Mangga & Sengon Samping Bedengan Pembibitan',
+    'Pohon Jambu Air Citra Minifarm',
+    'Pohon Nangka Mini Area Ex Minifarm',
+  ],
+  'Area Kolam Renang': [
+    'Pohon Trembesi Rimbun Dekat Kolam Renang',
+    'Pohon Kelapa Gading Sisi Kolam Renang',
+    'Pohon Beringin Dolar Taman Kolam',
+  ],
+};

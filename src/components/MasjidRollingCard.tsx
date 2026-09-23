@@ -26,6 +26,11 @@ export const MasjidRollingCard: React.FC<MasjidRollingCardProps> = ({
   onSelectTask,
   compact = false,
 }) => {
+  // Guard eksklusif: Jika activeUser adalah staff/kordinator OB, komponen ini tidak ditampilkan
+  if (activeUser && (activeUser.division || 'OB') !== 'PLH' && activeUser.role !== 'admin') {
+    return null;
+  }
+
   const [showProjection, setShowProjection] = useState(false);
   const schedule = getMasjidRollingSchedule();
   const projection = getMasjidRollingProjection(4);

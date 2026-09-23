@@ -1260,7 +1260,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           }`}
         >
           <TreePine className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Pohon & Rolling Masjid</span>
+          <span>Pohon & Rolling Masjid (PLH)</span>
         </button>
       </div>
 
@@ -3358,7 +3358,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* TAB: WORK ORDER POHON & ROLLING PIKET MASJID */}
       {adminTab === 'pohon_masjid' && (
         <div className="space-y-5 animate-in fade-in duration-150">
-          <MasjidRollingCard />
+          <MasjidRollingCard activeUser={activeUser} />
           <TreeWorkOrderView activeUser={activeUser} />
         </div>
       )}

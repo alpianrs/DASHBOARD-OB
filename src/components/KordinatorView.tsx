@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
   Star,
@@ -105,6 +105,14 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
   const [jbUnit, setJbUnit] = useState<UnitType>('Semua Unit');
 
   const kordDivision = activeUser.division || 'OB';
+  const isPLHKordinator = kordDivision === 'PLH' || activeUser.role === 'admin';
+
+  // Guard: Jika Kordinator OB sebelumnya membuka tab plh_pohon, kembalikan ke tab monitoring
+  useEffect(() => {
+    if (!isPLHKordinator && activeKordTab === 'plh_pohon') {
+      setActiveKordTab('monitoring');
+    }
+  }, [isPLHKordinator, activeKordTab]);
 
   const [jbArea, setJbArea] = useState<string>(() => (kordDivision === 'PLH' ? 'Area Pos 1' : 'Area Sekolah'));
   const [jbTime, setJbTime] = useState<string>('13:00 - 15:30 WIB');
@@ -427,17 +435,19 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
           <span>Tugas Harian Saya</span>
         </button>
 
-        <button
-          onClick={() => setActiveKordTab('plh_pohon')}
-          className={`py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-            activeKordTab === 'plh_pohon'
-              ? 'bg-emerald-700 text-white shadow-xs font-bold'
-              : 'text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50'
-          }`}
-        >
-          <TreePine className="w-3.5 h-3.5" />
-          <span>Work Order Pohon & Masjid</span>
-        </button>
+        {isPLHKordinator && (
+          <button
+            onClick={() => setActiveKordTab('plh_pohon')}
+            className={`py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeKordTab === 'plh_pohon'
+                ? 'bg-emerald-700 text-white shadow-xs font-bold'
+                : 'text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50'
+            }`}
+          >
+            <TreePine className="w-3.5 h-3.5" />
+            <span>Work Order Pohon & Masjid</span>
+          </button>
+        )}
       </div>
 
       {/* TAB 1: LIVE MONITORING TIM */}
@@ -1513,10 +1523,10 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
         </div>
       )}
 
-      {/* TAB 5: WORK ORDER POHON & ROLLING PIKET MASJID */}
-      {activeKordTab === 'plh_pohon' && (
+      {/* TAB 5: WORK ORDER POHON & ROLLING PIKET MASJID - EKSKLUSIF KORDINATOR PLH */}
+      {activeKordTab === 'plh_pohon' && isPLHKordinator && (
         <div className="space-y-4 animate-in fade-in duration-150">
-          <MasjidRollingCard />
+          <MasjidRollingCard activeUser={activeUser} />
           <TreeWorkOrderView activeUser={activeUser} />
         </div>
       )}

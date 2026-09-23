@@ -402,12 +402,12 @@ export const generateTreeAreaReportPdf = (
         <thead>
           <tr>
             <th style="width: 4%;">No</th>
-            <th style="width: 25%;">Nama / Jenis Pohon</th>
-            <th style="width: 15%;">Kondisi</th>
-            <th style="width: 22%;">Tindakan Treatment</th>
+            <th style="width: 22%;">Nama / Jenis Pohon</th>
+            <th style="width: 13%;">Kondisi</th>
+            <th style="width: 18%;">Tindakan Treatment</th>
             <th style="width: 14%;">Pelaksana</th>
-            <th style="width: 10%;">Urgensi</th>
-            <th style="width: 10%;">Status</th>
+            <th style="width: 17%;">Pengecekan Terakhir / Laporan</th>
+            <th style="width: 12%;">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -421,23 +421,30 @@ export const generateTreeAreaReportPdf = (
               <td style="text-align: center; font-weight: 700;">${idx + 1}</td>
               <td style="font-weight: 700; color: #0f172a;">
                 ${o.treeName}
-                ${o.notes ? `<div style="font-size: 9px; color: #64748b; font-style: italic; font-weight: normal;">${o.notes}</div>` : ''}
+                ${o.notes ? `<div style="font-size: 8.5px; color: #64748b; font-style: italic; font-weight: normal; margin-top: 2px;">Catatan: ${o.notes}</div>` : ''}
               </td>
               <td>${o.condition}</td>
-              <td style="font-size: 9.5px;">${o.treatmentNeeded}</td>
+              <td style="font-size: 9px;">${o.treatmentNeeded}</td>
               <td>
                 <span class="badge ${o.handlerType === 'Vendor Luar' ? 'badge-vendor' : 'badge-internal'}">
                   ${o.handlerType}
                 </span>
-                ${o.vendorCost ? `<div style="font-size: 9px; font-weight: 700; color: #0f172a;">Rp ${o.vendorCost.toLocaleString('id-ID')}</div>` : ''}
+                ${o.vendorCost ? `<div style="font-size: 8.5px; font-weight: 700; color: #0f172a; margin-top: 2px;">Rp ${o.vendorCost.toLocaleString('id-ID')}</div>` : ''}
               </td>
               <td>
-                <span class="badge ${o.urgency === 'Tinggi / Bahaya' ? 'badge-urgent' : o.urgency === 'Sedang' ? 'badge-medium' : 'badge-low'}">
-                  ${o.urgency}
+                <div style="font-size: 9px; font-weight: 700; color: ${o.checkStatusToday === 'Sudah Dicek Aman' ? '#047857' : o.checkStatusToday === 'Perlu Penanganan' ? '#dc2626' : '#b45309'};">
+                  ${o.checkStatusToday || 'Belum Dicek'}
+                </div>
+                <div style="font-size: 8px; color: #64748b; margin-top: 1px;">
+                  ${o.lastCheckedDate ? `${formatJakartaDisplayDate(o.lastCheckedDate)} ${o.lastCheckedTime ? `(${o.lastCheckedTime})` : ''}` : 'Belum tercatat'}
+                </div>
+                ${o.lastCheckedByName ? `<div style="font-size: 8px; color: #0f172a; font-weight: 600;">Oleh: ${o.lastCheckedByName}</div>` : ''}
+                ${o.inspectionNotes ? `<div style="font-size: 7.5px; color: #475569; font-style: italic;">"${o.inspectionNotes}"</div>` : ''}
+              </td>
+              <td>
+                <span class="badge ${o.status === 'Selesai' ? 'badge-completed' : o.urgency === 'Tinggi / Bahaya' ? 'badge-urgent' : 'badge-medium'}">
+                  ${o.status}
                 </span>
-              </td>
-              <td>
-                <span class="badge badge-completed">${o.status}</span>
               </td>
             </tr>
           `

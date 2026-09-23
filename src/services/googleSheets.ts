@@ -2,12 +2,15 @@ import { StorageService } from './storage';
 import { getCachedAccessToken } from './auth';
 import {
   User,
+  UserRole,
+  UnitType,
   MasterTask,
   TaskLog,
   JobBareng,
   DinasRequest,
   PeerInspection,
   WeeklyScore,
+  TreeWorkOrder,
 } from '../types';
 import { parseInstructionSteps } from '../utils/instructionHelper';
 import { normalizeDateString, getJakartaDateString } from '../utils/dateHelper';
@@ -141,103 +144,115 @@ function saveBase64ImageToDrive(base64Str, filename) {
 function setupDatabase() {
   var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
   
-  // 1. Setup Sheet: Users (dengan kolom Password & Division)
-  var usersHeader = ["ID", "Username", "Password", "Name", "Role", "Unit", "Status", "Phone", "Division"];
+  // 1. Setup Sheet: Users (dengan kolom Division & AssignedArea)
+  var usersHeader = ["ID", "Username", "Password", "Name", "Role", "Unit", "Status", "Phone", "Division", "AssignedArea"];
   var initialUsers = [
-    ["u-admin-1", "admin", "password123", "Alpian (Admin FM)", "admin", "Pelangi Direktorat", "Aktif", "08123456789", "OB"],
-    ["u-kord-tk", "kordinator_tk", "password123", "Kordinator Unit TK", "kordinator", "TK", "Aktif", "08129876543", "OB"],
-    ["u-kord-sd", "kordinator_sd", "password123", "Kordinator Unit SD", "kordinator", "SD", "Aktif", "08129876544", "OB"],
-    ["u-kord-smp", "kordinator_smp", "password123", "Kordinator Unit SMP", "kordinator", "SMP", "Aktif", "08129876545", "OB"],
-    ["u-ob-1", "budi_tk", "password123", "Budi Santoso", "user", "TK", "Aktif", "08120000001", "OB"],
-    ["u-ob-2", "agus_sd", "password123", "Agus Setiawan", "user", "SD", "Aktif", "08120000002", "OB"],
-    ["u-ob-3", "joko_smp", "password123", "Joko Susilo", "user", "SMP", "Aktif", "08120000003", "OB"],
-    ["u-ob-4", "hendra_dir", "password123", "Hendra Wijaya", "user", "Pelangi Direktorat", "Aktif", "08120000004", "OB"],
-    ["u-ob-5", "deni_arazi", "password123", "Deni Prasetyo", "user", "Gedung Ar Razi", "Aktif", "08120000005", "OB"],
-    ["u-ob-6", "rizky_khaldun", "password123", "Rizky Firmansyah", "user", "Gedung Ibnu Khaldun", "Aktif", "08120000006", "OB"],
-    ["u-kord-plh", "kordinator_plh", "password123", "Kordinator PLH (Taman & Lingkungan)", "kordinator", "Semua Unit", "Aktif", "08129999001", "PLH"],
-    ["u-plh-1", "asep_plh", "password123", "Asep Sunandar (PLH)", "user", "TK", "Aktif", "08129999002", "PLH"],
-    ["u-plh-2", "dadang_plh", "password123", "Dadang Hidayat (PLH)", "user", "SD", "Aktif", "08129999003", "PLH"],
-    ["u-plh-3", "cecep_plh", "password123", "Cecep Supriatna (PLH)", "user", "SMP", "Aktif", "08129999004", "PLH"],
-    ["u-plh-4", "ujang_plh", "password123", "Ujang Suherman (PLH)", "user", "Pelangi Direktorat", "Aktif", "08129999005", "PLH"]
+    ["u-admin-1", "admin", "password123", "Alpian (Admin FM)", "admin", "Pelangi Direktorat", "Aktif", "08123456789", "OB", "Semua Unit"],
+    ["u-kord-tk", "kordinator_tk", "password123", "Kordinator Unit TK", "kordinator", "TK", "Aktif", "08129876543", "OB", "TK"],
+    ["u-kord-sd", "kordinator_sd", "password123", "Kordinator Unit SD", "kordinator", "SD", "Aktif", "08129876544", "OB", "SD"],
+    ["u-kord-smp", "kordinator_smp", "password123", "Kordinator Unit SMP", "kordinator", "SMP", "Aktif", "08129876545", "OB", "SMP"],
+    ["u-ob-1", "budi_tk", "password123", "Budi Santoso", "user", "TK", "Aktif", "08120000001", "OB", "TK"],
+    ["u-ob-2", "agus_sd", "password123", "Agus Setiawan", "user", "SD", "Aktif", "08120000002", "OB", "SD"],
+    ["u-ob-3", "joko_smp", "password123", "Joko Susilo", "user", "SMP", "Aktif", "08120000003", "OB", "SMP"],
+    ["u-ob-4", "hendra_dir", "password123", "Hendra Wijaya", "user", "Pelangi Direktorat", "Aktif", "08120000004", "OB", "Pelangi Direktorat"],
+    ["u-ob-5", "deni_arazi", "password123", "Deni Prasetyo", "user", "Gedung Ar Razi", "Aktif", "08120000005", "OB", "Gedung Ar Razi"],
+    ["u-ob-6", "rizky_khaldun", "password123", "Rizky Firmansyah", "user", "Gedung Ibnu Khaldun", "Aktif", "08120000006", "OB", "Gedung Ibnu Khaldun"],
+    ["u-kord-plh", "kordinator_plh", "password123", "Slamet Riyadi (Kord PLH)", "kordinator", "Semua Unit", "Aktif", "08129999001", "PLH", "Semua Area (Supervisi)"],
+    ["u-plh-01", "bambang_plh", "password123", "Bambang Irawan (PLH)", "user", "Semua Unit", "Aktif", "08129999002", "PLH", "Area Pos 1"],
+    ["u-plh-02", "surya_plh", "password123", "Surya Wijaya (PLH)", "user", "Semua Unit", "Aktif", "08129999003", "PLH", "Area Pos 2"],
+    ["u-plh-03", "kusnadi_plh", "password123", "Kusnadi (PLH)", "user", "Semua Unit", "Aktif", "08129999004", "PLH", "Area Khaldun"],
+    ["u-plh-04", "fauzi_plh", "password123", "Ahmad Fauzi (PLH)", "user", "Semua Unit", "Aktif", "08129999005", "PLH", "Area Ex Minifarm"],
+    ["u-plh-05", "darmanto_plh", "password123", "Darmanto (PLH)", "user", "Semua Unit", "Aktif", "08129999006", "PLH", "Area Kolam Renang"]
   ];
   createOrSetupSheet(ss, "Users", usersHeader, initialUsers, "#0f172a");
 
-  // 2. Setup Sheet: MasterTask (Standar Kebersihan & Pemeliharaan Lingkungan)
+  // 2. Setup Sheet: MasterTask (Standar Kebersihan Khusus Divisi OB)
   var masterTaskHeader = ["ID", "Title", "Unit", "Category", "TimingType", "Instructions", "PhotoRequired", "IsActive", "Area", "Assignee", "StandardPhotoURL", "Division"];
-  var initialMasterTasks = [
-    // Pre-Readiness Pagi (00:00 - 09:00 WIB) OB
+  var initialOBMasterTasks = [
     ["mt-001", "Pre-Readiness: Pembersihan & Sanitasi Toilet", "Semua Unit", "Harian", "pre_readiness", "Kuras & bersihkan kloset | Isi sabun cuci tangan & tisu | Pel lantai disinfektan", "YA", "AKTIF", "Toilet & Selasar", "Budi Santoso (OB)", "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80", "OB"],
     ["mt-002", "Pre-Readiness: Sapu, Pel & Kerapihan Ruang Kelas", "Semua Unit", "Harian", "pre_readiness", "Sapu bersih debu & sampah kolong meja | Pel lantai wangi | Rapikan formasi meja-kursi", "YA", "AKTIF", "Ruang Kelas", "Siti Aminah (OG)", "https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=800&q=80", "OB"],
     ["mt-003", "Pre-Readiness: Penyemprotan Disinfektan Handle Pintu & Meja Guru", "Semua Unit", "Harian", "pre_readiness", "Lap handle pintu & saklar | Bersihkan meja & kursi guru", "YA", "AKTIF", "Area Umum & Guru", "Agus Setiawan (OB)", "", "OB"],
     ["mt-004", "Pre-Readiness: Pengosongan Seluruh Tempat Sampah", "Semua Unit", "Harian", "pre_readiness", "Angkut seluruh tempat sampah kelas & selasar ke TPS | Pasang trashbag baru", "YA", "AKTIF", "Selasar & Koridor", "Ratih Purwasih (OG)", "", "OB"],
-    
-    // Anytime / Operasional Harian OB
     ["mt-005", "Pembersihan Rutin Selasar, Koridor & Tangga", "Semua Unit", "Harian", "anytime", "Sapu selasar | Pel jika ada noda atau licin | Cek kebersihan handrail tangga", "YA", "AKTIF", "Koridor & Tangga", "Semua Petugas", "https://images.unsplash.com/photo-1517502884422-41eaead166d4?auto=format&fit=crop&w=800&q=80", "OB"],
     ["mt-006", "Pengecekan Dispenser & Air Minum Galon", "Semua Unit", "Harian", "anytime", "Cek ketersediaan air galon siswa & guru | Lap baki tetesan dispenser", "TIDAK", "AKTIF", "Pantry & Koridor", "Semua Petugas", "", "OB"],
-
-    // Clock Out Sore / Penutupan OB
     ["mt-007", "Clock Out: Penguncian Pintu, Jendela & Matikan AC/Lampu", "Semua Unit", "Harian", "clock_out", "Pastikan seluruh AC & lampu mati | Kunci jendela & pintu ruangan", "YA", "AKTIF", "Seluruh Ruangan Unit", "Hendra Wijaya (OB)", "", "OB"],
     ["mt-008", "Clock Out: Pembersihan Akhir Toilet & Wastafel", "Semua Unit", "Harian", "clock_out", "Keringkan lantai | Matikan keran air | Pastikan tidak ada air terbuang", "YA", "AKTIF", "Toilet Unit", "Maya Indah (OG)", "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80", "OB"],
     ["mt-009", "Clock Out: Pengangkutan Sampah Sore ke TPS Akhir", "Semua Unit", "Harian", "clock_out", "Pastikan tidak ada sisa sampah organik di dalam gedung", "YA", "AKTIF", "TPS Luar", "Dodi Firmansyah (OB)", "", "OB"],
-
-    // Job Bareng OB
-    ["mt-010", "General Cleaning Lapangan & Area Parkir (Job Bareng)", "Semua Unit", "Job Bareng", "anytime", "Pembersihan bersama tim FM seluruh unit | Sapu daun gugur | Semprot saluran drainase", "YA", "AKTIF", "Lapangan & Parkir", "Semua Petugas", "", "OB"],
-    ["mt-011", "Cuci Toren & Filter Air Utama (Job Bareng)", "Semua Unit", "Job Bareng", "anytime", "Pembersihan toren air bersama tim teknik & FM", "YA", "AKTIF", "Rooftop Toren", "Semua Petugas", "", "OB"],
-
-    // Mingguan & Bulanan OB
     ["mt-012", "Pembersihan Kaca Jendela Luar & Dalam", "Semua Unit", "Mingguan", "anytime", "Gunakan wiper & pembersih kaca | Lap bingkai kusen", "YA", "AKTIF", "Jendela Gedung", "Ilham Saputra (OB)", "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80", "OB"],
     ["mt-013", "Deep Cleaning Saluran Air & Drainase Selokan", "Semua Unit", "Mingguan", "anytime", "Angkat endapan lumpur | Pastikan aliran air lancar bebas jentik", "YA", "AKTIF", "Saluran Selokan", "Fajar Ramadhan (OB)", "", "OB"],
-    ["mt-014", "Pembersihan Sawang Langit-langit & Plafon Tinggi", "Semua Unit", "Bulanan", "anytime", "Gunakan stik panjang sawang | Bersihkan exhaust fan", "YA", "AKTIF", "Plafon & Exhaust", "Semua Petugas", "", "OB"],
-
-    // PLH Tasks (Pemeliharaan Lingkungan Hidup & Taman)
-    ["mt-plh-01", "Pre-Readiness: Penyiraman Seluruh Area Taman & Tanaman Pot", "Semua Unit", "Harian", "pre_readiness", "Siram tanaman merata pagi hari | Cek kelembapan media tanam", "YA", "AKTIF", "Area Taman & Pot", "Semua Petugas", "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80", "PLH"],
-    ["mt-plh-02", "Pre-Readiness: Pembersihan Daun Kering & Rumput Liar Area Depan", "Semua Unit", "Harian", "pre_readiness", "Sapu guguran daun | Cabut gulma pengganggu | Angkut ke komposter", "YA", "AKTIF", "Taman Depan & Gerbang", "Semua Petugas", "", "PLH"],
-    ["mt-plh-03", "Pembersihan Kolam Ikan & Filter Sirkulasi Air", "Semua Unit", "Harian", "anytime", "Bersihkan serasah di permukaan kolam | Cek fungsi pompa dan filter air", "YA", "AKTIF", "Kolam Ikan & Taman", "Semua Petugas", "", "PLH"],
-    ["mt-plh-04", "Clock Out: Perapihan Selang Air, Pompa & Peralatan Berkebun", "Semua Unit", "Harian", "clock_out", "Gulung selang air | Bersihkan gunting dahan & cangkul | Kunci gudang alat PLH", "YA", "AKTIF", "Gudang PLH & Taman", "Semua Petugas", "", "PLH"]
+    ["mt-014", "Pembersihan Sawang Langit-langit & Plafon Tinggi", "Semua Unit", "Bulanan", "anytime", "Gunakan stik panjang sawang | Bersihkan exhaust fan", "YA", "AKTIF", "Plafon & Exhaust", "Semua Petugas", "", "OB"]
   ];
-  createOrSetupSheet(ss, "MasterTask", masterTaskHeader, initialMasterTasks, "#1e3a8a");
+  createOrSetupSheet(ss, "MasterTask", masterTaskHeader, initialOBMasterTasks, "#1e3a8a");
 
-  // 3. Setup Sheet: TaskLogs (Mencatat Keterlambatan, Alasan, Status Laporan, Foto Drive, dan Divisi)
+  // 3. Setup Sheet: MasterTask_PLH (Standar Pemeliharaan Khusus Divisi PLH / Lingkungan & Taman)
+  var initialPLHMasterTasks = [
+    ["mt-plh-01", "Pre-Readiness: Penyiraman Seluruh Area Taman & Tanaman Pot", "Semua Unit", "Harian", "pre_readiness", "Siram tanaman merata pagi hari | Cek kelembapan media tanam", "YA", "AKTIF", "Area Taman & Pot", "Semua Petugas (PLH)", "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80", "PLH"],
+    ["mt-plh-02", "Pre-Readiness: Pembersihan Serasah Daun & Gulma Area Pos 1 - 2", "Semua Unit", "Harian", "pre_readiness", "Sapu guguran daun kering | Cabut gulma pengganggu | Angkut ke komposter organik", "YA", "AKTIF", "Area Pos 1 & Pos 2", "Semua Petugas (PLH)", "", "PLH"],
+    ["mt-plh-03", "Pengecekan Fisik & Kesehatan Pohon Tiap Wilayah Penugasan", "Semua Unit", "Harian", "anytime", "Cek dahan rimbun dekat kabel listrik | Deteksi dahan lapuk/hama benalu | Laporkan di modul pohon", "YA", "AKTIF", "5 Wilayah PLH", "Semua Petugas (PLH)", "https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=800&q=80", "PLH"],
+    ["mt-plh-04", "Pembersihan Kolam Ikan & Sirkulasi Filter Air", "Semua Unit", "Harian", "anytime", "Bersihkan serasah di permukaan kolam | Cek fungsi pompa dan filter sirkulasi air", "YA", "AKTIF", "Kolam Ikan & Lanskap", "Darmanto (PLH)", "", "PLH"],
+    ["mt-plh-05", "Pemotongan Rumput & Kerapihan Koridor Luar Khaldun / Minifarm", "Semua Unit", "Mingguan", "anytime", "Gunakan mesin potong rumput | Rapikan tepian jalan setapak | Buang sisa pangkasan ke TPS", "YA", "AKTIF", "Khaldun & Ex Minifarm", "Semua Petugas (PLH)", "", "PLH"],
+    ["mt-plh-06", "Clock Out: Perapihan Selang Air, Mesin Rumput & Gudang Alat PLH", "Semua Unit", "Harian", "clock_out", "Gulung selang air | Bersihkan gunting dahan & cangkul | Kunci pintu gudang alat PLH", "YA", "AKTIF", "Gudang Alat PLH", "Semua Petugas (PLH)", "", "PLH"]
+  ];
+  createOrSetupSheet(ss, "MasterTask_PLH", masterTaskHeader, initialPLHMasterTasks, "#065f46");
+
+  // 4. Setup Sheet: TaskLogs (Log Harian Divisi OB)
   var taskLogsHeader = [
     "ID", "Timestamp", "Date", "UserID", "UserName", "Unit", 
     "TaskTitle", "Category", "TimingType", "Status", "IsLate", 
     "LateReason", "LateReportStatus", "PhotoURL", "Notes", "KordinatorScore", "KordinatorNotes", 
     "PeerInspector", "PeerStatus", "PeerNotes", "Division"
   ];
-  createOrSetupSheet(ss, "TaskLogs", taskLogsHeader, [], "#065f46");
+  createOrSetupSheet(ss, "TaskLogs", taskLogsHeader, [], "#1e293b");
 
-  // 4. Setup Sheet: JobBareng (Tugas Insidental)
+  // 5. Setup Sheet: TaskLogs_PLH (Log Harian Divisi PLH)
+  createOrSetupSheet(ss, "TaskLogs_PLH", taskLogsHeader, [], "#047857");
+
+  // 6. Setup Sheet: JobBareng (Tugas Bersama / Insidental OB)
   var jobBarengHeader = ["ID", "Title", "Description", "Date", "TargetUnit", "TargetArea", "Status", "Participants", "CompletedUsers", "CreatedAt", "AssignmentType", "AssignedUsers", "Division"];
-  var initialJobBareng = [
-    ["jb-001", "Kerja Bakti Lapangan & Area Parkir Utama", "Pembersihan massal menyambut acara sekolah. Seluruh OB/OG bergabung.", Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd"), "Semua Unit", "Lapangan Utama", "Aktif", "u-ob-1, u-ob-2, u-ob-3", "", new Date().toISOString(), "all", "Semua Petugas", "OB"]
+  var initialOBJobBareng = [
+    ["jb-001", "Kerja Bakti Lapangan & Area Parkir Utama", "Pembersihan massal menyambut acara sekolah bersama seluruh staf OB.", Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd"), "Semua Unit", "Lapangan Utama", "Aktif", "u-ob-1, u-ob-2, u-ob-3", "", new Date().toISOString(), "all", "Semua Petugas OB", "OB"]
   ];
-  createOrSetupSheet(ss, "JobBareng", jobBarengHeader, initialJobBareng, "#3730a3");
+  createOrSetupSheet(ss, "JobBareng", jobBarengHeader, initialOBJobBareng, "#3730a3");
 
-  // 5. Setup Sheet: DinasRequests
-  var dinasHeader = ["ID", "Date", "UserID", "UserName", "Unit", "Reason", "Destination", "Status", "ApprovedBy", "ApprovedAt", "CreatedAt"];
-  createOrSetupSheet(ss, "DinasRequests", dinasHeader, [], "#92400e");
+  // 7. Setup Sheet: JobBareng_PLH (Kerja Bakti & Tanggap Insidental PLH: Pohon / Taman)
+  var initialPLHJobBareng = [
+    ["jb-plh-001", "Kerja Bakti Penanganan Dahan Rimbun & Serasah Daun Pasca Hujan Lebat", "Pembersihan ranting gugur dan pemangkasan dahan rimbun di sepanjang jalur gerbang utama.", Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd"), "Semua Unit", "Area Jalur Gerbang 1 & 2", "Aktif", "u-plh-01, u-plh-02, u-plh-03, u-plh-04, u-plh-05", "", new Date().toISOString(), "all", "Semua Petugas PLH", "PLH"]
+  ];
+  createOrSetupSheet(ss, "JobBareng_PLH", jobBarengHeader, initialPLHJobBareng, "#15803d");
 
-  // 6. Setup Sheet: PeerInspections (Inspeksi Silang Tim / Checklist Tanpa Nilai Angka)
-  var peerHeader = ["ID", "Date", "InspectorID", "InspectorName", "InspectorUnit", "InspectedUserID", "InspectedUserName", "InspectedUnit", "Area", "Status", "Notes", "PhotoURL", "ChecklistJSON", "Timestamp"];
-  createOrSetupSheet(ss, "PeerInspections", peerHeader, [], "#831843");
-
-  // 7. Setup Sheet: WeeklyScores (Penilaian Kordinator & Admin Skala 1 - 4 Berdasarkan Tanggal Hari Sabtu)
+  // 8. Setup Sheet: WeeklyScores (Nilai Mingguan OB)
   var weeklyHeader = ["ID", "UserID", "UserName", "Unit", "SaturdayDate", "Year", "DateRange", "Score", "KordinatorName", "CategoryScoresJSON", "Notes", "Timestamp"];
-  createOrSetupSheet(ss, "WeeklyScores", weeklyHeader, [], "#1f2937");
+  createOrSetupSheet(ss, "WeeklyScores", weeklyHeader, [], "#334155");
 
-  // 8. Setup Sheet: WorkOrder_Pohon (Work Order Khusus Pohon & Penanganan Treatment Vendor Luar)
+  // 9. Setup Sheet: WeeklyScores_PLH (Nilai Mingguan Staf PLH per Area)
+  createOrSetupSheet(ss, "WeeklyScores_PLH", weeklyHeader, [], "#166534");
+
+  // 10. Setup Sheet: WorkOrder_Pohon (Inventaris Pohon & Laporan Cek Harian per 5 Wilayah)
   var treeWorkOrdersHeader = [
     "ID", "Date", "Area", "TreeName", "Condition", "TreatmentNeeded",
     "HandlerType", "VendorName", "VendorCost", "ScheduledWeek", "Urgency",
     "Status", "Notes", "PhotoBeforeURL", "PhotoAfterURL", "ReportedBy", "ReportedByName",
+    "LastCheckedDate", "LastCheckedTime", "LastCheckedByName", "CheckStatusToday", "InspectionNotes",
     "CompletedAt", "CompletedByName", "CreatedAt"
   ];
   var initialTreeOrders = [
-    ["two-2026-001", "2026-09-21", "Area Kolam Renang", "Pohon Trembesi Rimbun Dekat Kolam", "Rimbun", "Penebangan / Topping Pohon Tinggi (Vendor Luar)", "Vendor Luar", "CV Duta Hijau Pertamanan", 2500000, "Minggu ke-4 September 2026", "Tinggi / Bahaya", "Dijadwalkan", "Pohon sangat rimbun tinggi ±12 meter, dahan menyentuh kabel listrik PLN.", "https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=800&q=80", "", "u-plh-01", "Bambang Irawan (PLH)", "", "", new Date().toISOString()]
+    ["two-2026-001", "2026-09-22", "Area Kolam Renang", "Pohon Trembesi Rimbun Dekat Kolam Renang", "Rimbun", "Penebangan / Topping Pohon Tinggi (Vendor Luar)", "Vendor Luar", "CV Duta Hijau Pertamanan", 2500000, "Minggu ke-4 September 2026", "Tinggi / Bahaya", "Dijadwalkan", "Dahan atas menjuntai ke kabel PLN dan atap tribun.", "https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=800&q=80", "", "u-plh-05", "Darmanto (PLH)", "2026-09-22", "08:15 WIB", "Darmanto (PLH)", "Sudah Dicek", "Pengecekan pagi: dahan tetap stabil.", "", "", new Date().toISOString()],
+    ["two-2026-004", "2026-09-22", "Area Pos 1", "Pohon Beringin & Mahoni Pintu Masuk Gerbang Pos 1", "Rimbun", "Penjarangan Kanopi Rimbun", "Internal PLH", "", 0, "Minggu ke-4 September 2026", "Sedang", "Perlu Penanganan", "Dahan rimbun condong ke jalur drop-off.", "https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80", "", "u-plh-01", "Bambang Irawan (PLH)", "2026-09-22", "07:30 WIB", "Bambang Irawan (PLH)", "Sudah Dicek", "Pengecekan pagi: dahan lebat mulai sentuh tiang lampu.", "", "", new Date().toISOString()],
+    ["two-2026-002", "2026-09-22", "Area Pos 2", "Pohon Ketapang Kencana Dekat Gerbang Pos 2", "Rimbun", "Penjarangan Kanopi Rimbun", "Internal PLH", "", 0, "Minggu ke-4 September 2026", "Sedang", "Sedang Dikerjakan", "Kanopi daun lebat tutupi lampu malam Pos 2.", "https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=800&q=80", "", "u-plh-02", "Surya Wijaya (PLH)", "2026-09-22", "08:10 WIB", "Surya Wijaya (PLH)", "Sudah Dicek", "Proses pemangkasan berjalan.", "", "", new Date().toISOString()],
+    ["two-2026-003", "2026-09-20", "Area Khaldun", "Pohon Flamboyan Area Lanskap Khaldun", "Dahan Kering / Lapuk", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Sedang", "Selesai", "3 dahan kering dipangkas rapi.", "https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=800&q=80", "", "u-plh-03", "Kusnadi (PLH)", "2026-09-22", "07:50 WIB", "Kusnadi (PLH)", "Sudah Dicek", "Bekas pangkasan mengering bagus.", "2026-09-20T14:30:00.000Z", "Kusnadi (PLH)", new Date().toISOString()],
+    ["two-2026-005", "2026-09-22", "Area Ex Minifarm", "Pohon Mangga & Sengon Samping Bedengan Pembibitan", "Terserang Hama / Benalu", "Pemberian Nutrisi / Obat Hama Batang", "Internal PLH", "", 0, "", "Sedang", "Sedang Dikerjakan", "Benalu dahan utama dan rayap sengon.", "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=800&q=80", "", "u-plh-04", "Ahmad Fauzi (PLH)", "2026-09-22", "08:00 WIB", "Ahmad Fauzi (PLH)", "Sudah Dicek", "Benalu dicabut 80%, semprot organik sore.", "", "", new Date().toISOString()]
   ];
-  createOrSetupSheet(ss, "WorkOrder_Pohon", treeWorkOrdersHeader, initialTreeOrders, "#15803d");
+  createOrSetupSheet(ss, "WorkOrder_Pohon", treeWorkOrdersHeader, initialTreeOrders, "#14532d");
 
-  return { success: true, message: "Database Lazuardi FM (termasuk WorkOrder_Pohon) berhasil disetup otomatis!" };
+  // 11. Setup Sheet: DinasRequests
+  var dinasHeader = ["ID", "Date", "UserID", "UserName", "Unit", "Reason", "Destination", "Status", "ApprovedBy", "ApprovedAt", "CreatedAt"];
+  createOrSetupSheet(ss, "DinasRequests", dinasHeader, [], "#92400e");
+
+  // 12. Setup Sheet: PeerInspections
+  var peerHeader = ["ID", "Date", "InspectorID", "InspectorName", "InspectorUnit", "InspectedUserID", "InspectedUserName", "InspectedUnit", "Area", "Status", "Notes", "PhotoURL", "ChecklistJSON", "Timestamp"];
+  createOrSetupSheet(ss, "PeerInspections", peerHeader, [], "#831843");
+
+  return { success: true, message: "Database Lazuardi FM (Sheet Khusus OB & PLH Terpisah + WorkOrder_Pohon) berhasil disetup otomatis!" };
 }
 
 // Helper: Buat sheet dengan format profesional jika belum ada
@@ -271,7 +286,7 @@ function createOrSetupSheet(ss, sheetName, headers, seedRows, headerColor) {
 
 /**
  * Web App GET Endpoint:
- * Mengambil data database secara cepat & ringan (dengan limit baris riwayat default 150).
+ * Mengambil data database secara cepat & ringan dari Sheet OB & PLH terpisah.
  */
 function doGet(e) {
   try {
@@ -293,11 +308,16 @@ function doGet(e) {
     var result = {
       users: readSheet(ss, "Users", 0, true),
       masterTasks: readSheet(ss, "MasterTask", 0, true),
+      masterTasks_plh: readSheet(ss, "MasterTask_PLH", 0, true),
       taskLogs: readSheet(ss, "TaskLogs", limit, fetchAll),
+      taskLogs_plh: readSheet(ss, "TaskLogs_PLH", limit, fetchAll),
       jobBareng: readSheet(ss, "JobBareng", 0, true),
+      jobBareng_plh: readSheet(ss, "JobBareng_PLH", 0, true),
+      weeklyScores: readSheet(ss, "WeeklyScores", 100, fetchAll),
+      weeklyScores_plh: readSheet(ss, "WeeklyScores_PLH", 100, fetchAll),
+      workOrderPohon: readSheet(ss, "WorkOrder_Pohon", 0, true),
       dinasRequests: readSheet(ss, "DinasRequests", 0, true),
       peerInspections: readSheet(ss, "PeerInspections", 100, fetchAll),
-      weeklyScores: readSheet(ss, "WeeklyScores", 100, fetchAll),
       timestamp: new Date().toISOString()
     };
 
@@ -309,7 +329,7 @@ function doGet(e) {
 
 /**
  * Web App POST Endpoint:
- * Menerima real-time log task baru, update targeted per-sheet, upload foto, atau batch update dengan ScriptLock.
+ * Menerima real-time log task baru (diarahkan ke TaskLogs atau TaskLogs_PLH sesuai divisi).
  */
 function doPost(e) {
   var lock = LockService.getScriptLock();
@@ -324,41 +344,67 @@ function doPost(e) {
     var rawContents = (e && e.postData && e.postData.contents) ? e.postData.contents : "{}";
     var payload = JSON.parse(rawContents);
 
-    // 0. Targeted sheet updates (Super ringan & cepat tanpa kirim seluruh database)
+    // 0. Targeted sheet updates
     if (payload.action === "saveUsers" && payload.users) {
       writeSheet(ss, "Users", payload.users);
       return jsonOutput({ success: true, message: "Data Users berhasil diperbarui!" });
     }
     if (payload.action === "saveMasterTasks" && payload.masterTasks) {
       writeSheet(ss, "MasterTask", payload.masterTasks);
-      return jsonOutput({ success: true, message: "MasterTask berhasil diperbarui!" });
+      return jsonOutput({ success: true, message: "MasterTask (OB) berhasil diperbarui!" });
+    }
+    if (payload.action === "saveMasterTasks_PLH" && payload.masterTasks_plh) {
+      writeSheet(ss, "MasterTask_PLH", payload.masterTasks_plh);
+      return jsonOutput({ success: true, message: "MasterTask_PLH berhasil diperbarui!" });
     }
     if (payload.action === "saveJobBareng" && payload.jobBareng) {
       writeSheet(ss, "JobBareng", payload.jobBareng);
-      return jsonOutput({ success: true, message: "JobBareng berhasil diperbarui!" });
+      return jsonOutput({ success: true, message: "JobBareng (OB) berhasil diperbarui!" });
+    }
+    if (payload.action === "saveJobBareng_PLH" && payload.jobBareng_plh) {
+      writeSheet(ss, "JobBareng_PLH", payload.jobBareng_plh);
+      return jsonOutput({ success: true, message: "JobBareng_PLH berhasil diperbarui!" });
+    }
+    if (payload.action === "saveWeeklyScores" && payload.weeklyScores) {
+      writeSheet(ss, "WeeklyScores", payload.weeklyScores);
+      return jsonOutput({ success: true, message: "WeeklyScores (OB) berhasil diperbarui!" });
+    }
+    if (payload.action === "saveWeeklyScores_PLH" && payload.weeklyScores_plh) {
+      writeSheet(ss, "WeeklyScores_PLH", payload.weeklyScores_plh);
+      return jsonOutput({ success: true, message: "WeeklyScores_PLH berhasil diperbarui!" });
+    }
+    if (payload.action === "saveWorkOrders" && payload.workOrders) {
+      writeSheet(ss, "WorkOrder_Pohon", payload.workOrders);
+      return jsonOutput({ success: true, message: "WorkOrder_Pohon berhasil diperbarui!" });
     }
     if (payload.action === "saveDinas" && payload.dinasRequests) {
       writeSheet(ss, "DinasRequests", payload.dinasRequests);
       return jsonOutput({ success: true, message: "DinasRequests berhasil diperbarui!" });
     }
-    if (payload.action === "saveWeeklyScores" && payload.weeklyScores) {
-      writeSheet(ss, "WeeklyScores", payload.weeklyScores);
-      return jsonOutput({ success: true, message: "WeeklyScores berhasil diperbarui!" });
-    }
 
-    // 1. Single Task Log Real-time Append / Upsert (Scan mundur 80 baris terakhir untuk instan match)
+    // 1. Single Task Log Real-time Append / Upsert (Rute otomatis ke TaskLogs_PLH vs TaskLogs)
     if (payload.action === "logTask" && payload.logRow) {
-      var sheet = ss.getSheetByName("TaskLogs");
-      if (!sheet) {
-        setupDatabase();
-        sheet = ss.getSheetByName("TaskLogs");
+      var isPlh = false;
+      if (payload.division === "PLH" || payload.division === "plh") {
+        isPlh = true;
+      } else if (payload.logRow.length > 20 && String(payload.logRow[20] || "").toUpperCase() === "PLH") {
+        isPlh = true;
+      } else if (String(payload.logRow[4] || "").indexOf("(PLH)") > -1 || String(payload.logRow[3] || "").indexOf("plh") > -1) {
+        isPlh = true;
       }
 
-      // Check PhotoURL (index 13 in 20-col format, or index 12 if legacy)
+      var targetSheetName = isPlh ? "TaskLogs_PLH" : "TaskLogs";
+      var sheet = ss.getSheetByName(targetSheetName);
+      if (!sheet) {
+        setupDatabase();
+        sheet = ss.getSheetByName(targetSheetName);
+      }
+
+      // Check PhotoURL
       var photoIdx = payload.logRow.length >= 20 ? 13 : 12;
       if (payload.logRow[photoIdx] && typeof payload.logRow[photoIdx] === "string" && (payload.logRow[photoIdx].indexOf("data:image") === 0 || payload.logRow[photoIdx].length > 500)) {
         var staffName = (payload.logRow[4] || "staff").toString().replace(/\s+/g, "_");
-        var fn = "bukti_" + staffName + "_" + (new Date().getTime()) + ".jpg";
+        var fn = "bukti_" + (isPlh ? "PLH_" : "OB_") + staffName + "_" + (new Date().getTime()) + ".jpg";
         payload.logRow[photoIdx] = saveBase64ImageToDrive(payload.logRow[photoIdx], fn);
       }
 
@@ -366,7 +412,6 @@ function doPost(e) {
       var existingRowIndex = -1;
 
       if (lastRow > 1) {
-        // Fast backwards scan in the bottom 100 rows
         var scanCount = Math.min(100, lastRow - 1);
         var scanStart = Math.max(2, lastRow - scanCount + 1);
         var data = sheet.getRange(scanStart, 1, scanCount, Math.min(sheet.getLastColumn(), 10)).getValues();
@@ -396,12 +441,13 @@ function doPost(e) {
 
       return jsonOutput({ 
         success: true, 
-        message: "Task log & alasan keterlambatan tersimpan di Google Sheet!", 
+        message: "Log tersimpan di sheet " + targetSheetName + "!", 
+        sheetTarget: targetSheetName,
         photoUrl: payload.logRow[photoIdx] 
       });
     }
 
-    // 2. Single Peer Inspection Real-time Append / Upsert
+    // 2. Single Peer Inspection Real-time
     if (payload.action === "logPeerInspection" && payload.inspectionRow) {
       var pSheet = ss.getSheetByName("PeerInspections");
       if (!pSheet) {
@@ -409,7 +455,7 @@ function doPost(e) {
         pSheet = ss.getSheetByName("PeerInspections");
       }
 
-      var photoColIdx = 11; // Index 11 (Kolom L / PhotoURL)
+      var photoColIdx = 11;
       if (payload.inspectionRow[photoColIdx] && typeof payload.inspectionRow[photoColIdx] === "string" && (payload.inspectionRow[photoColIdx].indexOf("data:image") === 0 || payload.inspectionRow[photoColIdx].length > 500)) {
         var inspectorName = (payload.inspectionRow[3] || "inspector").toString().replace(/\s+/g, "_");
         var pfn = "inspeksi_" + inspectorName + "_" + (new Date().getTime()) + ".jpg";
@@ -470,18 +516,28 @@ function doPost(e) {
       return jsonOutput(setupResult);
     }
 
-    // 5. Batch Sync Full Data (Fallback)
+    // 5. Batch Sync Full Data (Mendukung Sheet OB dan Sheet PLH Terpisah)
     if (payload.users && payload.users.length) writeSheet(ss, "Users", payload.users);
+    
+    // OB Sheets
     if (payload.masterTasks && payload.masterTasks.length) writeSheet(ss, "MasterTask", payload.masterTasks);
     if (payload.taskLogs && payload.taskLogs.length) writeSheet(ss, "TaskLogs", payload.taskLogs);
     if (payload.jobBareng && payload.jobBareng.length) writeSheet(ss, "JobBareng", payload.jobBareng);
+    if (payload.weeklyScores && payload.weeklyScores.length) writeSheet(ss, "WeeklyScores", payload.weeklyScores);
+    
+    // PLH Sheets
+    if (payload.masterTasks_plh && payload.masterTasks_plh.length) writeSheet(ss, "MasterTask_PLH", payload.masterTasks_plh);
+    if (payload.taskLogs_plh && payload.taskLogs_plh.length) writeSheet(ss, "TaskLogs_PLH", payload.taskLogs_plh);
+    if (payload.jobBareng_plh && payload.jobBareng_plh.length) writeSheet(ss, "JobBareng_PLH", payload.jobBareng_plh);
+    if (payload.weeklyScores_plh && payload.weeklyScores_plh.length) writeSheet(ss, "WeeklyScores_PLH", payload.weeklyScores_plh);
+    if (payload.workOrderPohon && payload.workOrderPohon.length) writeSheet(ss, "WorkOrder_Pohon", payload.workOrderPohon);
+
     if (payload.dinasRequests && payload.dinasRequests.length) writeSheet(ss, "DinasRequests", payload.dinasRequests);
     if (payload.peerInspections && payload.peerInspections.length) writeSheet(ss, "PeerInspections", payload.peerInspections);
-    if (payload.weeklyScores && payload.weeklyScores.length) writeSheet(ss, "WeeklyScores", payload.weeklyScores);
 
     return jsonOutput({ 
       success: true, 
-      message: "Sinkronisasi 2 arah berhasil diperbarui di Google Sheet!", 
+      message: "Sinkronisasi 2 arah berhasil diperbarui di Google Sheet (OB & PLH terpisah)!", 
       timestamp: new Date().toISOString() 
     });
   } catch (err) {
@@ -1436,10 +1492,10 @@ export const GoogleSheetsService = {
     const syncConfig = StorageService.getSyncConfig();
     const now = new Date().toISOString();
 
-    // 1. Prepare Users values (Include Password column for Google Sheet direct management)
+    // 1. Prepare Users values (Include Password & AssignedArea column for direct sheet management)
     const users = StorageService.getUsers();
     const userRows = [
-      ['ID', 'Username', 'Password', 'Name', 'Role', 'Unit', 'Status', 'Phone', 'Division'],
+      ['ID', 'Username', 'Password', 'Name', 'Role', 'Unit', 'Status', 'Phone', 'Division', 'AssignedArea'],
       ...users.map((u) => [
         u.id,
         u.username,
@@ -1450,145 +1506,209 @@ export const GoogleSheetsService = {
         u.status,
         u.phone || '',
         u.division || 'OB',
+        u.assignedArea || (u.division === 'PLH' ? 'Area Lingkungan' : 'Area Unit'),
       ]),
     ];
 
-    // 2. Prepare MasterTask values
-    const tasks = StorageService.getMasterTasks();
-    const taskRows = [
-      ['ID', 'Title', 'Unit', 'Category', 'TimingType', 'Instructions', 'PhotoRequired', 'IsActive', 'Area', 'Assignee', 'StandardPhotoURL', 'Division'],
-      ...tasks.map((t) => [
-        t.id,
-        t.title,
-        t.unit,
-        t.category,
-        t.timingType,
-        t.instructions.join(' | '),
-        t.photoRequired ? 'YA' : 'TIDAK',
-        t.isActive ? 'AKTIF' : 'NONAKTIF',
-        t.area || '',
-        t.assignee || 'Semua Petugas',
-        t.standardPhotoUrl || '',
-        t.division || 'OB',
+    // 2. Prepare MasterTask values (Split OB and PLH into separate sheets)
+    const allTasks = StorageService.getMasterTasks();
+    const mapTaskRow = (t: MasterTask) => [
+      t.id,
+      t.title,
+      t.unit,
+      t.category,
+      t.timingType,
+      t.instructions.join(' | '),
+      t.photoRequired ? 'YA' : 'TIDAK',
+      t.isActive ? 'AKTIF' : 'NONAKTIF',
+      t.area || '',
+      t.assignee || 'Semua Petugas',
+      t.standardPhotoUrl || '',
+      t.division || 'OB',
+    ];
+
+    const obTasks = allTasks.filter((t) => t.division !== 'PLH');
+    const plhTasks = allTasks.filter((t) => t.division === 'PLH');
+
+    const taskHeader = ['ID', 'Title', 'Unit', 'Category', 'TimingType', 'Instructions', 'PhotoRequired', 'IsActive', 'Area', 'Assignee', 'StandardPhotoURL', 'Division'];
+    const obTaskRows = [taskHeader, ...obTasks.map(mapTaskRow)];
+    const plhTaskRows = [taskHeader, ...plhTasks.map(mapTaskRow)];
+
+    // 3. Prepare TaskLogs values (Split OB and PLH into separate sheets)
+    const allLogs = StorageService.getTaskLogs();
+    const mapLogRow = (l: TaskLog) => {
+      const isLate = l.isLate || l.status === 'Terlambat';
+      const hasReason = Boolean(l.lateReason && l.lateReason.trim().length > 0);
+      const lateReportStatus = isLate
+        ? hasReason
+          ? 'SUDAH LAPOR ALASAN'
+          : 'BELUM LAPOR ALASAN'
+        : l.status === 'Dinas Luar'
+        ? 'DINAS LUAR'
+        : 'TEPAT WAKTU';
+      const logTaskDisplay = l.taskId ? `[${l.taskId}] ${l.taskTitle || ''}` : (l.taskTitle || '');
+
+      let safePhotoUrl = l.photoUrl || '';
+      if (safePhotoUrl === '[Bukti Foto Tersimpan di Perangkat]') {
+        safePhotoUrl = l.driveFileId ? `https://drive.google.com/file/d/${l.driveFileId}/view` : '';
+      } else if (safePhotoUrl.startsWith('data:') && l.driveFileId) {
+        safePhotoUrl = `https://drive.google.com/file/d/${l.driveFileId}/view`;
+      }
+
+      return [
+        l.id,
+        l.timestamp,
+        l.date,
+        l.userId,
+        l.userName,
+        l.unit,
+        logTaskDisplay,
+        l.category,
+        l.timingType,
+        l.status,
+        isLate ? 'YA' : 'TIDAK',
+        l.lateReason || '',
+        lateReportStatus,
+        safePhotoUrl,
+        l.notes || '',
+        l.kordinatorScore || '',
+        l.kordinatorNotes || '',
+        l.peerInspectorName || '',
+        (l as any).peerStatus || l.peerScore || '',
+        l.peerNotes || '',
+        l.division || 'OB',
+      ];
+    };
+
+    const logHeader = [
+      'ID', 'Timestamp', 'Date', 'UserID', 'UserName', 'Unit',
+      'TaskTitle', 'Category', 'TimingType', 'Status', 'IsLate',
+      'LateReason', 'LateReportStatus', 'PhotoURL', 'Notes', 'KordinatorScore', 'KordinatorNotes',
+      'PeerInspector', 'PeerStatus', 'PeerNotes', 'Division',
+    ];
+
+    const obLogs = allLogs.filter((l) => l.division !== 'PLH');
+    const plhLogs = allLogs.filter((l) => l.division === 'PLH');
+    const obLogRows = [logHeader, ...obLogs.map(mapLogRow)];
+    const plhLogRows = [logHeader, ...plhLogs.map(mapLogRow)];
+
+    // 4. Prepare JobBareng values (Split OB and PLH into separate sheets)
+    const allJobs = StorageService.getJobBareng();
+    const mapJobRow = (j: JobBareng) => {
+      const participantDisplay = (j.participantNames && j.participantNames.length > 0)
+        ? j.participantNames.join(', ')
+        : j.participantIds.map((id) => {
+            const u = users.find((user) => user.id === id || user.username === id);
+            return u ? u.name : id;
+          }).join(', ');
+
+      const completedDisplay = (j.completedUserNames && j.completedUserNames.length > 0)
+        ? j.completedUserNames.join(', ')
+        : j.completedUserIds.map((id) => {
+            const u = users.find((user) => user.id === id || user.username === id);
+            return u ? u.name : id;
+          }).join(', ');
+
+      const assignedDisplay = (j.assignedUserNames && j.assignedUserNames.length > 0)
+        ? j.assignedUserNames.join(', ')
+        : (j.assignedUserIds || []).map((id) => {
+            const u = users.find((user) => user.id === id || user.username === id);
+            return u ? u.name : id;
+          }).join(', ');
+
+      return [
+        j.id,
+        j.title,
+        j.description,
+        j.date,
+        j.targetUnit,
+        j.targetArea,
+        j.status,
+        participantDisplay,
+        completedDisplay,
+        j.createdAt,
+        j.assignmentType || 'all',
+        assignedDisplay || 'Semua Petugas',
+        j.division || 'OB',
+      ];
+    };
+
+    const jobHeader = ['ID', 'Title', 'Description', 'Date', 'TargetUnit', 'TargetArea', 'Status', 'Participants', 'CompletedUsers', 'CreatedAt', 'AssignmentType', 'AssignedUsers', 'Division'];
+    const obJobs = allJobs.filter((j) => j.division !== 'PLH');
+    const plhJobs = allJobs.filter((j) => j.division === 'PLH');
+    const obJobRows = [jobHeader, ...obJobs.map(mapJobRow)];
+    const plhJobRows = [jobHeader, ...plhJobs.map(mapJobRow)];
+
+    // 5. Prepare Weekly Scores values (Split OB and PLH into separate sheets)
+    const allWeeklyScores = StorageService.getWeeklyScores();
+    const mapWeeklyRow = (w: WeeklyScore) => [
+      w.id,
+      w.userId,
+      w.userName,
+      w.unit,
+      w.saturdayDate || w.dateRange || `Minggu ${w.weekNumber}`,
+      w.year,
+      w.dateRange || `Minggu ${w.weekNumber}`,
+      w.score,
+      w.kordinatorName || '',
+      JSON.stringify(w.categoryScores || {}),
+      w.notes || '',
+      w.timestamp,
+    ];
+
+    const weeklyHeader = ['ID', 'UserID', 'UserName', 'Unit', 'SaturdayDate', 'Year', 'DateRange', 'Score', 'KordinatorName', 'CategoryScoresJSON', 'Notes', 'Timestamp'];
+    const obScores = allWeeklyScores.filter((w) => {
+      const u = users.find((usr) => usr.id === w.userId);
+      return u?.division !== 'PLH';
+    });
+    const plhScores = allWeeklyScores.filter((w) => {
+      const u = users.find((usr) => usr.id === w.userId);
+      return u?.division === 'PLH';
+    });
+    const obWeeklyRows = [weeklyHeader, ...obScores.map(mapWeeklyRow)];
+    const plhWeeklyRows = [weeklyHeader, ...plhScores.map(mapWeeklyRow)];
+
+    // 6. Prepare WorkOrder_Pohon values (Khusus Pohon 5 Wilayah & Vendor Luar)
+    const treeOrders = StorageService.getTreeWorkOrders();
+    const treeHeader = [
+      'ID', 'Date', 'Area', 'TreeName', 'Condition', 'TreatmentNeeded',
+      'HandlerType', 'VendorName', 'VendorCost', 'ScheduledWeek', 'Urgency',
+      'Status', 'Notes', 'PhotoBeforeURL', 'PhotoAfterURL', 'ReportedBy', 'ReportedByName',
+      'LastCheckedDate', 'LastCheckedTime', 'LastCheckedByName', 'CheckStatusToday', 'InspectionNotes',
+      'CompletedAt', 'CompletedByName', 'CreatedAt'
+    ];
+    const workOrderRows = [
+      treeHeader,
+      ...treeOrders.map((to) => [
+        to.id,
+        to.date,
+        to.area,
+        to.treeName,
+        to.condition,
+        to.treatmentNeeded,
+        to.handlerType,
+        to.vendorName || '',
+        to.vendorCost || 0,
+        to.scheduledWeek || '',
+        to.urgency,
+        to.status,
+        to.notes || '',
+        to.photoBeforeUrl || '',
+        to.photoAfterUrl || '',
+        to.reportedBy || '',
+        to.reportedByName || '',
+        to.lastCheckedDate || '',
+        to.lastCheckedTime || '',
+        to.lastCheckedByName || '',
+        to.checkStatusToday || 'Belum Dicek',
+        to.inspectionNotes || '',
+        to.completedAt || '',
+        to.completedByName || '',
+        to.createdAt || now,
       ]),
     ];
 
-    // 3. Prepare TaskLogs values
-    const logs = StorageService.getTaskLogs();
-    const logRows = [
-      [
-        'ID',
-        'Timestamp',
-        'Date',
-        'UserID',
-        'UserName',
-        'Unit',
-        'TaskTitle',
-        'Category',
-        'TimingType',
-        'Status',
-        'IsLate',
-        'LateReason',
-        'LateReportStatus',
-        'PhotoURL',
-        'Notes',
-        'KordinatorScore',
-        'KordinatorNotes',
-        'PeerInspector',
-        'PeerStatus',
-        'PeerNotes',
-        'Division',
-      ],
-      ...logs.map((l) => {
-        const isLate = l.isLate || l.status === 'Terlambat';
-        const hasReason = Boolean(l.lateReason && l.lateReason.trim().length > 0);
-        const lateReportStatus = isLate
-          ? hasReason
-            ? 'SUDAH LAPOR ALASAN'
-            : 'BELUM LAPOR ALASAN'
-          : l.status === 'Dinas Luar'
-          ? 'DINAS LUAR'
-          : 'TEPAT WAKTU';
-        const logTaskDisplay = l.taskId ? `[${l.taskId}] ${l.taskTitle || ''}` : (l.taskTitle || '');
-
-        let safePhotoUrl = l.photoUrl || '';
-        if (safePhotoUrl === '[Bukti Foto Tersimpan di Perangkat]') {
-          safePhotoUrl = l.driveFileId ? `https://drive.google.com/file/d/${l.driveFileId}/view` : '';
-        } else if (safePhotoUrl.startsWith('data:') && l.driveFileId) {
-          safePhotoUrl = `https://drive.google.com/file/d/${l.driveFileId}/view`;
-        }
-
-        return [
-          l.id,
-          l.timestamp,
-          l.date,
-          l.userId,
-          l.userName,
-          l.unit,
-          logTaskDisplay,
-          l.category,
-          l.timingType,
-          l.status,
-          isLate ? 'YA' : 'TIDAK',
-          l.lateReason || '',
-          lateReportStatus,
-          safePhotoUrl,
-          l.notes || '',
-          l.kordinatorScore || '',
-          l.kordinatorNotes || '',
-          l.peerInspectorName || '',
-          (l as any).peerStatus || l.peerScore || '',
-          l.peerNotes || '',
-          l.division || 'OB',
-        ];
-      }),
-    ];
-
-    // 4. Prepare JobBareng values
-    const jobs = StorageService.getJobBareng();
-    const jobRows = [
-      ['ID', 'Title', 'Description', 'Date', 'TargetUnit', 'TargetArea', 'Status', 'Participants', 'CompletedUsers', 'CreatedAt', 'AssignmentType', 'AssignedUsers', 'Division'],
-      ...jobs.map((j) => {
-        const participantDisplay = (j.participantNames && j.participantNames.length > 0)
-          ? j.participantNames.join(', ')
-          : j.participantIds.map((id) => {
-              const u = users.find((user) => user.id === id || user.username === id);
-              return u ? u.name : id;
-            }).join(', ');
-
-        const completedDisplay = (j.completedUserNames && j.completedUserNames.length > 0)
-          ? j.completedUserNames.join(', ')
-          : j.completedUserIds.map((id) => {
-              const u = users.find((user) => user.id === id || user.username === id);
-              return u ? u.name : id;
-            }).join(', ');
-
-        const assignedDisplay = (j.assignedUserNames && j.assignedUserNames.length > 0)
-          ? j.assignedUserNames.join(', ')
-          : (j.assignedUserIds || []).map((id) => {
-              const u = users.find((user) => user.id === id || user.username === id);
-              return u ? u.name : id;
-            }).join(', ');
-
-        return [
-          j.id,
-          j.title,
-          j.description,
-          j.date,
-          j.targetUnit,
-          j.targetArea,
-          j.status,
-          participantDisplay,
-          completedDisplay,
-          j.createdAt,
-          j.assignmentType || 'all',
-          assignedDisplay || 'Semua Petugas',
-          j.division || 'OB',
-        ];
-      }),
-    ];
-
-    // 5. Prepare Dinas Requests values
+    // 7. Prepare Dinas Requests & Peer Inspections values
     const dinas = StorageService.getDinasRequests();
     const dinasRows = [
       ['ID', 'Date', 'UserID', 'UserName', 'Unit', 'Reason', 'Destination', 'Status', 'ApprovedBy', 'ApprovedAt', 'CreatedAt'],
@@ -1607,7 +1727,6 @@ export const GoogleSheetsService = {
       ]),
     ];
 
-    // 6. Prepare Peer Inspections values
     const peerInspections = StorageService.getPeerInspections();
     const peerRows = [
       ['ID', 'Date', 'InspectorID', 'InspectorName', 'InspectorUnit', 'InspectedUserID', 'InspectedUserName', 'InspectedUnit', 'Area', 'Status', 'Notes', 'PhotoURL', 'ChecklistJSON', 'Timestamp'],
@@ -1629,37 +1748,22 @@ export const GoogleSheetsService = {
       ]),
     ];
 
-    // 7. Prepare Weekly Scores values (1-4 scale)
-    const weeklyScores = StorageService.getWeeklyScores();
-    const weeklyRows = [
-      ['ID', 'UserID', 'UserName', 'Unit', 'SaturdayDate', 'Year', 'DateRange', 'Score', 'KordinatorName', 'CategoryScoresJSON', 'Notes', 'Timestamp'],
-      ...weeklyScores.map((w) => [
-        w.id,
-        w.userId,
-        w.userName,
-        w.unit,
-        w.saturdayDate || w.dateRange || `Minggu ${w.weekNumber}`,
-        w.year,
-        w.dateRange || `Minggu ${w.weekNumber}`,
-        w.score,
-        w.kordinatorName || '',
-        JSON.stringify(w.categoryScores || {}),
-        w.notes || '',
-        w.timestamp,
-      ]),
-    ];
-
     // Check if Web App URL is provided for direct Apps Script push
     if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
       try {
         const payload = {
           users: userRows,
-          masterTasks: taskRows,
-          taskLogs: logRows,
-          jobBareng: jobRows,
+          masterTasks: obTaskRows,
+          masterTasks_plh: plhTaskRows,
+          taskLogs: obLogRows,
+          taskLogs_plh: plhLogRows,
+          jobBareng: obJobRows,
+          jobBareng_plh: plhJobRows,
+          weeklyScores: obWeeklyRows,
+          weeklyScores_plh: plhWeeklyRows,
+          workOrderPohon: workOrderRows,
           dinasRequests: dinasRows,
           peerInspections: peerRows,
-          weeklyScores: weeklyRows,
         };
         await fetch(syncConfig.webAppUrl, {
           method: 'POST',
@@ -1674,7 +1778,7 @@ export const GoogleSheetsService = {
 
         return {
           success: true,
-          message: 'Data berhasil disinkronkan otomatis 2 arah via Apps Script & Spreadsheet!',
+          message: 'Data berhasil disinkronkan otomatis 2 arah ke Google Sheet (Sheet OB & PLH terpisah)!',
           timestamp: now,
         };
       } catch (err: any) {
@@ -1694,13 +1798,18 @@ export const GoogleSheetsService = {
 
     try {
       const batchData = [
-        { range: 'Users!A1:I' + (userRows.length + 10), values: userRows },
-        { range: 'MasterTask!A1:L' + (taskRows.length + 10), values: taskRows },
-        { range: 'TaskLogs!A1:U' + (logRows.length + 20), values: logRows },
-        { range: 'JobBareng!A1:M' + (jobRows.length + 10), values: jobRows },
+        { range: 'Users!A1:J' + (userRows.length + 10), values: userRows },
+        { range: 'MasterTask!A1:L' + (obTaskRows.length + 10), values: obTaskRows },
+        { range: 'MasterTask_PLH!A1:L' + (plhTaskRows.length + 10), values: plhTaskRows },
+        { range: 'TaskLogs!A1:U' + (obLogRows.length + 20), values: obLogRows },
+        { range: 'TaskLogs_PLH!A1:U' + (plhLogRows.length + 20), values: plhLogRows },
+        { range: 'JobBareng!A1:M' + (obJobRows.length + 10), values: obJobRows },
+        { range: 'JobBareng_PLH!A1:M' + (plhJobRows.length + 10), values: plhJobRows },
+        { range: 'WeeklyScores!A1:L' + (obWeeklyRows.length + 10), values: obWeeklyRows },
+        { range: 'WeeklyScores_PLH!A1:L' + (plhWeeklyRows.length + 10), values: plhWeeklyRows },
+        { range: 'WorkOrder_Pohon!A1:Y' + (workOrderRows.length + 15), values: workOrderRows },
         { range: 'DinasRequests!A1:K' + (dinasRows.length + 10), values: dinasRows },
         { range: 'PeerInspections!A1:N' + (peerRows.length + 10), values: peerRows },
-        { range: 'WeeklyScores!A1:L' + (weeklyRows.length + 10), values: weeklyRows },
       ];
 
       await fetch(
@@ -1725,7 +1834,7 @@ export const GoogleSheetsService = {
 
       return {
         success: true,
-        message: 'Berhasil sinkronisasi 2 arah ke Google Sheets & Drive Lazuardi GCS.',
+        message: 'Berhasil sinkronisasi 2 arah ke Google Sheets (Sheet OB & PLH terpisah).',
         timestamp: now,
       };
     } catch (err: any) {
@@ -1759,15 +1868,27 @@ export const GoogleSheetsService = {
             clearTimeout(timeoutId);
             const resJson = await response.json();
             if (resJson.success && resJson.data) {
-          const {
-            users: rUsers,
-            masterTasks: rTasks,
-            taskLogs: rLogs,
-            jobBareng: rJobs,
-            dinasRequests: rDinas,
-            peerInspections: rPeer,
-            weeklyScores: rWeekly,
-          } = resJson.data;
+              const rUsers = resJson.data.users;
+              // Merge OB and PLH sheets if separated
+              const rTasks = [
+                ...(resJson.data.masterTasks || []),
+                ...(resJson.data.masterTasks_plh || []),
+              ];
+              const rLogs = [
+                ...(resJson.data.taskLogs || []),
+                ...(resJson.data.taskLogs_plh || []),
+              ];
+              const rJobs = [
+                ...(resJson.data.jobBareng || []),
+                ...(resJson.data.jobBareng_plh || []),
+              ];
+              const rWeekly = [
+                ...(resJson.data.weeklyScores || []),
+                ...(resJson.data.weeklyScores_plh || []),
+              ];
+              const rDinas = resJson.data.dinasRequests;
+              const rPeer = resJson.data.peerInspections;
+              const rWorkOrders = resJson.data.workOrderPohon;
 
           if (rUsers && rUsers.length > 0) {
             const parsedUsers: User[] = rUsers
@@ -1881,7 +2002,7 @@ export const GoogleSheetsService = {
                 return {
                   id: rawId || fallbackId,
                   title: rawTitle,
-                  unit: isJobBareng ? 'Semua Unit' : (rawUnit || 'Semua Unit'),
+                  unit: (isJobBareng ? 'Semua Unit' : (rawUnit || 'Semua Unit')) as UnitType,
                   category,
                   timingType: isJobBareng ? 'anytime' : timingType,
                   instructions: parseInstructionSteps(rawInstructions),
@@ -1986,6 +2107,7 @@ export const GoogleSheetsService = {
                   date: parsedDate,
                   userId: row[3] || '',
                   userName: row[4] || '',
+                  userRole: 'staff' as UserRole,
                   unit: row[5] || 'TK',
                   taskId: resolvedTaskId,
                   taskTitle: resolvedTaskTitle,
@@ -2044,6 +2166,8 @@ export const GoogleSheetsService = {
                   participantNames: participantsRaw,
                   completedUserIds: completedRaw,
                   completedUserNames: completedRaw,
+                  createdBy: row[9] || 'system',
+                  createdByName: 'Kordinator',
                   createdAt: row[9] || now,
                   division: jobDivision,
                 };
@@ -2123,7 +2247,8 @@ export const GoogleSheetsService = {
                   id: row[0] || `ws-${i}`,
                   userId: row[1] || '',
                   userName: row[2] || '',
-                  unit: row[3] || 'TK',
+                  unit: (row[3] || 'TK') as UnitType,
+                  kordinatorId: row[8] ? `u-kord-${row[8]}` : 'u-kordinator',
                   saturdayDate: row[4] || '',
                   weekNumber: isNaN(Number(row[4])) ? 1 : Number(row[4]),
                   year: isNaN(Number(row[5])) ? new Date().getFullYear() : Number(row[5]),
@@ -2138,13 +2263,48 @@ export const GoogleSheetsService = {
             StorageService.saveWeeklyScores(parsedWeekly);
           }
 
+          if (rWorkOrders && rWorkOrders.length > 0) {
+            const parsedWorkOrders: TreeWorkOrder[] = rWorkOrders
+              .filter((row: any[]) => row && row.length > 0 && row[0] && row[0] !== 'ID')
+              .map((row: any[], i: number) => ({
+                id: row[0] || `two-${i}`,
+                date: normalizeDateString(row[1]) || getJakartaDateString(),
+                area: row[2] || 'Area Pos 1',
+                treeName: row[3] || 'Pohon Trembesi',
+                condition: (row[4] || 'Ringan') as any,
+                treatmentNeeded: row[5] || 'Pemangkasan Cabang Kering',
+                handlerType: (row[6] || 'internal') as any,
+                vendorName: row[7] || undefined,
+                vendorCost: Number(row[8]) || undefined,
+                scheduledWeek: row[9] || undefined,
+                urgency: (row[10] || 'Sedang') as any,
+                status: (row[11] || 'Tercatat') as any,
+                notes: row[12] || undefined,
+                photoBeforeUrl: row[13] || undefined,
+                photoAfterUrl: row[14] || undefined,
+                reportedBy: row[15] || undefined,
+                reportedByName: row[16] || undefined,
+                lastCheckedDate: row[17] || undefined,
+                lastCheckedTime: row[18] || undefined,
+                lastCheckedByName: row[19] || undefined,
+                checkStatusToday: (row[20] || 'Belum Dicek') as any,
+                inspectionNotes: row[21] || undefined,
+                completedAt: row[22] || undefined,
+                completedByName: row[23] || undefined,
+                createdAt: row[24] || now,
+              }));
+            if (parsedWorkOrders.length > 0) {
+              StorageService.saveTreeWorkOrders(parsedWorkOrders);
+            }
+          }
+
           syncConfig.lastSyncTime = now;
           syncConfig.isGoogleConnected = true;
           StorageService.saveSyncConfig(syncConfig);
 
           return {
             success: true,
-            message: 'Data berhasil dimuat dari Google Sheets via Apps Script!',
+            message: 'Data berhasil dimuat dari Google Sheets via Apps Script (Sheet OB & PLH terpisah)!',
             timestamp: now,
           };
         }
@@ -2163,13 +2323,18 @@ export const GoogleSheetsService = {
 
     try {
       const ranges = [
-        'Users!A2:I',
-        'MasterTask!A2:L',
-        'TaskLogs!A2:U',
-        'JobBareng!A2:M',
-        'DinasRequests!A2:K',
-        'PeerInspections!A2:N',
-        'WeeklyScores!A2:L',
+        'Users!A2:J',             // 0
+        'MasterTask!A2:L',        // 1
+        'MasterTask_PLH!A2:L',    // 2
+        'TaskLogs!A2:U',          // 3
+        'TaskLogs_PLH!A2:U',      // 4
+        'JobBareng!A2:M',         // 5
+        'JobBareng_PLH!A2:M',     // 6
+        'DinasRequests!A2:K',     // 7
+        'PeerInspections!A2:N',   // 8
+        'WeeklyScores!A2:L',      // 9
+        'WeeklyScores_PLH!A2:L',  // 10
+        'WorkOrder_Pohon!A2:Y',   // 11
       ];
       const query = ranges.map((r) => `ranges=${encodeURIComponent(r)}`).join('&');
 
@@ -2224,9 +2389,13 @@ export const GoogleSheetsService = {
         }
       }
 
-      // 1. Parse MasterTasks if present (Column F Job Bareng support & Column K Standar Kebersihan Photo)
-      if (valueRanges[1]?.values?.length > 0) {
-        const remoteTasks: MasterTask[] = valueRanges[1].values
+      // 1. Parse MasterTasks if present (Combine MasterTask and MasterTask_PLH)
+      const combinedTaskRows = [
+        ...(valueRanges[1]?.values || []),
+        ...(valueRanges[2]?.values || []),
+      ];
+      if (combinedTaskRows.length > 0) {
+        const remoteTasks: MasterTask[] = combinedTaskRows
           .filter((row: any[]) => row && row.length > 1 && String(row[1] || '').trim().length > 0)
           .map((row: any[], i: number) => {
             const rawId = String(row[0] || '').trim();
@@ -2303,7 +2472,7 @@ export const GoogleSheetsService = {
             return {
               id: rawId || fallbackId,
               title: rawTitle,
-              unit: isJobBareng ? 'Semua Unit' : (rawUnit || 'Semua Unit'),
+              unit: (isJobBareng ? 'Semua Unit' : (rawUnit || 'Semua Unit')) as UnitType,
               category,
               timingType: isJobBareng ? 'anytime' : timingType,
               instructions: parseInstructionSteps(rawInstructions),
@@ -2320,8 +2489,12 @@ export const GoogleSheetsService = {
         }
       }
 
-      // 2. Parse TaskLogs if present (including LateReason, LateReportStatus, PhotoURL)
-      if (valueRanges[2]?.values !== undefined) {
+      // 2. Parse TaskLogs if present (Combine TaskLogs and TaskLogs_PLH)
+      const combinedLogRows = [
+        ...(valueRanges[3]?.values || []),
+        ...(valueRanges[4]?.values || []),
+      ];
+      if (combinedLogRows.length > 0) {
         const masterTasks = StorageService.getMasterTasks();
         const taskById = new Map<string, MasterTask>();
         const taskByTitle = new Map<string, MasterTask>();
@@ -2336,7 +2509,7 @@ export const GoogleSheetsService = {
           }
         }
 
-        const parsedLogs: TaskLog[] = (valueRanges[2].values || [])
+        const parsedLogs: TaskLog[] = combinedLogRows
           .filter((row: any[]) => row && row.length > 0 && row[0])
           .map((row: any[], i: number) => {
             const rawTaskVal = String(row[6] || '').trim();
@@ -2407,6 +2580,7 @@ export const GoogleSheetsService = {
               date: normalizeDateString(row[2]) || normalizeDateString(row[1]) || getJakartaDateString(),
               userId: row[3] || '',
               userName: row[4] || '',
+              userRole: 'staff' as UserRole,
               unit: row[5] || 'TK',
               taskId: resolvedTaskId,
               taskTitle: resolvedTaskTitle,
@@ -2435,9 +2609,13 @@ export const GoogleSheetsService = {
         StorageService.mergeTaskLogs(parsedLogs);
       }
 
-      // 3. Parse JobBareng if present
-      if (valueRanges[3]?.values !== undefined) {
-        const parsedJobs: JobBareng[] = (valueRanges[3].values || [])
+      // 3. Parse JobBareng if present (Combine JobBareng and JobBareng_PLH)
+      const combinedJobRows = [
+        ...(valueRanges[5]?.values || []),
+        ...(valueRanges[6]?.values || []),
+      ];
+      if (combinedJobRows.length > 0) {
+        const parsedJobs: JobBareng[] = combinedJobRows
           .filter((row: any[]) => row && row.length > 0 && row[0])
           .map((row: any[], i: number) => {
             const participantsRaw = row[7] ? String(row[7]).split(',').map((s) => s.trim()).filter(Boolean) : [];
@@ -2464,6 +2642,8 @@ export const GoogleSheetsService = {
               participantNames: participantsRaw,
               completedUserIds: completedRaw,
               completedUserNames: completedRaw,
+              createdBy: row[9] || 'system',
+              createdByName: 'Kordinator',
               createdAt: row[9] || now,
               division: jobDivision,
             };
@@ -2473,8 +2653,8 @@ export const GoogleSheetsService = {
       }
 
       // 4. Parse DinasRequests if present
-      if (valueRanges[4]?.values?.length > 0) {
-        const parsedDinas: DinasRequest[] = valueRanges[4].values
+      if (valueRanges[7]?.values?.length > 0) {
+        const parsedDinas: DinasRequest[] = valueRanges[7].values
           .filter((row: any[]) => row && row.length > 0 && row[0])
           .map((row: any[], i: number) => ({
             id: row[0] || `dr-${i}`,
@@ -2493,8 +2673,8 @@ export const GoogleSheetsService = {
       }
 
       // 5. Parse PeerInspections if present
-      if (valueRanges[5]?.values?.length > 0) {
-        const parsedPeer: PeerInspection[] = valueRanges[5].values
+      if (valueRanges[8]?.values?.length > 0) {
+        const parsedPeer: PeerInspection[] = valueRanges[8].values
           .filter((row: any[]) => row && row.length > 0 && row[0])
           .map((row: any[], i: number) => {
             let checklist: { label: string; passed: boolean }[] = [];
@@ -2526,9 +2706,13 @@ export const GoogleSheetsService = {
         StorageService.savePeerInspections(parsedPeer);
       }
 
-      // 6. Parse WeeklyScores if present
-      if (valueRanges[6]?.values?.length > 0) {
-        const parsedScores: WeeklyScore[] = valueRanges[6].values
+      // 6. Parse WeeklyScores if present (Combine WeeklyScores and WeeklyScores_PLH)
+      const combinedWeeklyRows = [
+        ...(valueRanges[9]?.values || []),
+        ...(valueRanges[10]?.values || []),
+      ];
+      if (combinedWeeklyRows.length > 0) {
+        const parsedScores: WeeklyScore[] = combinedWeeklyRows
           .filter((row: any[]) => row && row.length > 0 && row[0])
           .map((row: any[], i: number) => {
             let categoryScores = {};
@@ -2543,7 +2727,8 @@ export const GoogleSheetsService = {
               id: row[0] || `ws-${i}`,
               userId: row[1] || '',
               userName: row[2] || '',
-              unit: row[3] || 'TK',
+              unit: (row[3] || 'TK') as UnitType,
+              kordinatorId: row[8] ? `u-kord-${row[8]}` : 'u-kordinator',
               weekNumber: 1,
               year: Number(row[5]) || new Date().getFullYear(),
               dateRange: row[6] || '',
@@ -2556,6 +2741,42 @@ export const GoogleSheetsService = {
             };
           });
         StorageService.saveWeeklyScores(parsedScores);
+      }
+
+      // 7. Parse WorkOrder_Pohon if present
+      if (valueRanges[11]?.values?.length > 0) {
+        const parsedWorkOrders: TreeWorkOrder[] = valueRanges[11].values
+          .filter((row: any[]) => row && row.length > 0 && row[0] && row[0] !== 'ID')
+          .map((row: any[], i: number) => ({
+            id: row[0] || `two-${i}`,
+            date: normalizeDateString(row[1]) || getJakartaDateString(),
+            area: row[2] || 'Area Pos 1',
+            treeName: row[3] || 'Pohon Trembesi',
+            condition: (row[4] || 'Ringan') as any,
+            treatmentNeeded: row[5] || 'Pemangkasan Cabang Kering',
+            handlerType: (row[6] || 'internal') as any,
+            vendorName: row[7] || undefined,
+            vendorCost: Number(row[8]) || undefined,
+            scheduledWeek: row[9] || undefined,
+            urgency: (row[10] || 'Sedang') as any,
+            status: (row[11] || 'Tercatat') as any,
+            notes: row[12] || undefined,
+            photoBeforeUrl: row[13] || undefined,
+            photoAfterUrl: row[14] || undefined,
+            reportedBy: row[15] || undefined,
+            reportedByName: row[16] || undefined,
+            lastCheckedDate: row[17] || undefined,
+            lastCheckedTime: row[18] || undefined,
+            lastCheckedByName: row[19] || undefined,
+            checkStatusToday: (row[20] || 'Belum Dicek') as any,
+            inspectionNotes: row[21] || undefined,
+            completedAt: row[22] || undefined,
+            completedByName: row[23] || undefined,
+            createdAt: row[24] || now,
+          }));
+        if (parsedWorkOrders.length > 0) {
+          StorageService.saveTreeWorkOrders(parsedWorkOrders);
+        }
       }
 
       syncConfig.lastSyncTime = now;
@@ -2581,4 +2802,46 @@ export const GoogleSheetsService = {
 
   return activePullPromise;
 },
+
+  // Setup all sheets automatically via Apps Script or REST API
+  setupDatabase: async (): Promise<SyncResult> => {
+    const syncConfig = StorageService.getSyncConfig();
+    const now = new Date().toISOString();
+
+    if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
+      try {
+        const res = await fetch(`${syncConfig.webAppUrl}?action=setup`, {
+          method: 'GET',
+        });
+        const resJson = await res.json();
+        if (resJson && resJson.success) {
+          return {
+            success: true,
+            message: resJson.message || 'Setup database sheet OB & PLH berhasil dibuat secara otomatis!',
+            timestamp: now,
+          };
+        }
+      } catch (err: any) {
+        console.warn('Apps Script setup call failed:', err);
+      }
+    }
+
+    // Direct pushAllToSheets as initialization
+    try {
+      const pushRes = await GoogleSheetsService.pushAllToSheets();
+      return {
+        success: pushRes.success,
+        message: pushRes.message || 'Database lokal & sinkronisasi Google Sheets berhasil dikonfigurasi!',
+        timestamp: now,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err.message || 'Gagal menjalankan setup database otomatis.',
+        timestamp: now,
+      };
+    }
+  },
 };
+
+export const googleSheetsService = GoogleSheetsService;

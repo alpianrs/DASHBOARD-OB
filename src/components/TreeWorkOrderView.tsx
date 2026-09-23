@@ -33,6 +33,7 @@ import {
 } from '../types';
 import { StorageService } from '../services/storage';
 import { getJakartaDateString, formatJakartaDisplayDate } from '../utils/dateHelper';
+import { googleSheetsService } from '../services/googleSheets';
 import {
   generateTreeWorkOrderPdf,
   generateTreeAreaReportPdf,
@@ -50,6 +51,20 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
   onClose,
   isModal = false,
 }) => {
+  // Guard eksklusif: Modul Work Order Pohon hanya dapat diakses oleh PLH (staff & kordinator) atau Admin FM
+  const isPLHAllowed = (activeUser.division || 'OB') === 'PLH' || activeUser.role === 'admin';
+
+  if (!isPLHAllowed) {
+    return (
+      <div className="p-6 bg-slate-100 border border-slate-200 rounded-2xl text-slate-700 text-center space-y-2">
+        <p className="font-bold text-sm text-slate-900">Akses Khusus Divisi PLH</p>
+        <p className="text-xs text-slate-500">
+          Modul Work Order Khusus Pohon & Penanganan hanya diperuntukkan bagi Petugas Lingkungan Hidup (PLH) dan Kordinator PLH.
+        </p>
+      </div>
+    );
+  }
+
   const [orders, setOrders] = useState<TreeWorkOrder[]>(() =>
     StorageService.getTreeWorkOrders()
   );
@@ -65,6 +80,18 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedHeaders, setCopiedHeaders] = useState(false);
+
+  // Daily Inspection State
+  const [inspectingOrder, setInspectingOrder] = useState<TreeWorkOrder | null>(null);
+  const [inspectStatus, setInspectStatus] = useState<'Sudah Dicek Aman' | 'Perlu Penanganan' | 'Belum Dicek'>('Sudah Dicek Aman');
+  const [inspectCondition, setInspectCondition] = useState<TreeCondition>('Normal / Sehat');
+  const [inspectNotes, setInspectNotes] = useState<string>('');
+
+  // Auto Database Setup & Sample State
+  const [isSettingUpDb, setIsSettingUpDb] = useState(false);
+  const [dbSetupResult, setDbSetupResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [guideTab, setGuideTab] = useState<'setup_auto' | 'sample_pohon' | 'sample_master' | 'sample_logs' | 'sample_job' | 'sample_weekly'>('setup_auto');
+  const [copiedSample, setCopiedSample] = useState<string | null>(null);
 
   // Form Fields
   const [formArea, setFormArea] = useState<string>(PLH_AREAS[0]);
@@ -222,6 +249,90 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     };
     StorageService.updateTreeWorkOrder(updated);
     refreshData();
+  };
+
+  // Open Quick Daily Inspection Modal
+  const openInspectionModal = (order: TreeWorkOrder) => {
+    setInspectingOrder(order);
+    setInspectStatus(order.checkStatusToday || 'Sudah Dicek Aman');
+    setInspectCondition(order.condition || 'Normal / Sehat');
+    setInspectNotes(order.inspectionNotes || '');
+  };
+
+  // Save Quick Daily Inspection
+  const handleSaveInspection = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inspectingOrder) return;
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+    const updated: TreeWorkOrder = {
+      ...inspectingOrder,
+      condition: inspectCondition,
+      checkStatusToday: inspectStatus,
+      lastCheckedDate: today,
+      lastCheckedTime: timeStr,
+      lastCheckedByName: activeUser.name,
+      inspectionNotes: inspectNotes.trim() || undefined,
+      status: inspectStatus === 'Sudah Dicek Aman' && inspectingOrder.status === 'Perlu Penanganan' ? 'Selesai' : inspectingOrder.status,
+    };
+
+    StorageService.updateTreeWorkOrder(updated);
+    refreshData();
+    setInspectingOrder(null);
+  };
+
+  // Quick check all trees in area
+  const handleCheckAllInArea = (area: string) => {
+    const areaOrders = orders.filter((o) => o.area === area);
+    if (areaOrders.length === 0) return;
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+
+    const updatedList = orders.map((o) => {
+      if (o.area === area) {
+        return {
+          ...o,
+          checkStatusToday: 'Sudah Dicek Aman' as const,
+          lastCheckedDate: today,
+          lastCheckedTime: timeStr,
+          lastCheckedByName: activeUser.name,
+          inspectionNotes: 'Pengecekan rutin terverifikasi aman & bersih oleh petugas area.',
+        };
+      }
+      return o;
+    });
+
+    StorageService.saveTreeWorkOrders(updatedList);
+    refreshData();
+    alert(`Semua ${areaOrders.length} pohon di ${area} berhasil ditandai SUDAH DICEK AMAN hari ini oleh ${activeUser.name} (${timeStr}).`);
+  };
+
+  // Trigger setup database otomatis ke Apps Script
+  const handleTriggerAutoDbSetup = async () => {
+    setIsSettingUpDb(true);
+    setDbSetupResult(null);
+    try {
+      const res = await googleSheetsService.setupDatabase();
+      setDbSetupResult({
+        success: res.success,
+        message: res.message || 'Database Sheet OB & PLH berhasil disiapkan otomatis di Google Spreadsheet!',
+      });
+    } catch (err: any) {
+      setDbSetupResult({
+        success: false,
+        message: err.message || 'Gagal menjalankan setup database.',
+      });
+    } finally {
+      setIsSettingUpDb(false);
+    }
+  };
+
+  const copySampleData = (type: string, data: string) => {
+    navigator.clipboard.writeText(data);
+    setCopiedSample(type);
+    setTimeout(() => setCopiedSample(null), 2500);
   };
 
   // Image Upload Helper (Base64)
@@ -616,6 +727,10 @@ function setupTabWorkOrderPohon() {
               const urgentCount = areaOrders.filter((o) => o.urgency === 'Tinggi / Bahaya' && o.status !== 'Selesai').length;
               const vendorCount = areaOrders.filter((o) => o.handlerType === 'Vendor Luar' || o.isLargeTreatment).length;
               const totalCost = areaOrders.reduce((sum, o) => sum + (o.vendorCost || 0), 0);
+              const checkedTodayCount = areaOrders.filter(
+                (o) => o.lastCheckedDate === today && o.checkStatusToday === 'Sudah Dicek Aman'
+              ).length;
+              const isAllCheckedToday = totalTrees > 0 && checkedTodayCount === totalTrees;
 
               const isUserArea = activeUser.assignedArea === area;
 
@@ -646,6 +761,41 @@ function setupTabWorkOrderPohon() {
                           <span className="text-emerald-950 font-black">{staff.name}</span>
                         </h3>
                       </div>
+                    </div>
+
+                    {/* Daily Check Status Badge & Progress */}
+                    <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-200/80 space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-emerald-950 text-[11px] flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Pengecekan Hari Ini:</span>
+                        </span>
+                        <span className={`font-extrabold text-[11px] px-2 py-0.5 rounded-md ${
+                          isAllCheckedToday 
+                            ? 'bg-emerald-600 text-white' 
+                            : checkedTodayCount > 0 
+                            ? 'bg-amber-100 text-amber-900' 
+                            : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {checkedTodayCount} / {totalTrees} Dicek
+                        </span>
+                      </div>
+                      <div className="w-full bg-emerald-200/60 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="bg-emerald-600 h-1.5 rounded-full transition-all duration-300"
+                          style={{ width: `${totalTrees > 0 ? (checkedTodayCount / totalTrees) * 100 : 0}%` }}
+                        />
+                      </div>
+                      {!isAllCheckedToday && totalTrees > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleCheckAllInArea(area)}
+                          className="w-full mt-1 py-1 px-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[10px] font-bold transition flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Check className="w-3 h-3" />
+                          <span>Tandai Semua Pohon di {area} Sudah Dicek Aman</span>
+                        </button>
+                      )}
                     </div>
 
                     {/* Stats Matrix */}
@@ -683,36 +833,60 @@ function setupTabWorkOrderPohon() {
                       </div>
                     )}
 
-                    {/* Trees List preview */}
+                    {/* Trees List preview with Inspection details */}
                     <div className="space-y-1 pt-1">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                        Daftar Pohon di {area}:
+                        Daftar Pohon & Status Laporan Hari Ini:
                       </span>
                       {areaOrders.length === 0 ? (
                         <p className="text-xs text-slate-400 italic">Belum ada work order pohon tercatat.</p>
                       ) : (
-                        <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
-                          {areaOrders.map((o) => (
-                            <div
-                              key={o.id}
-                              className="text-[11px] p-1.5 bg-slate-50 rounded-lg flex items-center justify-between border border-slate-200/60"
-                            >
-                              <span className="font-semibold text-slate-800 truncate max-w-[140px]">
-                                {o.treeName}
-                              </span>
-                              <span
-                                className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${
-                                  o.status === 'Selesai'
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : o.urgency === 'Tinggi / Bahaya'
-                                    ? 'bg-rose-100 text-rose-800'
-                                    : 'bg-amber-100 text-amber-800'
-                                }`}
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                          {areaOrders.map((o) => {
+                            const isCheckedToday = o.lastCheckedDate === today;
+                            return (
+                              <div
+                                key={o.id}
+                                className="text-[11px] p-2 bg-slate-50 hover:bg-slate-100/80 rounded-xl flex flex-col gap-1 border border-slate-200/70 transition"
                               >
-                                {o.status}
-                              </span>
-                            </div>
-                          ))}
+                                <div className="flex items-center justify-between gap-1.5">
+                                  <span className="font-bold text-slate-900 truncate max-w-[140px]">
+                                    {o.treeName}
+                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <span
+                                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${
+                                        o.checkStatusToday === 'Sudah Dicek Aman'
+                                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                          : o.checkStatusToday === 'Perlu Penanganan'
+                                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                          : 'bg-amber-100 text-amber-800 border border-amber-200'
+                                      }`}
+                                    >
+                                      {isCheckedToday ? (o.checkStatusToday || 'Sudah Dicek') : 'Belum Dicek Hari Ini'}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => openInspectionModal(o)}
+                                      className="px-1.5 py-0.5 rounded bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 font-extrabold text-[9px] cursor-pointer"
+                                      title="Input / Update Pengecekan Hari Ini"
+                                    >
+                                      Cek
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="text-[10px] text-slate-500 flex items-center justify-between">
+                                  <span>Kondisi: <strong className="text-slate-700">{o.condition}</strong></span>
+                                  <span>{o.lastCheckedTime ? `Jam ${o.lastCheckedTime}` : (o.lastCheckedDate || '-')}</span>
+                                </div>
+                                {o.lastCheckedByName && (
+                                  <div className="text-[9px] text-slate-400">
+                                    Pemeriksa: {o.lastCheckedByName}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -870,6 +1044,53 @@ function setupTabWorkOrderPohon() {
                         )}
                       </>
                     )}
+                  </div>
+
+                  {/* Panel Pengecekan / Laporan Hari Ini */}
+                  <div className="p-2.5 rounded-xl border text-xs space-y-1.5 bg-emerald-50/50 border-emerald-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-emerald-950 uppercase tracking-wider flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-700" />
+                        <span>Laporan Cek Hari Ini:</span>
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold ${
+                        order.lastCheckedDate === today && order.checkStatusToday === 'Sudah Dicek Aman'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : order.checkStatusToday === 'Perlu Penanganan'
+                          ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                          : 'bg-amber-100 text-amber-800 border border-amber-300'
+                      }`}>
+                        {order.lastCheckedDate === today ? (order.checkStatusToday || 'Sudah Dicek') : 'Belum Dicek Hari Ini'}
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-slate-600 flex items-center justify-between">
+                      <span>Waktu Cek:</span>
+                      <span className="font-semibold text-slate-800">
+                        {order.lastCheckedDate ? `${order.lastCheckedDate} ${order.lastCheckedTime ? `(${order.lastCheckedTime})` : ''}` : 'Belum tercatat'}
+                      </span>
+                    </div>
+
+                    {order.lastCheckedByName && (
+                      <div className="text-[10px] text-slate-500">
+                        Pemeriksa: <strong className="text-slate-800">{order.lastCheckedByName}</strong>
+                      </div>
+                    )}
+
+                    {order.inspectionNotes && (
+                      <p className="text-[10px] italic text-slate-600 bg-white/80 p-1.5 rounded-lg border border-emerald-100">
+                        "{order.inspectionNotes}"
+                      </p>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => openInspectionModal(order)}
+                      className="w-full mt-1 py-1.5 px-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Input / Update Laporan Cek Hari Ini</span>
+                    </button>
                   </div>
 
                   {/* Catatan Khusus */}
@@ -1239,21 +1460,148 @@ function setupTabWorkOrderPohon() {
         </div>
       )}
 
-      {/* Modal Panduan & Format Database Google Sheet */}
+      {/* Modal Cek / Laporan Pohon Hari Ini */}
+      {inspectingOrder && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-5 sm:p-6 my-8 animate-in fade-in zoom-in-95 duration-200 border border-emerald-100">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                    Cek / Laporan Pohon Hari Ini
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {inspectingOrder.area} • {inspectingOrder.treeName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectingOrder(null)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveInspection} className="mt-4 space-y-3.5 text-xs text-slate-700">
+              <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-emerald-800 font-bold block uppercase">Petugas Pemeriksa:</span>
+                  <span className="font-black text-emerald-950 text-xs">{activeUser.name}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-emerald-800 font-bold block uppercase">Tanggal Pengecekan:</span>
+                  <span className="font-bold text-emerald-950 text-xs">{formatJakartaDisplayDate(today)}</span>
+                </div>
+              </div>
+
+              {/* Status Pengecekan Hari Ini */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                  Status Hasil Pengecekan Hari Ini:
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setInspectStatus('Sudah Dicek Aman')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                      inspectStatus === 'Sudah Dicek Aman'
+                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Sudah Dicek Aman</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInspectStatus('Perlu Penanganan')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                      inspectStatus === 'Perlu Penanganan'
+                        ? 'bg-rose-600 text-white border-rose-700 shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>Perlu Penanganan</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Kondisi Fisik Terkini */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Kondisi Fisik Pohon Terkini:
+                </label>
+                <select
+                  value={inspectCondition}
+                  onChange={(e) => setInspectCondition(e.target.value as TreeCondition)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="Normal / Sehat">🌳 Normal / Sehat & Bersih</option>
+                  <option value="Rimbun">🌿 Rimbun (Perlu Pruning Dahan Bawah)</option>
+                  <option value="Dahan Patah / Kering">🍂 Dahan Patah / Kering</option>
+                  <option value="Dekat Kabel / Atap">⚡ Dekat Kabel Listrik / Atap</option>
+                  <option value="Miring / Rawan Tumbang">⚠️ Miring / Rawan Tumbang (Bahaya)</option>
+                  <option value="Sarang Hama / Ulat">🐛 Sarang Hama / Ulat</option>
+                  <option value="Batang Lapuk / Berongga">🪵 Batang Lapuk / Berongga</option>
+                </select>
+              </div>
+
+              {/* Catatan Pemeriksaan */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Catatan Lapangan & Hasil Pengecekan:
+                </label>
+                <textarea
+                  rows={3}
+                  value={inspectNotes}
+                  onChange={(e) => setInspectNotes(e.target.value)}
+                  placeholder="Contoh: Pohon sudah dicek pasca hujan lebat, tidak ada dahan rapuh yang menjuntai ke jalan..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setInspectingOrder(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-sm flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Simpan Hasil Pengecekan</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Panduan & Setup Database Google Sheet Otomatis beserta Contoh Input */}
       {isGuideOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-5 sm:p-6 my-8 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full p-5 sm:p-6 my-8 animate-in fade-in zoom-in-95 duration-200 border border-slate-100">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
                   <FileSpreadsheet className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900 text-base">
-                    Instruksi Format Database Google Sheet: Work Order Pohon
+                    Setup Database Google Sheet & Contoh Input Data PLH
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Panduan integrasi Google Spreadsheet untuk Divisi PLH & Vendor Luar
+                    Sistem pemisahan database sheet khusus PLH vs OB & Work Order Pohon
                   </p>
                 </div>
               </div>
@@ -1266,82 +1614,497 @@ function setupTabWorkOrderPohon() {
               </button>
             </div>
 
-            <div className="mt-4 space-y-4 text-xs text-slate-700">
-              {/* Petunjuk Pengisian */}
-              <div className="p-3.5 bg-emerald-50 rounded-2xl border border-emerald-200 text-emerald-950 space-y-1.5">
-                <h4 className="font-bold text-emerald-900 flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-emerald-600" />
-                  <span>Aturan & Cara Pengisian di Google Sheet:</span>
-                </h4>
-                <ul className="list-disc pl-4 space-y-1 text-emerald-900">
-                  <li>
-                    Buat Sheet baru di Spreadsheet dengan nama tepat: <strong>WorkOrder_Pohon</strong>.
-                  </li>
-                  <li>
-                    Setiap baris mewakili 1 pohon yang dicek atau dilakukan treatment oleh staf PLH.
-                  </li>
-                  <li>
-                    Jika pohon membutuhkan <strong>treatment besar (vendor luar)</strong>, kolom <strong>Pelaksana</strong> diisi dengan <code>Vendor Luar</code> dan kolom <strong>Nama_Vendor</strong> diisi nama penyedia jasa.
-                  </li>
-                  <li>
-                    Data treatment besar otomatis masuk ke jadwal <strong>Work Order Mingguan</strong> di aplikasi.
-                  </li>
-                </ul>
-              </div>
+            {/* Sub-Navigation Tabs */}
+            <div className="mt-3 flex items-center gap-1 overflow-x-auto pb-1 border-b border-slate-200">
+              <button
+                type="button"
+                onClick={() => setGuideTab('setup_auto')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  guideTab === 'setup_auto'
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Setup Database Otomatis</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setGuideTab('sample_pohon')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  guideTab === 'sample_pohon'
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <TreePine className="w-3.5 h-3.5" />
+                <span>Contoh: WorkOrder_Pohon</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setGuideTab('sample_master')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                  guideTab === 'sample_master'
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Contoh: MasterTask_PLH
+              </button>
+              <button
+                type="button"
+                onClick={() => setGuideTab('sample_logs')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                  guideTab === 'sample_logs'
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Contoh: TaskLogs_PLH
+              </button>
+              <button
+                type="button"
+                onClick={() => setGuideTab('sample_job')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                  guideTab === 'sample_job'
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Contoh: JobBareng_PLH
+              </button>
+              <button
+                type="button"
+                onClick={() => setGuideTab('sample_weekly')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                  guideTab === 'sample_weekly'
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Contoh: WeeklyScores_PLH
+              </button>
+            </div>
 
-              {/* 15 Kolom Google Sheet */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-800">
-                    Struktur 15 Kolom Standar (Baris 1 / Header):
-                  </span>
-                  <button
-                    type="button"
-                    onClick={copySheetHeaders}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700 transition cursor-pointer flex items-center gap-1"
-                  >
-                    {copiedHeaders ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedHeaders ? 'Tersalin!' : 'Salin Header Tab'}</span>
-                  </button>
+            <div className="mt-4 text-xs text-slate-700 max-h-[60vh] overflow-y-auto pr-1">
+              {/* TAB 1: SETUP DATABASE OTOMATIS */}
+              {guideTab === 'setup_auto' && (
+                <div className="space-y-4">
+                  {/* Action Banner: Eksekusi Otomatis */}
+                  <div className="p-4 bg-gradient-to-r from-emerald-900 to-teal-950 text-white rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm border border-emerald-700/60">
+                    <div>
+                      <h4 className="font-extrabold text-white text-sm flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-emerald-400" />
+                        <span>Eksekusi Setup Database Otomatis ke Google Sheets</span>
+                      </h4>
+                      <p className="text-emerald-200/90 text-xs mt-1">
+                        Aplikasi akan membuat dan memformat seluruh sheet terpisah secara otomatis: <strong>MasterTask_PLH</strong>, <strong>TaskLogs_PLH</strong>, <strong>JobBareng_PLH</strong>, <strong>WeeklyScores_PLH</strong>, dan <strong>WorkOrder_Pohon</strong>.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isSettingUpDb}
+                      onClick={handleTriggerAutoDbSetup}
+                      className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shrink-0 flex items-center justify-center gap-2 cursor-pointer shadow-sm transition disabled:opacity-50"
+                    >
+                      {isSettingUpDb ? (
+                        <>
+                          <Clock className="w-4 h-4 animate-spin" />
+                          <span>Menyiapkan Sheet...</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileSpreadsheet className="w-4 h-4" />
+                          <span>Jalankan Setup Database Sekarang</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Feedback Message */}
+                  {dbSetupResult && (
+                    <div
+                      className={`p-3.5 rounded-xl text-xs font-bold border flex items-center gap-2 animate-in fade-in duration-150 ${
+                        dbSetupResult.success
+                          ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                          : 'bg-rose-50 text-rose-900 border-rose-300'
+                      }`}
+                    >
+                      {dbSetupResult.success ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4 text-rose-700 shrink-0" />
+                      )}
+                      <span>{dbSetupResult.message}</span>
+                    </div>
+                  )}
+
+                  {/* Penjelasan Pemisahan Sheet */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5">
+                      <span className="font-extrabold text-slate-900 block text-xs">
+                        🏢 Sheet Divisi OB (Cleaning Service):
+                      </span>
+                      <ul className="list-disc pl-4 space-y-0.5 text-slate-600 text-[11px]">
+                        <li><code>MasterTask</code> (Tugas harian, pre-readiness & clock-out OB)</li>
+                        <li><code>TaskLogs</code> (Riwayat log pengerjaan harian OB)</li>
+                        <li><code>JobBareng</code> (Pekerjaan bersama tim OB)</li>
+                        <li><code>WeeklyScores</code> (Nilai evaluasi mingguan OB)</li>
+                      </ul>
+                    </div>
+
+                    <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-1.5">
+                      <span className="font-extrabold text-emerald-950 block text-xs">
+                        🌿 Sheet Divisi PLH (Lingkungan & Pohon):
+                      </span>
+                      <ul className="list-disc pl-4 space-y-0.5 text-emerald-900 text-[11px]">
+                        <li><code>MasterTask_PLH</code> (Tugas perawatan taman & kebun PLH)</li>
+                        <li><code>TaskLogs_PLH</code> (Log penyiraman & pemeliharaan PLH)</li>
+                        <li><code>JobBareng_PLH</code> (Kerja bakti drainase & taman PLH)</li>
+                        <li><code>WeeklyScores_PLH</code> (Nilai evaluasi mingguan PLH)</li>
+                        <li><code>WorkOrder_Pohon</code> (Inventaris & laporan pohon 5 area)</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Kode Apps Script Snippet */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800">
+                        Kode Google Apps Script Cadangan (Bila ingin menjalankan dari Editor Spreadsheet):
+                      </span>
+                      <button
+                        type="button"
+                        onClick={copyAppsScriptCode}
+                        className="px-2.5 py-1 rounded-lg bg-slate-800 text-white font-bold text-[11px] hover:bg-slate-700 transition cursor-pointer flex items-center gap-1"
+                      >
+                        {copiedCode ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedCode ? 'Tersalin!' : 'Salin Kode Apps Script'}</span>
+                      </button>
+                    </div>
+                    <pre className="p-3 bg-slate-950 text-emerald-400 rounded-xl font-mono text-[10px] overflow-x-auto max-h-40 border border-slate-800">
+                      {googleAppsScriptSnippet}
+                    </pre>
+                  </div>
                 </div>
+              )}
 
-                <div className="p-3 bg-slate-900 text-slate-200 rounded-xl font-mono text-[11px] overflow-x-auto leading-relaxed border border-slate-800">
-                  ID_WorkOrder | Tanggal_Lapor | Area_Lokasi | Nama_Pohon | Kondisi_Pohon | Tindakan_Treatment | Pelaksana | Nama_Vendor | Biaya_Vendor | Target_Minggu | Tingkat_Urgensi | Status | Catatan_Khusus | Link_Foto | Pelapor
+              {/* TAB 2: CONTOH INPUT DATA POHON */}
+              {guideTab === 'sample_pohon' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">
+                        Contoh Baris Input: Sheet `WorkOrder_Pohon` (25 Kolom)
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Digunakan untuk inventaris pohon, laporan pengecekan harian, dan pekerjaan vendor luar.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copySampleData(
+                          'pohon',
+                          `two-pos1-01\t2026-09-23\tArea Pos 1\tPohon Trembesi Gerbang\tRimbun\tPenjarangan Kanopi Rimbun\tInternal PLH\t-\t0\tMinggu ke-4 September 2026\tSedang\tPerlu Penanganan\tCabang rimbun menutupi lampu jalan\thttps://images.unsplash.com/photo-1502082553048-f009c37129b9?w=600\t-\tu-plh-pos1\tPetugas Pos 1\t2026-09-23\t08:15 WIB\tPetugas Pos 1\tSudah Dicek Aman\tKondisi dahan terpantau aman pasca hujan\t-\t-\t2026-09-23T08:15:00.000Z
+two-kolam-02\t2026-09-23\tArea Kolam Renang\tPohon Flamboyan Kolam\tMiring / Rawan Tumbang\tPenebangan / Topping Pohon Tinggi (Vendor Luar)\tVendor Luar\tCV Duta Hijau\t1500000\tMinggu ke-4 September 2026\tTinggi / Bahaya\tDijadwalkan\tAkar miring ke arah dinding kolam renang\thttps://images.unsplash.com/photo-1542273917363-3b1817f69a2d?w=600\t-\tu-plh-kolam\tPetugas Kolam\t2026-09-23\t09:30 WIB\tPetugas Kolam\tPerlu Penanganan\tWajib pengawasan ekstra saat anak-anak renang\t-\t-\t2026-09-23T09:30:00.000Z`
+                        )
+                      }
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      {copiedSample === 'pohon' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedSample === 'pohon' ? 'Data Tersalin!' : 'Salin Contoh Data (Tinggal Paste)'}</span>
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="min-w-full divide-y divide-slate-200 text-[11px] text-left">
+                      <thead className="bg-emerald-700 text-white font-bold">
+                        <tr>
+                          <th className="p-2">ID</th>
+                          <th className="p-2">Tanggal</th>
+                          <th className="p-2">Area</th>
+                          <th className="p-2">Nama Pohon</th>
+                          <th className="p-2">Kondisi</th>
+                          <th className="p-2">Tindakan</th>
+                          <th className="p-2">Pelaksana</th>
+                          <th className="p-2">Vendor / Biaya</th>
+                          <th className="p-2">Cek Terakhir</th>
+                          <th className="p-2">Status Cek Hari Ini</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        <tr>
+                          <td className="p-2 font-mono text-slate-500">two-pos1-01</td>
+                          <td className="p-2">2026-09-23</td>
+                          <td className="p-2 font-bold text-emerald-800">Area Pos 1</td>
+                          <td className="p-2 font-bold text-slate-900">Pohon Trembesi Gerbang</td>
+                          <td className="p-2 text-amber-700 font-bold">Rimbun</td>
+                          <td className="p-2">Penjarangan Kanopi</td>
+                          <td className="p-2"><span className="px-1.5 py-0.5 rounded bg-teal-100 text-teal-800 font-bold">Internal PLH</span></td>
+                          <td className="p-2 text-slate-400">-</td>
+                          <td className="p-2">23/09 08:15 WIB</td>
+                          <td className="p-2 font-bold text-emerald-700">Sudah Dicek Aman</td>
+                        </tr>
+                        <tr className="bg-slate-50">
+                          <td className="p-2 font-mono text-slate-500">two-kolam-02</td>
+                          <td className="p-2">2026-09-23</td>
+                          <td className="p-2 font-bold text-emerald-800">Area Kolam Renang</td>
+                          <td className="p-2 font-bold text-slate-900">Pohon Flamboyan Kolam</td>
+                          <td className="p-2 text-rose-700 font-bold">Miring / Rawan Tumbang</td>
+                          <td className="p-2">Penebangan / Topping</td>
+                          <td className="p-2"><span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-bold">Vendor Luar</span></td>
+                          <td className="p-2 font-bold text-slate-900">CV Duta (Rp 1.500.000)</td>
+                          <td className="p-2">23/09 09:30 WIB</td>
+                          <td className="p-2 font-bold text-rose-700">Perlu Penanganan</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Script Google Apps Script */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-800">
-                    Script Otomatisasi Google Apps Script (Opsional):
-                  </span>
-                  <button
-                    type="button"
-                    onClick={copyAppsScriptCode}
-                    className="px-2.5 py-1 rounded-lg bg-slate-800 text-white font-bold text-[11px] hover:bg-slate-700 transition cursor-pointer flex items-center gap-1"
-                  >
-                    {copiedCode ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedCode ? 'Tersalin!' : 'Salin Kode Apps Script'}</span>
-                  </button>
+              {/* TAB 3: CONTOH INPUT MASTER TASK PLH */}
+              {guideTab === 'sample_master' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">
+                        Contoh Baris Input: Sheet `MasterTask_PLH`
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Katalog tugas standar harian, mingguan, dan berkala khusus divisi PLH.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copySampleData(
+                          'master_plh',
+                          `mt-plh-01\tPenyiraman & Pemupukan Rutin Tanaman\tSemua Unit\tHarian\tpre_readiness\t1. Siapkan selang dan nozzle semprot\n2. Siram area taman merata sebelum terik matahari\n3. Bersihkan daun kering di pot\tYA\tAktif\tArea Taman Utama & Pos\tSemua Petugas\thttps://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=600\tPLH
+mt-plh-02\tPemangkasan Rumput & Pruning Dahan Bawah\tSemua Unit\tMingguan\tanytime\t1. Gunakan mesin potong rumput safety APD\n2. Potong rumput dengan ketinggian rata 3 cm\n3. Sapu dan masukkan sisa rumput ke bak kompos\tYA\tAktif\tArea Lapangan & Sekitar Masjid\tSemua Petugas\thttps://images.unsplash.com/photo-1592417817098-8f3d6910985c?w=600\tPLH`
+                        )
+                      }
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      {copiedSample === 'master_plh' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedSample === 'master_plh' ? 'Data Tersalin!' : 'Salin Contoh Data (Tinggal Paste)'}</span>
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="min-w-full divide-y divide-slate-200 text-[11px] text-left">
+                      <thead className="bg-emerald-700 text-white font-bold">
+                        <tr>
+                          <th className="p-2">ID_Task</th>
+                          <th className="p-2">Judul Tugas</th>
+                          <th className="p-2">Unit</th>
+                          <th className="p-2">Kategori</th>
+                          <th className="p-2">Waktu Pengerjaan</th>
+                          <th className="p-2">Wajib Foto</th>
+                          <th className="p-2">Divisi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        <tr>
+                          <td className="p-2 font-mono text-slate-500">mt-plh-01</td>
+                          <td className="p-2 font-bold text-slate-900">Penyiraman & Pemupukan Rutin Tanaman</td>
+                          <td className="p-2">Semua Unit</td>
+                          <td className="p-2"><span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold">Harian</span></td>
+                          <td className="p-2">pre_readiness (Pagi)</td>
+                          <td className="p-2 font-bold text-emerald-700">YA</td>
+                          <td className="p-2 font-black text-emerald-800">PLH</td>
+                        </tr>
+                        <tr className="bg-slate-50">
+                          <td className="p-2 font-mono text-slate-500">mt-plh-02</td>
+                          <td className="p-2 font-bold text-slate-900">Pemangkasan Rumput & Pruning Dahan Bawah</td>
+                          <td className="p-2">Semua Unit</td>
+                          <td className="p-2"><span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 font-bold">Mingguan</span></td>
+                          <td className="p-2">anytime</td>
+                          <td className="p-2 font-bold text-emerald-700">YA</td>
+                          <td className="p-2 font-black text-emerald-800">PLH</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-500">
-                  Tempelkan fungsi berikut di editor Apps Script spreadsheet Anda untuk membuat dan memformat sheet secara otomatis dengan warna hijau Lazuardi FM:
-                </p>
-                <pre className="p-3 bg-slate-950 text-emerald-400 rounded-xl font-mono text-[10px] overflow-x-auto max-h-48 border border-slate-800">
-                  {googleAppsScriptSnippet}
-                </pre>
-              </div>
+              )}
 
-              <div className="pt-3 border-t border-slate-100 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setIsGuideOpen(false)}
-                  className="px-5 py-2 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white cursor-pointer"
-                >
-                  Tutup Panduan
-                </button>
-              </div>
+              {/* TAB 4: CONTOH INPUT TASK LOGS PLH */}
+              {guideTab === 'sample_logs' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">
+                        Contoh Baris Input: Sheet `TaskLogs_PLH`
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Data real-time bukti pengerjaan harian staf PLH di sekolah.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copySampleData(
+                          'logs_plh',
+                          `tl-plh-01\t2026-09-23T07:45:00.000Z\t2026-09-23\tu-plh-pos1\tPetugas Pos 1\tTK\tPenyiraman Tanaman Area Pos 1\tHarian\tpre_readiness\tSelesai\tTIDAK\t-\t-\thttps://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=600\tTanaman disiram merata, kondisi basah segar\t5\tBagus & tepat waktu\t-\t-\t-\tPLH`
+                        )
+                      }
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      {copiedSample === 'logs_plh' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedSample === 'logs_plh' ? 'Data Tersalin!' : 'Salin Contoh Data (Tinggal Paste)'}</span>
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="min-w-full divide-y divide-slate-200 text-[11px] text-left">
+                      <thead className="bg-emerald-700 text-white font-bold">
+                        <tr>
+                          <th className="p-2">ID_Log</th>
+                          <th className="p-2">Tanggal</th>
+                          <th className="p-2">Petugas PLH</th>
+                          <th className="p-2">Nama Tugas</th>
+                          <th className="p-2">Status</th>
+                          <th className="p-2">Terlambat</th>
+                          <th className="p-2">Nilai Kordinator</th>
+                          <th className="p-2">Divisi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        <tr>
+                          <td className="p-2 font-mono text-slate-500">tl-plh-01</td>
+                          <td className="p-2">2026-09-23</td>
+                          <td className="p-2 font-bold text-slate-900">Petugas Pos 1</td>
+                          <td className="p-2">Penyiraman Tanaman Area Pos 1</td>
+                          <td className="p-2 font-bold text-emerald-700">Selesai</td>
+                          <td className="p-2 text-slate-500">TIDAK</td>
+                          <td className="p-2 font-black text-emerald-800">5.0 (Bagus)</td>
+                          <td className="p-2 font-black text-emerald-800">PLH</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 5: CONTOH INPUT JOB BARENG PLH */}
+              {guideTab === 'sample_job' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">
+                        Contoh Baris Input: Sheet `JobBareng_PLH`
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Pekerjaan gotong royong perawatan lingkungan & taman bersama seluruh staf PLH.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copySampleData(
+                          'job_plh',
+                          `jb-plh-01\tPembersihan Saluran Air & Drainase Taman Hujan\tPembersihan endapan lumpur dan daun kering di saluran air seluruh area sekolah\t2026-09-23\tSemua Unit\tArea Saluran Utama Khaldun & Pos 1\tAktif\tu-plh-1,u-plh-2\tu-plh-1\t2026-09-23T06:00:00.000Z\tall\t-\tPLH`
+                        )
+                      }
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      {copiedSample === 'job_plh' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedSample === 'job_plh' ? 'Data Tersalin!' : 'Salin Contoh Data (Tinggal Paste)'}</span>
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="min-w-full divide-y divide-slate-200 text-[11px] text-left">
+                      <thead className="bg-emerald-700 text-white font-bold">
+                        <tr>
+                          <th className="p-2">ID_Job</th>
+                          <th className="p-2">Judul Job Bareng</th>
+                          <th className="p-2">Tanggal</th>
+                          <th className="p-2">Area Target</th>
+                          <th className="p-2">Status</th>
+                          <th className="p-2">Divisi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        <tr>
+                          <td className="p-2 font-mono text-slate-500">jb-plh-01</td>
+                          <td className="p-2 font-bold text-slate-900">Pembersihan Saluran Air & Drainase Taman Hujan</td>
+                          <td className="p-2">2026-09-23</td>
+                          <td className="p-2">Area Saluran Utama Khaldun & Pos 1</td>
+                          <td className="p-2 font-bold text-blue-700">Aktif</td>
+                          <td className="p-2 font-black text-emerald-800">PLH</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 6: CONTOH INPUT WEEKLY SCORES PLH */}
+              {guideTab === 'sample_weekly' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">
+                        Contoh Baris Input: Sheet `WeeklyScores_PLH`
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Rekapitulasi skor performa mingguan staf PLH oleh Kordinator PLH.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copySampleData(
+                          'weekly_plh',
+                          `ws-plh-01\tu-plh-pos1\tPetugas Pos 1\tTK\t2026-09-26\t2026\t21 Sep - 26 Sep 2026\t4.85\tKordinator PLH\t{"kebersihan":4.8,"ketertiban":5.0,"kerapian":4.75}\tPemeliharaan area taman pos 1 sangat rapi dan tanaman terawat prima\t2026-09-26T12:00:00.000Z`
+                        )
+                      }
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      {copiedSample === 'weekly_plh' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedSample === 'weekly_plh' ? 'Data Tersalin!' : 'Salin Contoh Data (Tinggal Paste)'}</span>
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="min-w-full divide-y divide-slate-200 text-[11px] text-left">
+                      <thead className="bg-emerald-700 text-white font-bold">
+                        <tr>
+                          <th className="p-2">ID_Score</th>
+                          <th className="p-2">Petugas PLH</th>
+                          <th className="p-2">Periode Tanggal</th>
+                          <th className="p-2">Nilai Rata-rata</th>
+                          <th className="p-2">Penilai</th>
+                          <th className="p-2">Catatan Evaluasi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        <tr>
+                          <td className="p-2 font-mono text-slate-500">ws-plh-01</td>
+                          <td className="p-2 font-bold text-slate-900">Petugas Pos 1</td>
+                          <td className="p-2">21 Sep - 26 Sep 2026</td>
+                          <td className="p-2 font-black text-emerald-800 text-xs">4.85 / 5.0</td>
+                          <td className="p-2">Kordinator PLH</td>
+                          <td className="p-2 italic text-slate-600">Pemeliharaan area taman pos 1 sangat rapi</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex justify-end mt-4">
+              <button
+                type="button"
+                onClick={() => setIsGuideOpen(false)}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white cursor-pointer"
+              >
+                Tutup Panduan
+              </button>
             </div>
           </div>
         </div>
