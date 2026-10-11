@@ -21,6 +21,12 @@ import {
   Users2,
   Coffee,
   TreePine,
+  Plus,
+  Wrench,
+  X,
+  Upload,
+  Image as ImageIcon,
+  Printer,
 } from 'lucide-react';
 import {
   MasterTask,
@@ -30,14 +36,19 @@ import {
   DinasRequest,
   PeerInspection,
   WeeklyScore,
+  TreeWorkOrder,
+  AdhocDailyTask,
+  PLH_AREAS,
 } from '../types';
 import { StorageService, isTaskAssignedToUser } from '../services/storage';
 import { JobBarengCard } from './JobBarengCard';
 import { MasjidRollingCard } from './MasjidRollingCard';
-import { TreeWorkOrderView } from './TreeWorkOrderView';
+import { TreeWorkOrderView, getTreeWeeklyCheckStatus } from './TreeWorkOrderView';
+import { sanitizePlhStaffName, generateWorkOrderSummaryPdf, printHtmlAsPdf } from '../utils/pdfGenerator';
+import { isAreaOnMasjidDutyThisWeek, getMasjidRollingSchedule } from '../utils/masjidRolling';
 import { formatGoogleDriveImageUrl, getGoogleDriveViewLink } from '../utils/driveHelper';
 import { parseInstructionSteps } from '../utils/instructionHelper';
-import { getJakartaDateString, getJakartaHour, isMasterTaskActive, isJobBarengExpired, isSameDay, normalizeDateString } from '../utils/dateHelper';
+import { getJakartaDateString, getJakartaHour, isMasterTaskActive, isJobBarengExpired, isSameDay, normalizeDateString, formatJakartaDisplayDate } from '../utils/dateHelper';
 
 interface UserTaskViewProps {
   activeUser: User;
@@ -73,6 +84,8 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [selectedPhotoPreview, setSelectedPhotoPreview] = useState<string | null>(null);
   const [showTreeModal, setShowTreeModal] = useState(false);
+  const [treeInitialId, setTreeInitialId] = useState<string | undefined>(undefined);
+  const [treeInitialAction, setTreeInitialAction] = useState<'inspect' | 'treatment' | 'history' | undefined>(undefined);
 
   const today = getJakartaDateString();
   const currentHour = getJakartaHour();
@@ -81,6 +94,80 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
 
   // Akses eksklusif modul Pohon & Masjid: Hanya untuk divisi PLH (staff & kordinator) atau Admin FM
   const isPLH = (activeUser.division === 'PLH') || (activeUser.role === 'admin');
+
+  // Adhoc Daily Task State (Tugas Tambahan Hari Ini - Khusus PLH)
+  const [showAdhocModal, setShowAdhocModal] = useState(false);
+  const [adhocTitle, setAdhocTitle] = useState('');
+  const [adhocArea, setAdhocArea] = useState(activeUser.assignedArea || 'Area Pos 1');
+  const [adhocNotes, setAdhocNotes] = useState('');
+  const [adhocMinutes, setAdhocMinutes] = useState(30);
+  const [adhocPhoto, setAdhocPhoto] = useState('');
+  const [adhocStatus, setAdhocStatus] = useState<'Selesai' | 'Sedang Dikerjakan'>('Selesai');
+  const [isSubmittingAdhoc, setIsSubmittingAdhoc] = useState(false);
+  const [adhocTasks, setAdhocTasks] = useState<AdhocDailyTask[]>(() =>
+    StorageService.getAdhocDailyTasks(today)
+  );
+
+  // Tree Work Orders state for weekly section
+  const [treeOrders, setTreeOrders] = useState<TreeWorkOrder[]>(() =>
+    StorageService.getTreeWorkOrders()
+  );
+
+  const handleOpenTreeWithAction = (treeId: string, action: 'inspect' | 'treatment' | 'history') => {
+    setTreeInitialId(treeId);
+    setTreeInitialAction(action);
+    setShowTreeModal(true);
+  };
+
+  const handleCloseTreeModal = () => {
+    setShowTreeModal(false);
+    setTreeInitialId(undefined);
+    setTreeInitialAction(undefined);
+    setTreeOrders(StorageService.getTreeWorkOrders());
+  };
+
+  const handleSaveAdhocTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adhocTitle.trim()) return;
+
+    setIsSubmittingAdhoc(true);
+    const now = new Date();
+    const newTask: AdhocDailyTask = {
+      id: `adhoc-${Date.now()}`,
+      date: today,
+      userId: activeUser.id,
+      userName: activeUser.name,
+      division: 'PLH',
+      area: adhocArea,
+      title: adhocTitle.trim(),
+      notes: adhocNotes.trim(),
+      estimatedMinutes: Number(adhocMinutes) || 30,
+      photoUrl: adhocPhoto || undefined,
+      status: adhocStatus,
+      completedAt: adhocStatus === 'Selesai' ? now.toISOString() : undefined,
+      createdAt: now.toISOString(),
+    };
+
+    StorageService.addAdhocDailyTask(newTask);
+    setAdhocTasks(StorageService.getAdhocDailyTasks(today));
+    setAdhocTitle('');
+    setAdhocNotes('');
+    setAdhocPhoto('');
+    setShowAdhocModal(false);
+    setIsSubmittingAdhoc(false);
+  };
+
+  const userAreaTrees = useMemo(() => {
+    if (!isPLH) return [];
+    const userArea = activeUser.assignedArea || activeUser.unit || '';
+    if (activeUser.role === 'admin' || (activeUser.role === 'kordinator' && (!userArea || userArea === 'Semua Unit'))) {
+      return treeOrders;
+    }
+    return treeOrders.filter((t) => {
+      if (!userArea) return true;
+      return t.area.toLowerCase().includes(userArea.toLowerCase()) || userArea.toLowerCase().includes(t.area.toLowerCase());
+    });
+  }, [treeOrders, isPLH, activeUser]);
 
   // Check if user is on Dinas Luar today (either approved or pending)
   const activeDinasToday = dinasRequests.find(
@@ -241,12 +328,67 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
     });
   }, [jobBarengList, today, activeUser, isGeneralUnit]);
 
+  // Cek apakah staf PLH sedang giliran piket Aula Masjid (Rolling PLH) pada minggu ini
+  const isMyMasjidDutyWeek = useMemo(() => {
+    if ((activeUser.division || 'OB') !== 'PLH') return false;
+    const userArea = activeUser.assignedArea || activeUser.unit || '';
+    return isAreaOnMasjidDutyThisWeek(userArea);
+  }, [activeUser]);
+
+  // Tugas piket rolling masjid yang otomatis dimasukkan ke tab Pre-Readiness (Pagi 06:30 – 08:30 WIB)
+  const masjidDutyTask: MasterTask | null = useMemo(() => {
+    if (!isMyMasjidDutyWeek) return null;
+
+    const existing = masterTasks.find(
+      (t) => t.id === 'mt-plh-wk-05' || ((t.division === 'PLH' || !t.division) && t.title.toLowerCase().includes('aula masjid'))
+    );
+    if (existing) {
+      return {
+        ...existing,
+        title: 'Piket Aula Masjid (Rolling PLH) - Kesiapan Pagi (06:30 – 08:30 WIB)',
+        category: 'Harian',
+        timingType: 'pre_readiness',
+        instructions: [
+          '🌟 TUGAS KHUSUS: Giliran Area Anda Bertugas Piket Aula Masjid Minggu Ini! [Pagi: 06:30 – 08:30 WIB (Pre-Readiness)]',
+          ...(existing.instructions || [
+            'Vacuum seluruh karpet sajadah Aula Masjid dari debu dan kotoran.',
+            'Lap mimbar, rak Al-Quran, jendela kaca, dan tempat wudhu luar masjid.',
+            'Pastikan pendingin/kipas angin dan wewangian karpet terpasang rapi untuk ibadah.',
+          ]),
+        ],
+      };
+    }
+    return {
+      id: 'mt-plh-wk-05',
+      title: 'Piket Aula Masjid (Rolling PLH) - Kesiapan Pagi (06:30 – 08:30 WIB)',
+      unit: 'Semua Unit',
+      category: 'Harian',
+      timingType: 'pre_readiness',
+      division: 'PLH',
+      assignee: 'Semua Petugas',
+      instructions: [
+        '🌟 TUGAS KHUSUS: Giliran Area Anda Bertugas Piket Aula Masjid Minggu Ini! [Pagi: 06:30 – 08:30 WIB (Pre-Readiness)]',
+        'Vacuum seluruh karpet sajadah Aula Masjid dari debu dan kotoran.',
+        'Lap mimbar, rak Al-Quran, jendela kaca, dan tempat wudhu luar masjid.',
+        'Pastikan pendingin/kipas angin dan wewangian karpet terpasang rapi untuk ibadah.',
+      ],
+      photoRequired: true,
+      estimatedMinutes: 45,
+      area: 'Aula Masjid (Rolling PLH)',
+      isActive: true,
+    };
+  }, [isMyMasjidDutyWeek, masterTasks]);
+
   // Categorized tasks with fallback normalization
   const preReadinessTasks = useMemo(() => {
-    return userMasterTasks.filter(
+    const list = userMasterTasks.filter(
       (t) => normalizeCategory(t.category, t) === 'Harian' && normalizeTiming(t.timingType, t) === 'pre_readiness'
     );
-  }, [userMasterTasks]);
+    if (masjidDutyTask && !list.some((t) => t.id === masjidDutyTask.id)) {
+      return [masjidDutyTask, ...list];
+    }
+    return list;
+  }, [userMasterTasks, masjidDutyTask]);
 
   const clockOutTasks = useMemo(() => {
     return userMasterTasks.filter(
@@ -265,8 +407,14 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
   }, [userMasterTasks]);
 
   const weeklyTasks = useMemo(() => {
-    return userMasterTasks.filter((t) => normalizeCategory(t.category, t) === 'Mingguan');
-  }, [userMasterTasks]);
+    return userMasterTasks.filter((t) => {
+      // Jika sedang giliran minggu ini, tugas masjid sudah masuk ke pre-readiness harian sehingga tidak perlu tampil ganda di mingguan
+      if (isMyMasjidDutyWeek && (t.id === 'mt-plh-wk-05' || t.title.toLowerCase().includes('aula masjid'))) {
+        return false;
+      }
+      return normalizeCategory(t.category, t) === 'Mingguan';
+    });
+  }, [userMasterTasks, isMyMasjidDutyWeek]);
 
   const monthlyTasks = useMemo(() => {
     return userMasterTasks.filter((t) => normalizeCategory(t.category, t) === 'Bulanan');
@@ -420,6 +568,12 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
                 <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-mono font-bold text-[10px] border border-slate-200">
                   #{task.id}
                 </span>
+
+                {(task.id === 'mt-plh-wk-05' || task.title.toLowerCase().includes('masjid')) && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                    <span>🕌 Piket Rolling Masjid (Giliran Area Anda)</span>
+                  </span>
+                )}
 
                 <h4
                   className={`text-xs sm:text-sm font-bold tracking-tight ${
@@ -867,16 +1021,68 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
           </button>
         </div>
 
-        {/* Quick Access to Tree Work Orders - Eksklusif PLH & Kordinator PLH (Tidak muncul untuk OB) */}
-        {isPLH && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Unduh PDF Work Order Saya (Untuk Semua OB & PLH) */}
           <button
-            onClick={() => setShowTreeModal(true)}
-            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer whitespace-nowrap"
+            type="button"
+            onClick={() => {
+              const myLogs = taskLogs.filter(
+                (l) =>
+                  l.userId === activeUser.id ||
+                  (l.userName && activeUser.name && l.userName.trim().toLowerCase() === activeUser.name.trim().toLowerCase())
+              );
+              const html = generateWorkOrderSummaryPdf(
+                myLogs,
+                masterTasks,
+                jobBarengList,
+                [activeUser],
+                {
+                  division: activeUser.division || 'OB',
+                  startDate: today,
+                  endDate: today,
+                  staffName: activeUser.name,
+                  title: 'REKAP REALISASI WORK ORDER TUGAS',
+                }
+              );
+              printHtmlAsPdf(
+                html,
+                `WorkOrder_${activeUser.name.replace(/\s+/g, '_')}_${today}`
+              );
+            }}
+            className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer whitespace-nowrap"
+            title="Unduh & Cetak PDF Dokumen Work Order Tugas Saya Hari Ini"
           >
-            <TreePine className="w-3.5 h-3.5 text-emerald-200" />
-            <span>Work Order Pohon</span>
+            <Printer className="w-3.5 h-3.5 text-emerald-400" />
+            <span>📄 Unduh PDF Work Order</span>
           </button>
-        )}
+
+          {/* Quick Access to Tree Work Orders & Adhoc Task - Eksklusif PLH & Kordinator PLH */}
+          {isPLH && (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowAdhocModal(true)}
+                className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer whitespace-nowrap"
+                title="Input pekerjaan tambahan atau mandiri yang dikerjakan hari ini (misal: menyemai benih, olah pupuk kompos, dll.)"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+                <span>+ Tugas Tambahan</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTreeInitialId(undefined);
+                  setTreeInitialAction(undefined);
+                  setShowTreeModal(true);
+                }}
+                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer whitespace-nowrap"
+              >
+                <TreePine className="w-3.5 h-3.5 text-emerald-200" />
+                <span>Work Order Pohon</span>
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* TAB CONTENT: HARIAN DENGAN RE-ORDERING OTOMATIS */}
@@ -903,6 +1109,76 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
               >
                 Muat Template Tugas Standar Kebersihan
               </button>
+            </div>
+          )}
+
+          {/* Pekerjaan Tambahan Hari Ini (Tugas Mandiri / Insidental) - Khusus PLH */}
+          {isPLH && adhocTasks.length > 0 && (
+            <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
+                  <h3 className="text-xs sm:text-sm font-bold text-emerald-950 flex items-center gap-1.5">
+                    <span>Pekerjaan Tambahan Hari Ini</span>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-200/80 text-emerald-900">
+                      {adhocTasks.length} Tugas Mandiri
+                    </span>
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAdhocModal(true)}
+                  className="text-xs font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Tambah</span>
+                </button>
+              </div>
+              <p className="text-[11px] text-emerald-800">
+                Pekerjaan di bawah ini diinput secara mandiri dan masuk ke work order hari ini ({formatJakartaDisplayDate(today)}).
+              </p>
+              <div className="space-y-2">
+                {adhocTasks.map((t) => (
+                  <div
+                    key={t.id}
+                    className="p-3 bg-white rounded-xl border border-emerald-100 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-xs text-slate-900">{t.title}</span>
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                          {t.area}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-600">
+                          {t.estimatedMinutes || 30} Menit
+                        </span>
+                      </div>
+                      {t.notes && (
+                        <p className="text-[11px] text-slate-600 italic">"{t.notes}"</p>
+                      )}
+                      <div className="text-[10px] text-slate-400">
+                        Oleh: {t.userName} • Dicatat pada: {new Date(t.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      {t.photoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPhotoPreview(t.photoUrl!)}
+                          className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[10px] font-bold text-slate-700 flex items-center gap-1 border border-slate-200 cursor-pointer"
+                        >
+                          <Camera className="w-3 h-3 text-slate-500" />
+                          <span>Lihat Foto</span>
+                        </button>
+                      )}
+                      <span className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold bg-emerald-600 text-white flex items-center gap-1 shadow-2xs">
+                        <Check className="w-3 h-3" />
+                        <span>{t.status}</span>
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -1082,27 +1358,126 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
             </div>
           </div>
 
-          {/* PLH Specific: Work Order Pohon Mingguan (Treatment Besar / Vendor Luar) Banner - Eksklusif PLH */}
+          {/* PLH Specific: Work Order Pohon Mingguan (Sesuai Permintaan: seperti work order mingguan biasa) */}
           {isPLH && (
-            <div className="bg-emerald-950 text-white border border-emerald-800 rounded-2xl p-4 shadow-sm space-y-2">
+            <div className="bg-white border border-emerald-300 rounded-2xl p-4 shadow-xs space-y-3">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-800/80 text-emerald-200 flex items-center justify-center">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-bold">
                     <TreePine className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-sm text-white">Work Order Khusus Pohon & Penanganan</h4>
-                    <p className="text-[11px] text-emerald-300">
-                      Cek kondisi pohon rimbun, treatment berkala &amp; penanganan besar oleh Vendor Luar.
+                    <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                      <span>Work Order Pohon Mingguan</span>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                        {activeUser.assignedArea || 'Semua Wilayah'}
+                      </span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Cek kondisi pohon di area tugas Anda. Direset tiap Senin jam 00:00 WIB. Log riwayat otomatis tersimpan di <strong>TaskLogs_Pohon</strong>.
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setShowTreeModal(true)}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition shadow-xs cursor-pointer"
-                >
-                  Buka Work Order Pohon ↗
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setTreeInitialId(undefined);
+                      setTreeInitialAction(undefined);
+                      setShowTreeModal(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>Buka Modul Pohon Lengkap ↗</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Progress Bar Ceklis Mingguan */}
+              {userAreaTrees.length > 0 && (
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 flex items-center justify-between text-xs gap-3 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span className="text-slate-700 font-semibold text-[11px]">
+                      Pengecekan Minggu Ini (Reset Tiap Senin):
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-emerald-800 text-[11px]">
+                      {userAreaTrees.filter((t) => getTreeWeeklyCheckStatus(t).isCheckedThisWeek).length} / {userAreaTrees.length} Pohon Selesai Dicek
+                    </span>
+                    <div className="w-24 h-2 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-600 rounded-full transition-all"
+                        style={{
+                          width: `${(userAreaTrees.filter((t) => getTreeWeeklyCheckStatus(t).isCheckedThisWeek).length / Math.max(1, userAreaTrees.length)) * 100}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Daftar Pohon sebagai Work Order Mingguan Biasa */}
+              <div className="space-y-2 pt-1">
+                {userAreaTrees.map((tree) => {
+                  const status = getTreeWeeklyCheckStatus(tree);
+                  return (
+                    <div
+                      key={tree.id}
+                      className="p-3 rounded-xl border border-slate-200 hover:border-emerald-300 transition-all bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-xs text-slate-900">{tree.treeName}</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-600 font-semibold">
+                            {tree.area}
+                          </span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-md font-extrabold border ${status.badgeClass}`}>
+                            {status.statusText}
+                          </span>
+                        </div>
+                        <div className="text-[10.5px] text-slate-500">
+                          Kondisi: <strong>{tree.condition}</strong> • Pemeriksaan Terakhir: {tree.lastCheckedDate || tree.date} {tree.lastCheckedTime ? `(${tree.lastCheckedTime})` : ''}
+                          {tree.lastCheckedByName && ` oleh ${sanitizePlhStaffName(tree.lastCheckedByName, tree.area)}`}
+                        </div>
+                        {tree.inspectionNotes && (
+                          <p className="text-[10.5px] text-slate-600 italic">"{tree.inspectionNotes}"</p>
+                        )}
+                        {/* Panduan Foto Standar & Sudut */}
+                        <div className="flex items-center gap-1.5 pt-0.5 text-[10.5px] flex-wrap">
+                          <span className="text-emerald-900 font-bold flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                            <Camera className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span>Standar Foto:</span>
+                            <span className="font-medium text-slate-700 truncate max-w-[280px]">
+                              {tree.standardPhotoAngleGuide || 'Jarak 5–10m agar pohon tampak utuh'}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenTreeWithAction(tree.id, 'inspect')}
+                          className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+                          title="Lakukan pengecekan kondisi pohon & ambil foto sesuai panduan standar"
+                        >
+                          <Camera className="w-3.5 h-3.5" />
+                          <span>Ceklis & Foto Pohon</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenTreeWithAction(tree.id, 'history')}
+                          className="px-2 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs transition cursor-pointer flex items-center gap-1 border border-slate-200"
+                          title="Lihat riwayat log pemeriksaan pohon (TaskLogs_Pohon)"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Riwayat</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1534,14 +1909,210 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
                 </div>
               </div>
               <button
-                onClick={() => setShowTreeModal(false)}
+                onClick={handleCloseTreeModal}
                 className="px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs transition cursor-pointer"
               >
                 ✕ Tutup
               </button>
             </div>
 
-            <TreeWorkOrderView activeUser={activeUser} />
+            <TreeWorkOrderView
+              activeUser={activeUser}
+              isModal={true}
+              initialTreeId={treeInitialId}
+              initialAction={treeInitialAction}
+              onClose={handleCloseTreeModal}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Input Tugas Tambahan Hari Ini (Khusus PLH) */}
+      {showAdhocModal && isPLH && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-slate-900">
+                    Input Pekerjaan Tambahan Hari Ini
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Pekerjaan mandiri PLH yang masuk ke work order hari ini saja ({formatJakartaDisplayDate(today)})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdhocModal(false)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAdhocTask} className="space-y-3.5 text-xs">
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 block">
+                  Judul Pekerjaan Tambahan <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Nyemai benih tanaman cabai & tomat, buat kompos..."
+                  value={adhocTitle}
+                  onChange={(e) => setAdhocTitle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 block">
+                    Area Pengerjaan <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={adhocArea}
+                    onChange={(e) => setAdhocArea(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white font-medium text-slate-800"
+                  >
+                    {PLH_AREAS.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                    <option value="Area Lainnya / Seluruh Sekolah">Area Lainnya / Seluruh Sekolah</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 block">
+                    Estimasi Waktu Pengerjaan (Menit)
+                  </label>
+                  <input
+                    type="number"
+                    min="5"
+                    max="480"
+                    value={adhocMinutes}
+                    onChange={(e) => setAdhocMinutes(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 block">
+                  Keterangan & Rincian Pekerjaan
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Jelaskan apa yang dikerjakan, alat/bahan yang digunakan, atau lokasi spesifik..."
+                  value={adhocNotes}
+                  onChange={(e) => setAdhocNotes(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-800"
+                />
+              </div>
+
+              {/* Upload Foto Bukti */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700 block">
+                  Foto Bukti Pengerjaan (Opsional)
+                </label>
+                <div className="flex items-center gap-2">
+                  <label className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl border-2 border-dashed border-slate-300 hover:border-amber-500 bg-slate-50 cursor-pointer transition text-slate-600 font-medium text-xs">
+                    <Upload className="w-4 h-4 text-amber-600" />
+                    <span>Upload / Ambil Foto</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            setAdhocPhoto(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                  {adhocPhoto && (
+                    <button
+                      type="button"
+                      onClick={() => setAdhocPhoto('')}
+                      className="p-2 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-bold cursor-pointer"
+                      title="Hapus foto"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                {adhocPhoto && (
+                  <div className="mt-2 text-center bg-slate-50 p-2 rounded-xl border border-slate-200">
+                    <img
+                      src={formatGoogleDriveImageUrl(adhocPhoto)}
+                      alt="Bukti Pengerjaan"
+                      className="max-h-36 mx-auto rounded-lg object-cover"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Status */}
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 block">Status Pekerjaan</label>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-1.5 cursor-pointer font-medium">
+                    <input
+                      type="radio"
+                      name="adhoc_status"
+                      checked={adhocStatus === 'Selesai'}
+                      onChange={() => setAdhocStatus('Selesai')}
+                      className="text-amber-600"
+                    />
+                    <span>Sudah Selesai</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer font-medium">
+                    <input
+                      type="radio"
+                      name="adhoc_status"
+                      checked={adhocStatus === 'Sedang Dikerjakan'}
+                      onChange={() => setAdhocStatus('Sedang Dikerjakan')}
+                      className="text-amber-600"
+                    />
+                    <span>Sedang Dikerjakan</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-amber-50 text-amber-900 text-[11px] leading-relaxed">
+                ℹ️ <strong>Catatan:</strong> Tugas tambahan ini hanya akan tercatat pada work order hari ini ({formatJakartaDisplayDate(today)}) dan otomatis masuk ke log harian divisi PLH (TaskLogs_PLH).
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAdhocModal(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingAdhoc || !adhocTitle.trim()}
+                  className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Simpan ke Work Order Hari Ini</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

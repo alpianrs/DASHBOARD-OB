@@ -203,9 +203,9 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
       notes:
         notes.trim() ||
         (inspectionStatus === 'Sesuai Standar Kebersihan' || inspectionStatus === 'Sesuai Standar SOP'
-          ? 'Kondisi area bersih dan sesuai Standar Kebersihan Lazuardi GCS.'
+          ? (activeUser.division === 'PLH' ? 'Kondisi area luar PLH rapi, bersih, dan aman.' : 'Kondisi area bersih dan sesuai Standar Kebersihan Lazuardi GCS.')
           : 'Terdapat catatan temuan kebersihan yang perlu dirapikan.'),
-      checklistItems: checklist,
+      checklistItems: activeUser.division === 'PLH' ? [] : checklist,
       photoUrl: finalPhotoUrl,
     };
 
@@ -399,37 +399,39 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
             )}
           </div>
 
-          {/* Standar Kebersihan Checklist */}
-          <div>
-            <label className="block font-bold text-slate-700 mb-1.5">
-              Standar Kebersihan (Klik untuk Ceklist):
-            </label>
-            <div className="space-y-1.5">
-              {checklist.map((item, idx) => (
-                <button
-                  type="button"
-                  key={idx}
-                  onClick={() => toggleChecklistItem(idx)}
-                  className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                    item.passed
-                      ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900'
-                      : 'bg-slate-50 border-slate-200 text-slate-500'
-                  }`}
-                >
-                  <span className="font-medium pr-2">{item.label}</span>
-                  <div
-                    className={`w-5 h-5 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+          {/* Standar Kebersihan Checklist (Hanya untuk Divisi OB / Non-PLH) */}
+          {activeUser.division !== 'PLH' && (
+            <div>
+              <label className="block font-bold text-slate-700 mb-1.5">
+                Standar Kebersihan (Klik untuk Ceklist):
+              </label>
+              <div className="space-y-1.5">
+                {checklist.map((item, idx) => (
+                  <button
+                    type="button"
+                    key={idx}
+                    onClick={() => toggleChecklistItem(idx)}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                       item.passed
-                        ? 'bg-emerald-600 text-white'
-                        : 'border border-slate-300 bg-white'
+                        ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900'
+                        : 'bg-slate-50 border-slate-200 text-slate-500'
                     }`}
                   >
-                    {item.passed ? '✓' : ''}
-                  </div>
-                </button>
-              ))}
+                    <span className="font-medium pr-2">{item.label}</span>
+                    <div
+                      className={`w-5 h-5 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                        item.passed
+                          ? 'bg-emerald-600 text-white'
+                          : 'border border-slate-300 bg-white'
+                      }`}
+                    >
+                      {item.passed ? '✓' : ''}
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Status Hasil Inspeksi (Sesuai / Ada Temuan) */}
           <div>

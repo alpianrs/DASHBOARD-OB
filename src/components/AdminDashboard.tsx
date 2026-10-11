@@ -44,6 +44,7 @@ import {
   TreePine,
   Printer,
   FileText,
+  MapPin,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -77,7 +78,7 @@ import { StorageService, isTaskAssignedToUser } from '../services/storage';
 import { GOOGLE_APPS_SCRIPT_CODE, GoogleSheetsService } from '../services/googleSheets';
 import { MasjidRollingCard } from './MasjidRollingCard';
 import { TreeWorkOrderView } from './TreeWorkOrderView';
-import { generateJobBarengPdf, printHtmlAsPdf } from '../utils/pdfGenerator';
+import { generateJobBarengPdf, generateWorkOrderSummaryPdf, printHtmlAsPdf } from '../utils/pdfGenerator';
 import {
   formatGoogleDriveImageUrl,
   getGoogleDriveViewLink,
@@ -222,6 +223,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newUserRole, setNewUserRole] = useState<UserRole>('user');
   const [newUserUnit, setNewUserUnit] = useState<UnitType>('TK');
   const [newUserDivision, setNewUserDivision] = useState<'OB' | 'PLH'>('OB');
+  const [newUserAssignedArea, setNewUserAssignedArea] = useState<string>('Area Pos 1');
+  const [userManagementDivisionFilter, setUserManagementDivisionFilter] = useState<'Semua' | 'OB' | 'PLH' | 'Kordinator'>('Semua');
+  const [userManagementSearch, setUserManagementSearch] = useState<string>('');
 
   // Master Task Modal State
   const [isEditingTaskModal, setIsEditingTaskModal] = useState<boolean>(false);
@@ -867,8 +871,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       username: newUserUsername.trim(),
       password: 'password123',
       role: newUserRole,
-      unit: newUserUnit,
+      unit: newUserDivision === 'PLH' ? 'Semua Unit' : newUserUnit,
       division: newUserDivision,
+      assignedArea: newUserDivision === 'PLH' ? newUserAssignedArea : (newUserUnit !== 'Semua Unit' ? `Unit ${newUserUnit}` : undefined),
       status: 'Aktif',
     };
 
@@ -877,6 +882,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setNewUserName('');
     setNewUserUsername('');
     setNewUserDivision('OB');
+    setNewUserAssignedArea('Area Pos 1');
   };
 
   // Handle Save Master Task
@@ -1461,6 +1467,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </span>
               )}
             </div>
+
+            {/* Action Download PDF Work Order SPK */}
+            <button
+              type="button"
+              onClick={() => {
+                const html = generateWorkOrderSummaryPdf(
+                  taskLogs,
+                  masterTasks,
+                  jobBarengList,
+                  allUsers,
+                  {
+                    division: selectedDivisionFilter,
+                    startDate: startDate,
+                    endDate: endDate,
+                    unitFilter: selectedUnitFilter,
+                    statusFilter: selectedStatusFilter,
+                    staffName: selectedUserFilter !== 'Semua' ? selectedUserFilter : undefined,
+                  }
+                );
+                printHtmlAsPdf(
+                  html,
+                  `Rekap_WorkOrder_${selectedDivisionFilter === 'OB' ? 'OB_OG' : selectedDivisionFilter}_${startDate || 'Awal'}_sd_${endDate || 'Sekarang'}`
+                );
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs text-xs whitespace-nowrap"
+              title="Cetak & Unduh Dokumen PDF Rekapitulasi Work Order Tugas Harian / Mingguan"
+            >
+              <Printer className="w-3.5 h-3.5 text-emerald-400" />
+              <span>📄 Cetak PDF Work Order</span>
+            </button>
           </div>
         </div>
       )}
@@ -1998,6 +2034,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <option value="Dinas Luar">Dinas Luar</option>
               </select>
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                const html = generateWorkOrderSummaryPdf(
+                  taskLogs,
+                  masterTasks,
+                  jobBarengList,
+                  allUsers,
+                  {
+                    division: selectedDivisionFilter,
+                    startDate: startDate,
+                    endDate: endDate,
+                    unitFilter: selectedUnitFilter,
+                    statusFilter: selectedStatusFilter,
+                    staffName: selectedUserFilter !== 'Semua' ? selectedUserFilter : undefined,
+                  }
+                );
+                printHtmlAsPdf(
+                  html,
+                  `Rekap_WorkOrder_${selectedDivisionFilter === 'OB' ? 'OB_OG' : selectedDivisionFilter}_${startDate || 'Awal'}_sd_${endDate || 'Sekarang'}`
+                );
+              }}
+              className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs whitespace-nowrap text-xs"
+              title="Unduh Rekap Work Order & SPK Tugas Seluruh OB & PLH dalam Format PDF Resmi"
+            >
+              <Printer className="w-3.5 h-3.5 text-emerald-200" />
+              <span>📄 Unduh PDF Work Order</span>
+            </button>
           </div>
 
           {/* Table Container */}
@@ -2528,14 +2593,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div>
               <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
                 <Users className="w-5 h-5 text-slate-800" />
-                Manajemen User & Rotasi Unit Tahunan
+                Manajemen User & Penugasan (OB & PLH)
               </h3>
               <p className="text-xs text-slate-500">
-                Admin dapat merotasi unit kerja staff OB/OG (TK, SD, SMP, Pelangi, Ar Razi, Khaldun), mengubah peran, atau memperbarui status resign.
+                Kelola data akun staf OB (Unit TK - Khaldun), staf PLH (Area Taman & Pohon), kordinator, dan rotasi tahunan.
               </p>
             </div>
             <button
-              onClick={() => setIsAddingUser(true)}
+              onClick={() => {
+                setNewUserName('');
+                setNewUserUsername('');
+                setNewUserDivision('OB');
+                setNewUserRole('user');
+                setNewUserUnit('SD');
+                setNewUserAssignedArea('Area Pos 1');
+                setIsAddingUser(true);
+              }}
               className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -2543,9 +2616,85 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
           </div>
 
+          {/* Filter Bar */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                onClick={() => setUserManagementDivisionFilter('Semua')}
+                className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
+                  userManagementDivisionFilter === 'Semua'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Semua ({allUsers.length})
+              </button>
+              <button
+                onClick={() => setUserManagementDivisionFilter('PLH')}
+                className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer flex items-center gap-1 ${
+                  userManagementDivisionFilter === 'PLH'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                }`}
+              >
+                <span>🌿 PLH ({allUsers.filter((u) => u.division === 'PLH').length})</span>
+              </button>
+              <button
+                onClick={() => setUserManagementDivisionFilter('OB')}
+                className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer flex items-center gap-1 ${
+                  userManagementDivisionFilter === 'OB'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-sky-50 text-sky-800 hover:bg-sky-100 border border-sky-200'
+                }`}
+              >
+                <span>🧹 OB ({allUsers.filter((u) => u.division !== 'PLH' && u.role !== 'admin').length})</span>
+              </button>
+              <button
+                onClick={() => setUserManagementDivisionFilter('Kordinator')}
+                className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer flex items-center gap-1 ${
+                  userManagementDivisionFilter === 'Kordinator'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                }`}
+              >
+                <span>⭐ Kordinator & Admin ({allUsers.filter((u) => u.role === 'kordinator' || u.role === 'admin').length})</span>
+              </button>
+            </div>
+
+            <div className="w-full sm:w-64">
+              <input
+                type="text"
+                value={userManagementSearch}
+                onChange={(e) => setUserManagementSearch(e.target.value)}
+                placeholder="Cari nama, username, unit, area..."
+                className="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
           {/* User List Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {allUsers.map((u) => (
+            {allUsers
+              .filter((u) => {
+                if (userManagementDivisionFilter === 'PLH') {
+                  if (u.division !== 'PLH') return false;
+                } else if (userManagementDivisionFilter === 'OB') {
+                  if (u.division === 'PLH') return false;
+                } else if (userManagementDivisionFilter === 'Kordinator') {
+                  if (u.role !== 'kordinator' && u.role !== 'admin') return false;
+                }
+
+                if (userManagementSearch.trim()) {
+                  const q = userManagementSearch.toLowerCase();
+                  const mName = u.name.toLowerCase().includes(q);
+                  const mUser = u.username.toLowerCase().includes(q);
+                  const mUnit = u.unit.toLowerCase().includes(q);
+                  const mArea = (u.assignedArea || '').toLowerCase().includes(q);
+                  if (!mName && !mUser && !mUnit && !mArea) return false;
+                }
+                return true;
+              })
+              .map((u) => (
               <div
                 key={u.id}
                 className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-3 text-xs"
@@ -2627,6 +2776,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </select>
                   </div>
                 </div>
+
+                {/* PLH Area Selector */}
+                {u.division === 'PLH' && (
+                  <div className="bg-emerald-50/60 p-2 rounded-xl border border-emerald-200/80">
+                    <label className="block text-[10px] font-bold text-emerald-800 mb-1 flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-emerald-600" />
+                      <span>Wilayah Penugasan Khusus PLH:</span>
+                    </label>
+                    <select
+                      value={u.assignedArea || 'Area Pos 1'}
+                      onChange={(e) =>
+                        onUpdateUser({ ...u, assignedArea: e.target.value })
+                      }
+                      className="w-full px-2 py-1 rounded-lg border border-emerald-300 font-bold bg-white text-emerald-950 text-xs"
+                    >
+                      <option value="Area Pos 1">Area Pos 1 (Pintu Masuk)</option>
+                      <option value="Area Pos 2">Area Pos 2 (Gerbang Belakang)</option>
+                      <option value="Area Khaldun">Area Khaldun</option>
+                      <option value="Area Ex Minifarm">Area Ex Minifarm</option>
+                      <option value="Area Kolam Renang">Area Kolam Renang</option>
+                      <option value="Area Lapangan Utama">Area Lapangan Utama</option>
+                      <option value="Semua Area (Supervisi)">Semua Area (Supervisi)</option>
+                    </select>
+                  </div>
+                )}
 
                 {/* Resign / Status Toggle */}
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100">
@@ -3836,7 +4010,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {taskStandardPhotoUrl && (
                   <div className="mt-2 p-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3">
                     <img
-                      src={taskStandardPhotoUrl}
+                      src={formatGoogleDriveImageUrl(taskStandardPhotoUrl)}
                       alt="Standar Kebersihan Preview"
                       className="w-12 h-12 object-cover rounded-lg border border-slate-300"
                       onError={(e) => {
@@ -3921,7 +4095,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="flex justify-between items-center px-5 py-4 bg-slate-900 border-b border-slate-800 text-white">
               <h3 className="font-bold text-sm text-white flex items-center gap-2">
                 <Users className="w-4 h-4 text-sky-400" />
-                Tambah Staff OB / OG Baru
+                Tambah Staff OB / PLH Baru
               </h3>
               <button
                 onClick={() => setIsAddingUser(false)}
@@ -3932,14 +4106,73 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             <form onSubmit={handleSaveNewUser} className="p-5 space-y-3.5">
+              {/* Presets */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1 text-[11px]">Template Cepat:</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewUserDivision('PLH');
+                      setNewUserRole('user');
+                      setNewUserUnit('Semua Unit');
+                      setNewUserAssignedArea('Area Pos 1');
+                    }}
+                    className="p-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-900 font-bold text-[10px] text-center hover:bg-emerald-100"
+                  >
+                    🌿 + Preset Staff PLH
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewUserDivision('PLH');
+                      setNewUserRole('kordinator');
+                      setNewUserUnit('Semua Unit');
+                      setNewUserAssignedArea('Semua Area (Supervisi)');
+                    }}
+                    className="p-1.5 rounded-lg border border-emerald-400 bg-emerald-100 text-emerald-950 font-bold text-[10px] text-center hover:bg-emerald-200"
+                  >
+                    ⭐ + Preset Kord PLH
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewUserDivision('OB');
+                      setNewUserRole('user');
+                      setNewUserUnit('SD');
+                    }}
+                    className="p-1.5 rounded-lg border border-sky-300 bg-sky-50 text-sky-900 font-bold text-[10px] text-center hover:bg-sky-100"
+                  >
+                    🧹 + Preset Staff OB
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewUserDivision('OB');
+                      setNewUserRole('kordinator');
+                      setNewUserUnit('Ar Razi');
+                    }}
+                    className="p-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 font-bold text-[10px] text-center hover:bg-amber-100"
+                  >
+                    👑 + Preset Kord OB
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Nama Lengkap:</label>
                 <input
                   type="text"
                   required
                   value={newUserName}
-                  onChange={(e) => setNewUserName(e.target.value)}
-                  placeholder="Contoh: Ahmad Fauzi (OB)"
+                  onChange={(e) => {
+                    setNewUserName(e.target.value);
+                    if (!newUserUsername) {
+                      const auto = e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 14);
+                      setNewUserUsername(newUserDivision === 'PLH' ? `${auto}_plh` : auto);
+                    }
+                  }}
+                  placeholder="Contoh: Sukardi (PLH) atau Ahmad Fauzi (OB)"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500"
                 />
               </div>
@@ -3950,9 +4183,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   type="text"
                   required
                   value={newUserUsername}
-                  onChange={(e) => setNewUserUsername(e.target.value)}
-                  placeholder="fauzi_ob"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500"
+                  onChange={(e) => setNewUserUsername(e.target.value.toLowerCase().trim())}
+                  placeholder="sukardi_plh"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 font-mono"
                 />
               </div>
 
@@ -3961,7 +4194,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <label className="block font-bold text-slate-700 mb-1">Divisi:</label>
                   <select
                     value={newUserDivision}
-                    onChange={(e) => setNewUserDivision(e.target.value as 'OB' | 'PLH')}
+                    onChange={(e) => {
+                      const div = e.target.value as 'OB' | 'PLH';
+                      setNewUserDivision(div);
+                      if (div === 'PLH') {
+                        setNewUserUnit('Semua Unit');
+                        setNewUserAssignedArea('Area Pos 1');
+                      }
+                    }}
                     className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="OB">🧹 OB</option>
@@ -3999,6 +4239,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </select>
                 </div>
               </div>
+
+              {newUserDivision === 'PLH' && (
+                <div>
+                  <label className="block font-bold text-emerald-800 mb-1">Wilayah Penugasan Khusus PLH:</label>
+                  <select
+                    value={newUserAssignedArea}
+                    onChange={(e) => setNewUserAssignedArea(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-emerald-300 bg-emerald-50/70 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="Area Pos 1">Area Pos 1 (Pintu Masuk)</option>
+                    <option value="Area Pos 2">Area Pos 2 (Gerbang Belakang)</option>
+                    <option value="Area Khaldun">Area Khaldun</option>
+                    <option value="Area Ex Minifarm">Area Ex Minifarm</option>
+                    <option value="Area Kolam Renang">Area Kolam Renang</option>
+                    <option value="Area Lapangan Utama">Area Lapangan Utama</option>
+                    <option value="Semua Area (Supervisi)">Semua Area (Supervisi Kordinator)</option>
+                  </select>
+                </div>
+              )}
 
               <div className="flex gap-2 pt-2">
                 <button
@@ -4134,7 +4393,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {editLogPhotoUrl && (
                   <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3">
                     <img
-                      src={editLogPhotoUrl}
+                      src={formatGoogleDriveImageUrl(editLogPhotoUrl)}
                       alt="Preview Bukti"
                       className="w-14 h-14 object-cover rounded-lg border border-slate-300 bg-slate-100 shrink-0"
                       onError={(e) => {

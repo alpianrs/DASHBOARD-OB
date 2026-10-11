@@ -12,7 +12,11 @@ import {
   DivisionType,
   PendingSyncItem,
   TreeWorkOrder,
+  TreeInspectionRecord,
+  TreeTreatmentStatus,
+  AdhocDailyTask,
   DEFAULT_PLH_AREA_STAFF,
+  MasjidDutyConfig,
 } from '../types';
 import { isSameDay, getJakartaDateString, normalizeDateString } from '../utils/dateHelper';
 
@@ -29,6 +33,8 @@ const STORAGE_KEYS = {
   HOLIDAY_CONFIG: 'lz_fm_holiday_config',
   PENDING_QUEUE: 'lz_fm_pending_sync_queue',
   TREE_WORK_ORDERS: 'lz_fm_tree_work_orders',
+  ADHOC_DAILY_TASKS: 'lz_fm_adhoc_daily_tasks',
+  MASJID_DUTY_CONFIG: 'lz_fm_masjid_duty_config',
 };
 
 export const DEFAULT_HOLIDAY_CONFIG: HolidayConfig = {
@@ -57,81 +63,71 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
   autoSyncEnabled: true,
 };
 
-// Seed Users for Lazuardi GCS Facility Management
+// Seed Users for Lazuardi GCS Facility Management (Sesuai Database Resmi Google Sheet)
 export const SEED_PLH_USERS: User[] = [
   {
     id: 'u-kord-plh',
-    username: 'slamet_plh',
-    password: 'password123',
-    name: 'Slamet Riyadi (Kord PLH)',
+    username: 'rahmat',
+    password: 'rahmat123',
+    name: 'Rahmat Hidayat (Kord PLH)',
     role: 'kordinator',
     division: 'PLH',
     unit: 'Semua Unit',
-    assignedArea: 'Semua Area (Supervisi)',
+    assignedArea: 'Area Pos 1',
     status: 'Aktif',
     phone: '08129999001',
   },
   {
     id: 'u-plh-01',
-    username: 'bambang_plh',
+    username: 'syahril',
     password: 'password123',
-    name: 'Bambang Irawan (PLH)',
-    role: 'user',
-    division: 'PLH',
-    unit: 'Semua Unit',
-    assignedArea: 'Area Pos 1',
-    status: 'Aktif',
-    phone: '08129999002',
-  },
-  {
-    id: 'u-plh-02',
-    username: 'surya_plh',
-    password: 'password123',
-    name: 'Surya Wijaya (PLH)',
+    name: 'Ahmad Syahril (PLH)',
     role: 'user',
     division: 'PLH',
     unit: 'Semua Unit',
     assignedArea: 'Area Pos 2',
     status: 'Aktif',
-    phone: '08129999003',
+    phone: '081234560001',
   },
   {
-    id: 'u-plh-03',
-    username: 'kusnadi_plh',
+    id: 'u-plh-02',
+    username: 'andi',
     password: 'password123',
-    name: 'Kusnadi (PLH)',
+    name: 'Andi Komala (PLH)',
     role: 'user',
     division: 'PLH',
     unit: 'Semua Unit',
     assignedArea: 'Area Khaldun',
     status: 'Aktif',
-    phone: '08129999004',
+    phone: '081234560002',
   },
   {
-    id: 'u-plh-04',
-    username: 'fauzi_plh',
+    id: 'u-plh-03',
+    username: 'dedi',
     password: 'password123',
-    name: 'Ahmad Fauzi (PLH)',
+    name: 'Dedi Junaedi (PLH)',
     role: 'user',
     division: 'PLH',
     unit: 'Semua Unit',
     assignedArea: 'Area Ex Minifarm',
     status: 'Aktif',
-    phone: '08129999005',
+    phone: '081234560003',
   },
   {
-    id: 'u-plh-05',
-    username: 'darmanto_plh',
+    id: 'u-plh-04',
+    username: 'radilah',
     password: 'password123',
-    name: 'Darmanto (PLH)',
+    name: 'Radilah (PLH)',
     role: 'user',
     division: 'PLH',
     unit: 'Semua Unit',
     assignedArea: 'Area Kolam Renang',
     status: 'Aktif',
-    phone: '08129999006',
+    phone: '081234560004',
   },
 ];
+
+export const SEED_OB_USERS: User[] = [];
 
 const SEED_USERS: User[] = [
   {
@@ -591,7 +587,7 @@ export const SEED_PLH_MASTER_TASKS: MasterTask[] = [
     photoRequired: true,
     standardPhotoUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6eb2251a?auto=format&fit=crop&w=800&q=80',
     estimatedMinutes: 60,
-    area: '5 Area Luar PLH',
+    area: 'Area Pos 1',
     isActive: true,
   },
   {
@@ -657,7 +653,7 @@ export const SEED_PLH_MASTER_TASKS: MasterTask[] = [
     division: 'PLH',
     assignee: 'Semua Petugas',
     instructions: [
-      'Tugas ini bergilir otomatis setiap minggu (reset Senin) untuk Area Pos 2, Kolam Renang, Ex Minifarm, dan Khaldun (Area Pos 1 Dikecualikan).',
+      'Tugas ini bergilir otomatis setiap minggu (reset Senin).',
       'Vacuum seluruh karpet sajadah Aula Masjid dari debu dan kotoran.',
       'Lap mimbar, rak Al-Quran, jendela kaca, dan wudhu luar masjid.',
       'Pastikan pendingin/kipas angin dan wewangian karpet terpasang rapi untuk ibadah.',
@@ -671,20 +667,20 @@ export const SEED_PLH_MASTER_TASKS: MasterTask[] = [
   // BULANAN PLH (Reset Setiap Tanggal 1)
   {
     id: 'mt-plh-mo-01',
-    title: 'Bulanan: Inspeksi & Treatment Kanopi Pohon Rimbun Seluruh Kampus',
+    title: 'Bulanan: Inspeksi & Treatment Kanopi Pohon Rimbun Seluruh Sekolah',
     unit: 'Semua Unit',
     category: 'Bulanan',
     timingType: 'anytime',
     division: 'PLH',
     assignee: 'Semua Petugas',
     instructions: [
-      'Inspeksi keliling seluruh pohon besar di 5 area luar kampus Lazuardi.',
+      'Inspeksi keliling seluruh pohon besar di 5 area luar sekolah Lazuardi.',
       'Identifikasi pohon rimbun yang membahayakan genteng atau kabel listrik (Work Order Pohon).',
       'Lakukan penanganan internal untuk dahan rendah, dan jadwalkan Vendor Luar untuk treatment pohon besar/tinggi.',
     ],
     photoRequired: true,
     estimatedMinutes: 90,
-    area: '5 Area Luar PLH',
+    area: 'Area Pos 1',
     isActive: true,
   },
   {
@@ -743,9 +739,18 @@ export const SEED_PLH_MASTER_TASKS: MasterTask[] = [
   },
 ];
 
+// Standar Operasional Prosedur (SOP) & Instruksi Pemeriksaan Monitoring Pohon Lazuardi
+export const DEFAULT_TREE_SOP_INSTRUCTIONS = [
+  'Sudut Pengambilan Foto: Ambil foto dari jarak 5–10 meter agar seluruh pohon tampak utuh (kanopi atas, batang utama, dan perakaran bawah).',
+  'Pemeriksaan Kanopi & Dahan: Periksa kerimbunan daun, pastikan bebas dahan rapuh/kering yang rawan patah atau menjuntai ke kabel listrik PLN/atap.',
+  'Pemeriksaan Batang & Benalu: Pastikan batang kokoh tegak, bebas dari sarang rayap, lubang lapuk berongga, dan benalu parasit.',
+  'Pemeriksaan Daun & Hama: Amati kesegaran daun, pastikan tidak terserang hama ulat bulu, kutu putih, atau jamur daun.',
+  'Pemeriksaan Perakaran & Kebersihan: Pastikan tanah perakaran stabil tidak gembur/amblas, serta sekeliling pohon bersih dari serasah sampah.',
+];
+
 // Seed Work Orders Khusus Pohon untuk PLH (5 Wilayah Lengkap)
 export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
-  // 1. Area Kolam Renang (Darmanto)
+  // 1. Area Kolam Renang (Radilah)
   {
     id: 'two-2026-001',
     date: '2026-09-22',
@@ -760,15 +765,24 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     scheduledWeek: 'Minggu ke-4 September 2026',
     urgency: 'Tinggi / Bahaya',
     notes: 'Pohon sangat rimbun dengan tinggi ±12 meter. Dahan atas menjuntai ke kabel listrik utama PLN dan atap tribun kolam. Membutuhkan mobil crane dan vendor berpengalaman.',
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=800&q=80',
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=1000&q=80',
+    standardPhotoAngleGuide: 'Foto utuh tampak melebar dari sisi tribun barat jarak 8–10 meter. Pastikan kanopi atas dekat kabel PLN dan batang utama terlihat jelas.',
+    standardInstructions: [
+      'Ambil foto utuh tampak samping tribun barat jarak 8–10 meter.',
+      'Cek kerimbunan kanopi dekat atap tribun & kabel listrik PLN.',
+      'Pastikan tidak ada dahan rapuh menggantung di atas area kolam renang.',
+      'Periksa batang utama dari benalu dan rayap.',
+      'Cek saluran pembuangan air kolam di bawah pohon dari serasah daun.',
+    ],
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=1000&q=80',
     status: 'Dijadwalkan',
-    reportedBy: 'u-plh-05',
-    reportedByName: 'Darmanto (PLH)',
-    assignedStaffId: 'u-plh-05',
-    assignedStaffName: 'Darmanto (PLH)',
+    reportedBy: 'u-plh-04',
+    reportedByName: 'Radilah (PLH)',
+    assignedStaffId: 'u-plh-04',
+    assignedStaffName: 'Radilah (PLH)',
     lastCheckedDate: '2026-09-22',
     lastCheckedTime: '08:15 WIB',
-    lastCheckedByName: 'Darmanto (PLH)',
+    lastCheckedByName: 'Radilah (PLH)',
     checkStatusToday: 'Sudah Dicek',
     inspectionNotes: 'Pengecekan rutin pagi: Dahan atas dekat kabel PLN tetap stabil, vendor dijadwalkan akhir pekan ini.',
     syncedToSheet: true,
@@ -785,14 +799,23 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     isLargeTreatment: false,
     urgency: 'Rendah',
     notes: 'Pelepah daun tua yang mengering telah dibersihkan agar tidak jatuh ke area kolam.',
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=80',
+    standardPhotoAngleGuide: 'Foto tegak vertikal dari dek pinggir kolam jarak 5 meter. Pastikan mahkota pelepah atas dan buah kelapa terpantau aman.',
+    standardInstructions: [
+      'Foto tegak vertikal dari dek kolam renang jarak 5 meter.',
+      'Periksa pelepah daun tua yang menguning, pangkas sebelum jatuh ke air kolam.',
+      'Pastikan buah kelapa gading tidak ada yang goyang/rawan jatuh.',
+      'Cek pangkal batang dari lumut licin di jalur jalan kaki.',
+    ],
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=80',
     status: 'Selesai',
-    reportedBy: 'u-plh-05',
-    reportedByName: 'Darmanto (PLH)',
-    assignedStaffId: 'u-plh-05',
-    assignedStaffName: 'Darmanto (PLH)',
+    reportedBy: 'u-plh-04',
+    reportedByName: 'Radilah (PLH)',
+    assignedStaffId: 'u-plh-04',
+    assignedStaffName: 'Radilah (PLH)',
     lastCheckedDate: '2026-09-22',
     lastCheckedTime: '08:30 WIB',
-    lastCheckedByName: 'Darmanto (PLH)',
+    lastCheckedByName: 'Radilah (PLH)',
     checkStatusToday: 'Sudah Dicek',
     inspectionNotes: 'Kondisi pelepah aman, buah kelapa tidak ada yang rawan jatuh.',
     syncedToSheet: true,
@@ -809,21 +832,30 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     isLargeTreatment: false,
     urgency: 'Rendah',
     notes: 'Bentuk tajuk rapi, penyiraman rutin terjaga.',
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=1000&q=80',
+    standardPhotoAngleGuide: 'Foto horizontal dari jarak 4–6 meter arah taman kolam. Tampilkan bentuk tajuk bulat rapi dan kebersihan tanah sekeliling.',
+    standardInstructions: [
+      'Foto dari arah depan taman kolam jarak 4–6 meter.',
+      'Periksa bentuk tajuk pangkas bulat estetis.',
+      'Pastikan daun hijau segar bebas dari kutu putih dan ulat.',
+      'Cek kelembaban tanah dan saluran drainase taman kolam.',
+    ],
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=1000&q=80',
     status: 'Selesai',
-    reportedBy: 'u-plh-05',
-    reportedByName: 'Darmanto (PLH)',
-    assignedStaffId: 'u-plh-05',
-    assignedStaffName: 'Darmanto (PLH)',
+    reportedBy: 'u-plh-04',
+    reportedByName: 'Radilah (PLH)',
+    assignedStaffId: 'u-plh-04',
+    assignedStaffName: 'Radilah (PLH)',
     lastCheckedDate: '2026-09-22',
     lastCheckedTime: '08:45 WIB',
-    lastCheckedByName: 'Darmanto (PLH)',
+    lastCheckedByName: 'Radilah (PLH)',
     checkStatusToday: 'Sudah Dicek',
     inspectionNotes: 'Tajuk bulat estetis, bebas hama.',
     syncedToSheet: true,
     createdAt: '2026-09-21T09:15:00.000Z',
   },
 
-  // 2. Area Pos 1 (Bambang Irawan)
+  // 2. Area Pos 1 (Rahmat Hidayat)
   {
     id: 'two-2026-004',
     date: '2026-09-22',
@@ -836,15 +868,23 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     scheduledWeek: 'Minggu ke-4 September 2026',
     urgency: 'Sedang',
     notes: 'Dahan rimbun condong ke jalur drop-off penjemputan siswa. Perlu penjarangan kanopi agar pandangan pengemudi leluasa dan sirkulasi cahaya taman Pos 1 optimal.',
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80',
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=1000&q=80',
+    standardPhotoAngleGuide: 'Foto dari seberang pos satpam gerbang 1 jarak 8 meter. Pastikan dahan yang melintang di jalur mobil drop-off tampak jelas.',
+    standardInstructions: [
+      'Foto dari seberang pos satpam gerbang 1 jarak 8 meter.',
+      'Cek dahan rimbun yang melintang di atas jalur mobil drop-off siswa.',
+      'Pastikan tinggi dahan bebas minimal 4 meter untuk akses kendaraan tinggi.',
+      'Periksa batang pohon dari paku, kawat, atau kabel liar.',
+    ],
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=1000&q=80',
     status: 'Perlu Penanganan',
-    reportedBy: 'u-plh-01',
-    reportedByName: 'Bambang Irawan (PLH)',
-    assignedStaffId: 'u-plh-01',
-    assignedStaffName: 'Bambang Irawan (PLH)',
+    reportedBy: 'u-kord-plh',
+    reportedByName: 'Rahmat Hidayat (Kord PLH)',
+    assignedStaffId: 'u-kord-plh',
+    assignedStaffName: 'Rahmat Hidayat (Kord PLH)',
     lastCheckedDate: '2026-09-22',
     lastCheckedTime: '07:30 WIB',
-    lastCheckedByName: 'Bambang Irawan (PLH)',
+    lastCheckedByName: 'Rahmat Hidayat (Kord PLH)',
     checkStatusToday: 'Sudah Dicek',
     inspectionNotes: 'Pengecekan pagi: Dahan lebat mulai menyentuh tiang lampu gerbang. Rencana pangkas siang ini.',
     syncedToSheet: true,
@@ -861,14 +901,23 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     isLargeTreatment: false,
     urgency: 'Rendah',
     notes: 'Pohon berbuah lebat, dahan bawah cukup tinggi dari pejalan kaki.',
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6eb2251a?auto=format&fit=crop&w=1000&q=80',
+    standardPhotoAngleGuide: 'Foto dari sisi trotoar pos 1 jarak 5 meter. Pastikan tajuk daun dan percabangan tengah terlihat utuh.',
+    standardInstructions: [
+      'Foto dari trotoar depan pos 1 jarak 5 meter.',
+      'Cek dahan dari benalu parasit dan sarang semut rangrang berlebih.',
+      'Periksa kebersihan tanah bawah tajuk dari buah busuk gugur.',
+      'Pastikan daun tidak menutupi plang nama atau CCTV Pos 1.',
+    ],
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6eb2251a?auto=format&fit=crop&w=1000&q=80',
     status: 'Selesai',
-    reportedBy: 'u-plh-01',
-    reportedByName: 'Bambang Irawan (PLH)',
-    assignedStaffId: 'u-plh-01',
-    assignedStaffName: 'Bambang Irawan (PLH)',
+    reportedBy: 'u-kord-plh',
+    reportedByName: 'Rahmat Hidayat (Kord PLH)',
+    assignedStaffId: 'u-kord-plh',
+    assignedStaffName: 'Rahmat Hidayat (Kord PLH)',
     lastCheckedDate: '2026-09-22',
     lastCheckedTime: '07:45 WIB',
-    lastCheckedByName: 'Bambang Irawan (PLH)',
+    lastCheckedByName: 'Rahmat Hidayat (Kord PLH)',
     checkStatusToday: 'Sudah Dicek',
     inspectionNotes: 'Kondisi sehat, daun hijau segar, media tanah lembap seimbang.',
     syncedToSheet: true,
@@ -885,21 +934,30 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     isLargeTreatment: false,
     urgency: 'Rendah',
     notes: 'Pagar pucuk merah tumbuh rapi dan segar, telah dilakukan pemangkasan bentuk kotak.',
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1545147986-a9d6f2ab03b5?auto=format&fit=crop&w=1000&q=80',
+    standardPhotoAngleGuide: 'Foto memanjang sepanjang pagar depan gerbang 1 jarak 4 meter. Tampakkan barisan pucuk merah yang rapi terpangkas.',
+    standardInstructions: [
+      'Foto memanjang sejajar pagar pos 1 jarak 4 meter.',
+      'Cek kerapian pemangkasan pucuk merah setinggi 1.8 meter.',
+      'Pastikan warna daun pucuk merah segar tidak layu atau kering.',
+      'Cek saluran parit depan pagar dari timbunan daun pangkasan.',
+    ],
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1545147986-a9d6f2ab03b5?auto=format&fit=crop&w=1000&q=80',
     status: 'Selesai',
-    reportedBy: 'u-plh-01',
-    reportedByName: 'Bambang Irawan (PLH)',
-    assignedStaffId: 'u-plh-01',
-    assignedStaffName: 'Bambang Irawan (PLH)',
+    reportedBy: 'u-kord-plh',
+    reportedByName: 'Rahmat Hidayat (Kord PLH)',
+    assignedStaffId: 'u-kord-plh',
+    assignedStaffName: 'Rahmat Hidayat (Kord PLH)',
     lastCheckedDate: '2026-09-22',
     lastCheckedTime: '08:00 WIB',
-    lastCheckedByName: 'Bambang Irawan (PLH)',
+    lastCheckedByName: 'Rahmat Hidayat (Kord PLH)',
     checkStatusToday: 'Sudah Dicek',
     inspectionNotes: 'Pucuk merah berwarna cerah merata, batas pagar rapi.',
     syncedToSheet: true,
     createdAt: '2026-09-21T08:10:00.000Z',
   },
 
-  // 3. Area Pos 2 (Surya Wijaya)
+  // 3. Area Pos 2 (Ahmad Syahril)
   {
     id: 'two-2026-002',
     date: '2026-09-22',
@@ -912,15 +970,23 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     scheduledWeek: 'Minggu ke-4 September 2026',
     urgency: 'Sedang',
     notes: 'Kanopi daun lebat menutupi sorot lampu penerangan malam Pos 2 dan CCTV gerbang. Dilakukan pemangkasan dahan selektif oleh tim internal PLH.',
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=800&q=80',
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=1000&q=80',
+    standardPhotoAngleGuide: 'Foto dari depan gerbang pos 2 jarak 7 meter. Perlihatkan kanopi bertingkat, tiang lampu pos, dan kamera CCTV.',
+    standardInstructions: [
+      'Foto dari depan gerbang pos 2 jarak 7 meter.',
+      'Pastikan tajuk daun tidak menutupi sorot lampu penerangan malam & CCTV.',
+      'Cek dahan bertingkat dari ranting patah atau sarang ulat.',
+      'Sapu serasah daun gugur di jalan aspal pos 2.',
+    ],
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=1000&q=80',
     status: 'Sedang Dikerjakan',
-    reportedBy: 'u-plh-02',
-    reportedByName: 'Surya Wijaya (PLH)',
-    assignedStaffId: 'u-plh-02',
-    assignedStaffName: 'Surya Wijaya (PLH)',
+    reportedBy: 'u-plh-01',
+    reportedByName: 'Ahmad Syahril (PLH)',
+    assignedStaffId: 'u-plh-01',
+    assignedStaffName: 'Ahmad Syahril (PLH)',
     lastCheckedDate: '2026-09-22',
     lastCheckedTime: '08:10 WIB',
-    lastCheckedByName: 'Surya Wijaya (PLH)',
+    lastCheckedByName: 'Ahmad Syahril (PLH)',
     checkStatusToday: 'Sudah Dicek',
     inspectionNotes: 'Proses pemangkasan dahan lapis bawah sedang berjalan bersama tim.',
     syncedToSheet: true,
@@ -937,14 +1003,23 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     isLargeTreatment: false,
     urgency: 'Rendah',
     notes: 'Batang kokoh tegak lurus, tidak ada tanda-tanda pengeroposan.',
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1000&q=80',
+    standardPhotoAngleGuide: 'Foto dari sisi bahu jalan gerbang 2 jarak 8 meter. Tampakkan batang lurus kokoh dan tajuk atas yang rindang.',
+    standardInstructions: [
+      'Foto dari sisi bahu jalan gerbang 2 jarak 8 meter.',
+      'Periksa batang lurus bebas dari lubang rayap dan jamur pangkal.',
+      'Pruning ranting liar bawah hingga ketinggian 3 meter.',
+      'Cek kestabilan akar di tepi selokan air pos 2.',
+    ],
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1000&q=80',
     status: 'Selesai',
-    reportedBy: 'u-plh-02',
-    reportedByName: 'Surya Wijaya (PLH)',
-    assignedStaffId: 'u-plh-02',
-    assignedStaffName: 'Surya Wijaya (PLH)',
+    reportedBy: 'u-plh-01',
+    reportedByName: 'Ahmad Syahril (PLH)',
+    assignedStaffId: 'u-plh-01',
+    assignedStaffName: 'Ahmad Syahril (PLH)',
     lastCheckedDate: '2026-09-22',
     lastCheckedTime: '08:25 WIB',
-    lastCheckedByName: 'Surya Wijaya (PLH)',
+    lastCheckedByName: 'Ahmad Syahril (PLH)',
     checkStatusToday: 'Sudah Dicek',
     inspectionNotes: 'Batang bersih, bebas rayap dan lumut tebal.',
     syncedToSheet: true,
@@ -961,21 +1036,30 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     isLargeTreatment: false,
     urgency: 'Rendah',
     notes: 'Pelepah bawah rutin dipotong, tajuk terawat rapi.',
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=80',
+    standardPhotoAngleGuide: 'Foto tegak vertikal dari jarak 5 meter di samping jalur kendaraan pos 2. Perlihatkan mahkota pelepah palem.',
+    standardInstructions: [
+      'Foto vertikal samping jalur kendaraan pos 2 jarak 5 meter.',
+      'Pangkas pelepah kering yang terkulai kebawah.',
+      'Pastikan pelepah tidak menghalangi spanduk dan rambu arah pos 2.',
+      'Bersihkan rumput liar dan lumut di lingkar pangkal batang.',
+    ],
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=80',
     status: 'Selesai',
-    reportedBy: 'u-plh-02',
-    reportedByName: 'Surya Wijaya (PLH)',
-    assignedStaffId: 'u-plh-02',
-    assignedStaffName: 'Surya Wijaya (PLH)',
+    reportedBy: 'u-plh-01',
+    reportedByName: 'Ahmad Syahril (PLH)',
+    assignedStaffId: 'u-plh-01',
+    assignedStaffName: 'Ahmad Syahril (PLH)',
     lastCheckedDate: '2026-09-22',
     lastCheckedTime: '08:40 WIB',
-    lastCheckedByName: 'Surya Wijaya (PLH)',
+    lastCheckedByName: 'Ahmad Syahril (PLH)',
     checkStatusToday: 'Sudah Dicek',
     inspectionNotes: 'Palem tegak kokoh, tidak mengganggu jalur mobil pengantar.',
     syncedToSheet: true,
     createdAt: '2026-09-21T09:00:00.000Z',
   },
 
-  // 4. Area Khaldun (Kusnadi)
+  // 4. Area Khaldun (Andi Komala)
   {
     id: 'two-2026-003',
     date: '2026-09-20',
@@ -987,18 +1071,26 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     isLargeTreatment: false,
     urgency: 'Sedang',
     notes: 'Terdapat 3 dahan kering rawan patah di dekat jalur pedestrian siswa. Telah dipangkas rapi dan dahan dipotong kecil untuk komposter.',
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=800&q=80',
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1000&q=80',
+    standardPhotoAngleGuide: 'Foto lanskap melebar dari jarak 8–10 meter di jalur pedestrian Khaldun. Tampakkan kanopi payung lebar dan dahan bawah.',
+    standardInstructions: [
+      'Foto lanskap dari jalur pedestrian Khaldun jarak 8–10 meter.',
+      'Cek dahan kering rapuh di atas jalur pedestrian siswa Khaldun.',
+      'Periksa sambungan dahan utama dari keretakan atau pelapukan kayu.',
+      'Cek pertumbuhan bunga dan daun, pastikan tidak ada ulat.',
+    ],
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1000&q=80',
     status: 'Selesai',
-    reportedBy: 'u-plh-03',
-    reportedByName: 'Kusnadi (PLH)',
-    assignedStaffId: 'u-plh-03',
-    assignedStaffName: 'Kusnadi (PLH)',
+    reportedBy: 'u-plh-02',
+    reportedByName: 'Andi Komala (PLH)',
+    assignedStaffId: 'u-plh-02',
+    assignedStaffName: 'Andi Komala (PLH)',
     completedAt: '2026-09-20T14:30:00.000Z',
-    completedBy: 'u-plh-03',
-    completedByName: 'Kusnadi (PLH)',
+    completedBy: 'u-plh-02',
+    completedByName: 'Andi Komala (PLH)',
     lastCheckedDate: '2026-09-22',
     lastCheckedTime: '07:50 WIB',
-    lastCheckedByName: 'Kusnadi (PLH)',
+    lastCheckedByName: 'Andi Komala (PLH)',
     checkStatusToday: 'Sudah Dicek',
     inspectionNotes: 'Bekas pangkasan telah mengering bagus, tidak ada dahan rapuh baru.',
     syncedToSheet: true,
@@ -1015,14 +1107,23 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     isLargeTreatment: false,
     urgency: 'Rendah',
     notes: 'Peneduh halaman belakang gedung Khaldun, daun lebat rindang.',
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=1000&q=80',
+    standardPhotoAngleGuide: 'Foto dari halaman belakang Khaldun jarak 7 meter. Perlihatkan tajuk rindang peneduh dan dinding gedung.',
+    standardInstructions: [
+      'Foto dari halaman belakang Khaldun jarak 7 meter.',
+      'Pastikan jarak tajuk minimal 1.5 meter dari dinding & jendela lantai 2.',
+      'Periksa dahan dari rayap kayu dan benalu.',
+      'Sapu daun angsana yang gugur di selokan belakang gedung.',
+    ],
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=1000&q=80',
     status: 'Selesai',
-    reportedBy: 'u-plh-03',
-    reportedByName: 'Kusnadi (PLH)',
-    assignedStaffId: 'u-plh-03',
-    assignedStaffName: 'Kusnadi (PLH)',
+    reportedBy: 'u-plh-02',
+    reportedByName: 'Andi Komala (PLH)',
+    assignedStaffId: 'u-plh-02',
+    assignedStaffName: 'Andi Komala (PLH)',
     lastCheckedDate: '2026-09-22',
     lastCheckedTime: '08:05 WIB',
-    lastCheckedByName: 'Kusnadi (PLH)',
+    lastCheckedByName: 'Andi Komala (PLH)',
     checkStatusToday: 'Sudah Dicek',
     inspectionNotes: 'Pohon kokoh, serasah daun kering telah disapu bersih.',
     syncedToSheet: true,
@@ -1039,21 +1140,30 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     isLargeTreatment: false,
     urgency: 'Rendah',
     notes: 'Pohon muda dengan penyangga bambu, mulai berbunga kuning.',
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=1000&q=80',
+    standardPhotoAngleGuide: 'Foto dari koridor pejalan kaki Khaldun jarak 5 meter. Tampakkan keindahan tajuk batang dan bunganya.',
+    standardInstructions: [
+      'Foto dari koridor pejalan kaki Khaldun jarak 5 meter.',
+      'Periksa cabang muda, lakukan pemangkasan tunas liar (wiwil).',
+      'Pastikan perakaran aman tidak merusak conblock jalur pedestrian.',
+      'Siram dan beri nutrisi pupuk organik secara teratur.',
+    ],
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=1000&q=80',
     status: 'Selesai',
-    reportedBy: 'u-plh-03',
-    reportedByName: 'Kusnadi (PLH)',
-    assignedStaffId: 'u-plh-03',
-    assignedStaffName: 'Kusnadi (PLH)',
+    reportedBy: 'u-plh-02',
+    reportedByName: 'Andi Komala (PLH)',
+    assignedStaffId: 'u-plh-02',
+    assignedStaffName: 'Andi Komala (PLH)',
     lastCheckedDate: '2026-09-22',
     lastCheckedTime: '08:20 WIB',
-    lastCheckedByName: 'Kusnadi (PLH)',
+    lastCheckedByName: 'Andi Komala (PLH)',
     checkStatusToday: 'Sudah Dicek',
     inspectionNotes: 'Tali pengikat penyangga bambu kuat dan tidak melukai kulit batang.',
     syncedToSheet: true,
     createdAt: '2026-09-21T09:00:00.000Z',
   },
 
-  // 5. Area Ex Minifarm (Ahmad Fauzi)
+  // 5. Area Ex Minifarm (Dedi Junaedi)
   {
     id: 'two-2026-005',
     date: '2026-09-22',
@@ -1065,15 +1175,23 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     isLargeTreatment: false,
     urgency: 'Sedang',
     notes: 'Ditemukan sarang benalu pada dahan utama pohon mangga dan rayap pada pangkal batang sengon. Dilakukan pembersihan benalu manual dan penyemprotan insektisida organik.',
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=800&q=80',
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=1000&q=80',
+    standardPhotoAngleGuide: 'Foto dari samping bedengan pembibitan sayur jarak 6 meter. Tampakkan batang utama mangga dan sengon yang berdampingan.',
+    standardInstructions: [
+      'Foto dari samping bedengan pembibitan sayur jarak 6 meter.',
+      'Periksa dahan dari benalu parasit, segera bersihkan hingga tuntas.',
+      'Periksa pangkal batang sengon dari serangan rayap tanah.',
+      'Pastikan tajuk tidak menutupi sinar matahari penuh ke bedengan sayur.',
+    ],
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=1000&q=80',
     status: 'Sedang Dikerjakan',
-    reportedBy: 'u-plh-04',
-    reportedByName: 'Ahmad Fauzi (PLH)',
-    assignedStaffId: 'u-plh-04',
-    assignedStaffName: 'Ahmad Fauzi (PLH)',
+    reportedBy: 'u-plh-03',
+    reportedByName: 'Dedi Junaedi (PLH)',
+    assignedStaffId: 'u-plh-03',
+    assignedStaffName: 'Dedi Junaedi (PLH)',
     lastCheckedDate: '2026-09-22',
     lastCheckedTime: '08:00 WIB',
-    lastCheckedByName: 'Ahmad Fauzi (PLH)',
+    lastCheckedByName: 'Dedi Junaedi (PLH)',
     checkStatusToday: 'Sudah Dicek',
     inspectionNotes: 'Benalu sudah dicabut 80%, penyemprotan anti-rayap organik diulang sore.',
     syncedToSheet: true,
@@ -1090,14 +1208,23 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     isLargeTreatment: false,
     urgency: 'Rendah',
     notes: 'Pohon jambu berbuah, dahan teratur rapi.',
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6eb2251a?auto=format&fit=crop&w=1000&q=80',
+    standardPhotoAngleGuide: 'Foto dari sisi bak komposter minifarm jarak 4 meter. Tampakkan tajuk rimbun pendek dan buah jambu yang dipelihara.',
+    standardInstructions: [
+      'Foto dari sisi bak komposter minifarm jarak 4 meter.',
+      'Bungkus pentil buah jambu agar terhindar dari lalat buah.',
+      'Pangkas cabang air (tunas air) yang tidak produktif.',
+      'Gemburkan tanah lingkar piringan pohon dan beri kompos matang.',
+    ],
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6eb2251a?auto=format&fit=crop&w=1000&q=80',
     status: 'Selesai',
-    reportedBy: 'u-plh-04',
-    reportedByName: 'Ahmad Fauzi (PLH)',
-    assignedStaffId: 'u-plh-04',
-    assignedStaffName: 'Ahmad Fauzi (PLH)',
+    reportedBy: 'u-plh-03',
+    reportedByName: 'Dedi Junaedi (PLH)',
+    assignedStaffId: 'u-plh-03',
+    assignedStaffName: 'Dedi Junaedi (PLH)',
     lastCheckedDate: '2026-09-22',
     lastCheckedTime: '08:20 WIB',
-    lastCheckedByName: 'Ahmad Fauzi (PLH)',
+    lastCheckedByName: 'Dedi Junaedi (PLH)',
     checkStatusToday: 'Sudah Dicek',
     inspectionNotes: 'Buah jambu dibungkus plastik pelindung lalat buah, daun segar.',
     syncedToSheet: true,
@@ -1114,14 +1241,23 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     isLargeTreatment: false,
     urgency: 'Rendah',
     notes: 'Tumbuh subur dekat batas pagar samping minifarm.',
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1545147986-a9d6f2ab03b5?auto=format&fit=crop&w=1000&q=80',
+    standardPhotoAngleGuide: 'Foto dari jalan setapak minifarm jarak 4 meter. Tampakkan batang kokoh pendek dan buah nangka yang terlindungi.',
+    standardInstructions: [
+      'Foto dari jalan setapak minifarm jarak 4 meter.',
+      'Periksa buah nangka, bungkus dengan karung jaring pelindung.',
+      'Cek batang utama dari getah berlebih atau penggerek batang.',
+      'Jaga sanitasi tanah piringan pohon bebas gulma.',
+    ],
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1545147986-a9d6f2ab03b5?auto=format&fit=crop&w=1000&q=80',
     status: 'Selesai',
-    reportedBy: 'u-plh-04',
-    reportedByName: 'Ahmad Fauzi (PLH)',
-    assignedStaffId: 'u-plh-04',
-    assignedStaffName: 'Ahmad Fauzi (PLH)',
+    reportedBy: 'u-plh-03',
+    reportedByName: 'Dedi Junaedi (PLH)',
+    assignedStaffId: 'u-plh-03',
+    assignedStaffName: 'Dedi Junaedi (PLH)',
     lastCheckedDate: '2026-09-22',
     lastCheckedTime: '08:35 WIB',
-    lastCheckedByName: 'Ahmad Fauzi (PLH)',
+    lastCheckedByName: 'Dedi Junaedi (PLH)',
     checkStatusToday: 'Sudah Dicek',
     inspectionNotes: 'Batang bersih, daun rimbun sehat terkendali.',
     syncedToSheet: true,
@@ -1246,7 +1382,7 @@ export const StorageService = {
       setStoredItem(STORAGE_KEYS.USERS, SEED_USERS);
       return SEED_USERS;
     }
-    // Clean up old legacy mock users that were hardcoded before Google Sheets sync
+    // Clean up old legacy mock users with outdated dummy IDs
     const legacyDummyUserIds = new Set([
       'u-tk-01',
       'u-tk-02',
@@ -1260,9 +1396,7 @@ export const StorageService = {
     const filtered = users.filter(
       (u) =>
         !legacyDummyUserIds.has(u.id) &&
-        !u.name.toLowerCase().includes('budi santoso') &&
-        !u.name.toLowerCase().includes('ratih purwasih') &&
-        !u.name.toLowerCase().includes('hendra wijaya')
+        !u.name.toLowerCase().includes('ratih purwasih')
     );
 
     // If Rizky Pratama was in storage, replace or update with Lili
@@ -1278,14 +1412,50 @@ export const StorageService = {
       return u;
     });
 
-    if (normalized.length === 0) {
+    // Filter out old obsolete demo usernames so storage strictly matches Google Sheet Users
+    const dummyUsernames = [
+      'darmanto_plh',
+      'slamet_plh',
+      'budi_tk',
+      'agus_sd',
+      'joko_smp',
+      'hendra_dir',
+      'deni_arazi',
+      'rizky_khaldun',
+    ];
+    const dummyNames = [
+      'darmanto',
+      'slamet riyadi',
+      'budi santoso',
+      'agus setiawan',
+      'joko susilo',
+      'hendra wijaya',
+      'deni prasetyo',
+      'rizky firmansyah',
+    ];
+    const demoIds = new Set<string>([]);
+
+    let cleaned = normalized.filter((u) => {
+      if (demoIds.has(u.id)) return false;
+      const uLower = (u.username || '').toLowerCase();
+      const nLower = (u.name || '').toLowerCase();
+      if (dummyUsernames.includes(uLower)) return false;
+      if (dummyNames.some((d) => nLower.includes(d))) return false;
+      return true;
+    });
+
+    let needsResave = false;
+    if (cleaned.length !== normalized.length) {
+      needsResave = true;
+    }
+
+    if (cleaned.length === 0) {
       setStoredItem(STORAGE_KEYS.USERS, SEED_USERS);
       return SEED_USERS;
     }
 
     // Ensure all existing users have division set ('OB' by default unless PLH)
-    let needsResave = false;
-    let updatedUsers = normalized.map((u) => {
+    let updatedUsers = cleaned.map((u) => {
       if (!u.division && u.role !== 'admin') {
         const isPlh = u.id.includes('plh') || u.username.includes('plh') || u.name.includes('(PLH)');
         needsResave = true;
@@ -1294,52 +1464,28 @@ export const StorageService = {
       return u;
     });
 
-    // Ensure all 5 PLH users are present in the list
-    for (const plhUser of SEED_PLH_USERS) {
-      if (!updatedUsers.some((u) => u.id === plhUser.id || u.username === plhUser.username)) {
-        updatedUsers.push(plhUser);
+    // Ensure core seed users (admin, lili, rahmat) are present
+    for (const coreUser of SEED_USERS) {
+      if (!updatedUsers.some((u) => u.id === coreUser.id || u.username.toLowerCase() === coreUser.username.toLowerCase())) {
+        updatedUsers.push(coreUser);
         needsResave = true;
       }
     }
 
-    // Ensure all PLH users have assignedArea properly set
-    updatedUsers = updatedUsers.map((u) => {
-      if (u.division === 'PLH' && !u.assignedArea) {
-        needsResave = true;
-        if (u.role === 'kordinator') {
-          return { ...u, assignedArea: 'Semua Area (Supervisi)' };
-        }
-        if (u.username === 'bambang_plh' || u.name.includes('Bambang')) {
-          return { ...u, assignedArea: 'Area Pos 1' };
-        }
-        if (u.username === 'surya_plh' || u.name.includes('Surya')) {
-          return { ...u, assignedArea: 'Area Pos 2' };
-        }
-        if (u.username === 'kusnadi_plh' || u.name.includes('Kusnadi')) {
-          return { ...u, assignedArea: 'Area Khaldun' };
-        }
-        if (u.username === 'fauzi_plh' || u.name.includes('Fauzi')) {
-          return { ...u, assignedArea: 'Area Ex Minifarm' };
-        }
-        if (u.username === 'darmanto_plh' || u.name.includes('Darmanto')) {
-          return { ...u, assignedArea: 'Area Kolam Renang' };
-        }
-        return { ...u, assignedArea: 'Area Pos 1' };
-      }
-      return u;
-    });
-
-    if (
-      needsResave ||
-      updatedUsers.length !== users.length ||
-      updatedUsers.some((u, i) => u.name !== users[i]?.name)
-    ) {
+    if (needsResave) {
       setStoredItem(STORAGE_KEYS.USERS, updatedUsers);
     }
     return updatedUsers;
   },
   saveUsers: (users: User[]): void => {
-    setStoredItem(STORAGE_KEYS.USERS, users || []);
+    let list = [...(users || [])];
+    // Ensure core seed users are never lost
+    for (const coreUser of SEED_USERS) {
+      if (!list.some((u) => u.id === coreUser.id || u.username.toLowerCase() === coreUser.username.toLowerCase())) {
+        list.push(coreUser);
+      }
+    }
+    setStoredItem(STORAGE_KEYS.USERS, list);
   },
   addUser: (user: User): void => {
     const users = StorageService.getUsers();
@@ -1356,7 +1502,35 @@ export const StorageService = {
   },
 
   getActiveUser: (): User | null => {
-    return getStoredItem<User | null>(STORAGE_KEYS.ACTIVE_USER, null);
+    const user = getStoredItem<User | null>(STORAGE_KEYS.ACTIVE_USER, null);
+    if (!user) return null;
+    const dummyUsernames = [
+      'darmanto_plh',
+      'slamet_plh',
+      'budi_tk',
+      'agus_sd',
+      'joko_smp',
+      'hendra_dir',
+      'deni_arazi',
+      'rizky_khaldun',
+    ];
+    const dummyNames = [
+      'darmanto',
+      'slamet riyadi',
+      'budi santoso',
+      'agus setiawan',
+      'joko susilo',
+      'hendra wijaya',
+      'deni prasetyo',
+      'rizky firmansyah',
+    ];
+    const uLower = (user.username || '').toLowerCase();
+    const nLower = (user.name || '').toLowerCase();
+    if (dummyUsernames.includes(uLower) || dummyNames.some((d) => nLower.includes(d))) {
+      removeStoredItem(STORAGE_KEYS.ACTIVE_USER);
+      return null;
+    }
+    return user;
   },
   setActiveUser: (user: User | null): void => {
     if (user) {
@@ -1444,10 +1618,24 @@ export const StorageService = {
     const cleanLogs = (logs || []).filter(
       (l) => !l.id.startsWith('tl-today-') && !l.id.startsWith('tl-00')
     );
-    if (cleanLogs.length !== (logs || []).length) {
-      setStoredItem(STORAGE_KEYS.TASK_LOGS, cleanLogs);
+    const dummyKeywords = ['kusnadi', 'slamet', 'petugas kolam'];
+    let modified = cleanLogs.length !== (logs || []).length;
+    const sanitizedLogs = cleanLogs.map((l) => {
+      const uName = (l.userName || '').toLowerCase();
+      if (dummyKeywords.some((d) => uName.includes(d))) {
+        modified = true;
+        return {
+          ...l,
+          userName: 'Rahmat Hidayat (Kord PLH)',
+          userId: 'u-kord-plh',
+        };
+      }
+      return l;
+    });
+    if (modified) {
+      setStoredItem(STORAGE_KEYS.TASK_LOGS, sanitizedLogs);
     }
-    return cleanLogs;
+    return sanitizedLogs;
   },
   saveTaskLogs: (logs: TaskLog[]): void => {
     setStoredItem(STORAGE_KEYS.TASK_LOGS, logs);
@@ -1849,11 +2037,111 @@ export const StorageService = {
     let enriched = list.map((order) => {
       let changed = false;
       const ord: TreeWorkOrder = { ...order };
-      if (!ord.assignedStaffName && DEFAULT_PLH_AREA_STAFF[ord.area]) {
-        ord.assignedStaffId = DEFAULT_PLH_AREA_STAFF[ord.area].id;
-        ord.assignedStaffName = DEFAULT_PLH_AREA_STAFF[ord.area].name;
+
+      // Pastikan nama penanggung jawab dan pelapor sinkron dengan data resmi Google Sheet
+      const dummyKeywords = [
+        'kusnadi',
+        'bambang',
+        'surya wijaya',
+        'ahmad fauzi',
+        'petugas kolam',
+        'slamet',
+        'slamet riyadi',
+      ];
+      const correctStaff = (ord.area && DEFAULT_PLH_AREA_STAFF[ord.area])
+        ? DEFAULT_PLH_AREA_STAFF[ord.area]
+        : { id: 'u-kord-plh', name: 'Rahmat Hidayat (Kord PLH)' };
+
+      const isDummyStaff =
+        !ord.assignedStaffName ||
+        dummyKeywords.some((d) => (ord.assignedStaffName || '').toLowerCase().includes(d));
+
+      if (isDummyStaff) {
+        ord.assignedStaffId = correctStaff.id;
+        ord.assignedStaffName = correctStaff.name;
         changed = true;
       }
+
+      if (!ord.reportedByName || dummyKeywords.some((d) => (ord.reportedByName || '').toLowerCase().includes(d))) {
+        ord.reportedByName = correctStaff.name;
+        ord.reportedBy = correctStaff.id;
+        changed = true;
+      }
+
+      if (!ord.lastCheckedByName || dummyKeywords.some((d) => (ord.lastCheckedByName || '').toLowerCase().includes(d))) {
+        ord.lastCheckedByName = correctStaff.name;
+        changed = true;
+      }
+
+      if (ord.completedByName && dummyKeywords.some((d) => ord.completedByName!.toLowerCase().includes(d))) {
+        ord.completedByName = correctStaff.name;
+        ord.completedBy = correctStaff.id;
+        changed = true;
+      }
+
+      if (ord.handledByName && dummyKeywords.some((d) => ord.handledByName!.toLowerCase().includes(d))) {
+        ord.handledByName = correctStaff.name;
+        changed = true;
+      }
+
+      if (ord.inspectionHistory && ord.inspectionHistory.length > 0) {
+        ord.inspectionHistory = ord.inspectionHistory.map((rec) => {
+          const updatedRec = { ...rec };
+          if (!updatedRec.inspectorName || dummyKeywords.some((d) => (updatedRec.inspectorName || '').toLowerCase().includes(d))) {
+            updatedRec.inspectorName = correctStaff.name;
+            updatedRec.inspectorId = correctStaff.id;
+            changed = true;
+          }
+          if (updatedRec.handledByName && dummyKeywords.some((d) => updatedRec.handledByName!.toLowerCase().includes(d))) {
+            updatedRec.handledByName = correctStaff.name;
+            changed = true;
+          }
+          return updatedRec;
+        });
+      }
+
+      // Initialize Treatment Status if not present
+      if (!ord.treatmentStatus) {
+        if (ord.status === 'Selesai') {
+          ord.treatmentStatus = 'Sudah Ditangani';
+        } else if (ord.status === 'Sedang Dikerjakan') {
+          ord.treatmentStatus = 'Sedang Ditangani';
+        } else if (ord.status === 'Perlu Penanganan' || ord.status === 'Dijadwalkan') {
+          ord.treatmentStatus = 'Belum Ditangani';
+        } else {
+          ord.treatmentStatus = ord.condition === 'Normal / Sehat' ? 'Tidak Perlu Penanganan' : 'Belum Ditangani';
+        }
+        changed = true;
+      }
+
+      // Initialize Inspection History if empty
+      if (!ord.inspectionHistory || ord.inspectionHistory.length === 0) {
+        ord.inspectionHistory = [
+          {
+            id: `tir-init-${ord.id}`,
+            treeId: ord.id,
+            date: ord.lastCheckedDate || ord.date,
+            time: ord.lastCheckedTime || '08:00 WIB',
+            inspectorId: ord.reportedBy,
+            inspectorName: ord.lastCheckedByName || ord.reportedByName,
+            condition: ord.condition,
+            checkStatus: ord.status === 'Perlu Penanganan' ? 'Perlu Penanganan' : 'Sudah Dicek Aman',
+            notes: ord.inspectionNotes || ord.notes,
+            treatmentNeeded: ord.treatmentNeeded,
+            treatmentStatus: ord.treatmentStatus,
+            handledByName: ord.handledByName || (ord.status === 'Selesai' ? ord.completedByName : undefined),
+            handledAt: ord.handledAt || (ord.status === 'Selesai' ? ord.completedAt : undefined),
+            treatmentReport: ord.treatmentReport,
+            photoBeforeUrl: ord.photoBeforeUrl,
+            photoAfterUrl: ord.photoAfterUrl,
+            drivePhotoBeforeUrl: ord.drivePhotoBeforeUrl,
+            drivePhotoAfterUrl: ord.drivePhotoAfterUrl,
+            timestamp: ord.createdAt || new Date().toISOString(),
+          },
+        ];
+        changed = true;
+      }
+
       if (!ord.checkStatusToday) {
         const seedMatch = SEED_TREE_WORK_ORDERS.find((s) => s.id === ord.id || (s.area === ord.area && s.treeName === ord.treeName));
         if (seedMatch?.checkStatusToday) {
@@ -1863,10 +2151,38 @@ export const StorageService = {
           ord.checkStatusToday = seedMatch.checkStatusToday;
           ord.inspectionNotes = seedMatch.inspectionNotes;
         } else {
-          ord.checkStatusToday = 'Belum Dicek';
+          ord.checkStatusToday = ord.status === 'Perlu Penanganan' ? 'Perlu Penanganan' : 'Sudah Dicek Aman';
         }
         changed = true;
       }
+
+      // Pastikan standar foto & instruksi SOP monitoring pohon selalu lengkap dan tersinkron
+      if (!ord.standardPhotoUrl || !ord.standardPhotoAngleGuide || !ord.standardInstructions || ord.standardInstructions.length === 0) {
+        const seedMatch = SEED_TREE_WORK_ORDERS.find((s) => s.id === ord.id || (s.area === ord.area && s.treeName === ord.treeName));
+        if (seedMatch) {
+          if (!ord.standardPhotoUrl && seedMatch.standardPhotoUrl) {
+            ord.standardPhotoUrl = seedMatch.standardPhotoUrl;
+            changed = true;
+          }
+          if (!ord.standardPhotoAngleGuide && seedMatch.standardPhotoAngleGuide) {
+            ord.standardPhotoAngleGuide = seedMatch.standardPhotoAngleGuide;
+            changed = true;
+          }
+          if ((!ord.standardInstructions || ord.standardInstructions.length === 0) && seedMatch.standardInstructions) {
+            ord.standardInstructions = seedMatch.standardInstructions;
+            changed = true;
+          }
+        }
+        if (!ord.standardInstructions || ord.standardInstructions.length === 0) {
+          ord.standardInstructions = DEFAULT_TREE_SOP_INSTRUCTIONS;
+          changed = true;
+        }
+        if (!ord.standardPhotoAngleGuide) {
+          ord.standardPhotoAngleGuide = 'Ambil foto dari jarak 5–10 meter agar seluruh pohon tampak utuh (kanopi atas, batang utama, dan perakaran bawah).';
+          changed = true;
+        }
+      }
+
       if (changed) modified = true;
       return ord;
     });
@@ -1904,6 +2220,214 @@ export const StorageService = {
     StorageService.saveTreeWorkOrders(list);
   },
 
+  // Pekerjaan Tambahan / Mandiri Harian Staf PLH (Hanya Masuk Work Order Hari Itu Saja)
+  getAdhocDailyTasks: (date?: string): AdhocDailyTask[] => {
+    const list = getStoredItem<AdhocDailyTask[]>(STORAGE_KEYS.ADHOC_DAILY_TASKS, []);
+    if (!date) return list;
+    return list.filter((t) => isSameDay(t.date, date) || isSameDay(t.createdAt, date));
+  },
+  saveAdhocDailyTasks: (tasks: AdhocDailyTask[]): void => {
+    setStoredItem(STORAGE_KEYS.ADHOC_DAILY_TASKS, tasks);
+  },
+  addAdhocDailyTask: (task: AdhocDailyTask): void => {
+    const list = StorageService.getAdhocDailyTasks();
+    list.unshift(task);
+    StorageService.saveAdhocDailyTasks(list);
+
+    // Otomatis masukkan log ke TaskLogs (sync ke TaskLogs_PLH di Google Sheet)
+    const logId = `tl-adhoc-${task.id}`;
+    const taskLog: TaskLog = {
+      id: logId,
+      timestamp: task.createdAt || new Date().toISOString(),
+      date: task.date,
+      userId: task.userId,
+      userName: task.userName,
+      userRole: 'user',
+      division: 'PLH',
+      unit: 'Semua Unit',
+      taskId: task.id,
+      taskTitle: `[Tugas Tambahan PLH] ${task.title} (${task.area})`,
+      category: 'Harian',
+      timingType: 'anytime',
+      status: task.status === 'Selesai' ? 'Selesai' : 'Pending',
+      isLate: false,
+      photoUrl: task.photoUrl,
+      notes: task.notes,
+    };
+    const logs = StorageService.getTaskLogs();
+    if (!logs.some((l) => l.id === logId)) {
+      logs.unshift(taskLog);
+      StorageService.saveTaskLogs(logs);
+    }
+  },
+
+  // Record a new inspection in tree history
+  addTreeInspectionRecord: (treeId: string, record: TreeInspectionRecord): TreeWorkOrder | null => {
+    const list = StorageService.getTreeWorkOrders();
+    const index = list.findIndex((o) => o.id === treeId);
+    if (index === -1) return null;
+
+    const order = { ...list[index] };
+    const history = [...(order.inspectionHistory || [])];
+    history.unshift(record);
+
+    order.inspectionHistory = history;
+    order.lastCheckedDate = record.date;
+    order.lastCheckedTime = record.time;
+    order.lastCheckedByName = record.inspectorName;
+    order.condition = record.condition;
+    order.checkStatusToday = record.checkStatus === 'Perlu Penanganan' ? 'Perlu Penanganan' : 'Sudah Dicek Aman';
+    order.inspectionNotes = record.notes || order.inspectionNotes || 'Pemeriksaan rutin: Kondisi terpantau aman.';
+    order.notes = record.notes || order.inspectionNotes || order.notes || 'Pemeriksaan rutin: Kondisi terpantau aman.';
+
+    if (record.photoBeforeUrl || record.photoUrl) {
+      order.photoBeforeUrl = record.photoBeforeUrl || record.photoUrl;
+      order.lastCheckedPhotoUrl = record.photoBeforeUrl || record.photoUrl;
+    }
+    if (record.photoAfterUrl) {
+      order.photoAfterUrl = record.photoAfterUrl;
+    }
+    if (record.drivePhotoBeforeUrl || record.drivePhotoUrl) {
+      order.drivePhotoBeforeUrl = record.drivePhotoBeforeUrl || record.drivePhotoUrl;
+      order.lastCheckedDrivePhotoUrl = record.drivePhotoBeforeUrl || record.drivePhotoUrl;
+      if (!order.photoBeforeUrl || order.photoBeforeUrl.startsWith('data:')) {
+        order.photoBeforeUrl = order.drivePhotoBeforeUrl;
+      }
+      if (!order.lastCheckedPhotoUrl || order.lastCheckedPhotoUrl.startsWith('data:')) {
+        order.lastCheckedPhotoUrl = order.drivePhotoBeforeUrl;
+      }
+    }
+    if (record.drivePhotoAfterUrl) {
+      order.drivePhotoAfterUrl = record.drivePhotoAfterUrl;
+      if (!order.photoAfterUrl || order.photoAfterUrl.startsWith('data:')) {
+        order.photoAfterUrl = record.drivePhotoAfterUrl;
+      }
+    }
+
+    if (record.treatmentStatus) {
+      order.treatmentStatus = record.treatmentStatus;
+      if (record.treatmentStatus === 'Sudah Ditangani') {
+        order.status = 'Selesai';
+        order.completedAt = record.handledAt || new Date().toISOString();
+        order.completedByName = record.handledByName || record.inspectorName;
+      } else if (record.treatmentStatus === 'Sedang Ditangani') {
+        order.status = 'Sedang Dikerjakan';
+      } else if (record.treatmentStatus === 'Belum Ditangani') {
+        order.status = 'Perlu Penanganan';
+      }
+    } else if (record.checkStatus === 'Perlu Penanganan') {
+      order.status = 'Perlu Penanganan';
+      order.treatmentStatus = 'Belum Ditangani';
+    }
+
+    if (record.treatmentNeeded) {
+      order.treatmentNeeded = record.treatmentNeeded as any;
+    }
+    if (record.handlerType) {
+      order.handlerType = record.handlerType;
+      order.isLargeTreatment = record.isLargeTreatment !== undefined ? record.isLargeTreatment : record.handlerType === 'Vendor Luar';
+    }
+    if (record.vendorName !== undefined) {
+      order.vendorName = record.vendorName;
+    }
+    if (record.vendorCost !== undefined) {
+      order.vendorCost = record.vendorCost;
+    }
+    if (record.treatmentReport) {
+      order.treatmentReport = record.treatmentReport;
+    }
+    if (record.handledByName) {
+      order.handledByName = record.handledByName;
+    }
+    if (record.handledAt) {
+      order.handledAt = record.handledAt;
+    }
+
+    list[index] = order;
+    StorageService.saveTreeWorkOrders(list);
+    return order;
+  },
+
+  // Update treatment report & after photo
+  updateTreeTreatmentReport: (
+    treeId: string,
+    data: {
+      treatmentStatus: TreeTreatmentStatus;
+      handledByName: string;
+      handledAt: string;
+      treatmentReport: string;
+      photoAfterUrl?: string;
+      drivePhotoAfterUrl?: string;
+      condition?: any;
+      inspectorUser: User;
+    }
+  ): TreeWorkOrder | null => {
+    const list = StorageService.getTreeWorkOrders();
+    const index = list.findIndex((o) => o.id === treeId);
+    if (index === -1) return null;
+
+    const order = { ...list[index] };
+    order.treatmentStatus = data.treatmentStatus;
+    order.handledByName = data.handledByName;
+    order.handledAt = data.handledAt;
+    order.treatmentReport = data.treatmentReport;
+
+    if (data.photoAfterUrl) {
+      order.photoAfterUrl = data.photoAfterUrl;
+    }
+    if (data.drivePhotoAfterUrl) {
+      order.drivePhotoAfterUrl = data.drivePhotoAfterUrl;
+      if (!order.photoAfterUrl || order.photoAfterUrl.startsWith('data:')) {
+        order.photoAfterUrl = data.drivePhotoAfterUrl;
+      }
+    }
+    if (data.condition) {
+      order.condition = data.condition;
+    }
+
+    if (data.treatmentStatus === 'Sudah Ditangani') {
+      order.status = 'Selesai';
+      order.completedAt = data.handledAt;
+      order.completedBy = data.inspectorUser.id;
+      order.completedByName = data.handledByName;
+      order.checkStatusToday = 'Sudah Dicek Aman';
+    } else if (data.treatmentStatus === 'Sedang Ditangani') {
+      order.status = 'Sedang Dikerjakan';
+    }
+
+    // Append to inspection history
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+    const dateStr = getJakartaDateString();
+
+    const historyRecord: TreeInspectionRecord = {
+      id: `tir-${Date.now()}`,
+      treeId: order.id,
+      date: dateStr,
+      time: timeStr,
+      inspectorId: data.inspectorUser.id,
+      inspectorName: data.inspectorUser.name,
+      condition: data.condition || order.condition,
+      checkStatus: data.treatmentStatus === 'Sudah Ditangani' ? 'Sudah Ditangani' : 'Dalam Penanganan',
+      notes: `Update Penanganan: ${data.treatmentReport}`,
+      treatmentNeeded: order.treatmentNeeded,
+      treatmentStatus: data.treatmentStatus,
+      handledByName: data.handledByName,
+      handledAt: data.handledAt,
+      treatmentReport: data.treatmentReport,
+      photoBeforeUrl: order.photoBeforeUrl,
+      photoAfterUrl: data.photoAfterUrl || order.photoAfterUrl,
+      drivePhotoBeforeUrl: order.drivePhotoBeforeUrl,
+      drivePhotoAfterUrl: data.drivePhotoAfterUrl || order.drivePhotoAfterUrl,
+      timestamp: now.toISOString(),
+    };
+
+    order.inspectionHistory = [historyRecord, ...(order.inspectionHistory || [])];
+    list[index] = order;
+    StorageService.saveTreeWorkOrders(list);
+    return order;
+  },
+
   // Reset to initial seed state
   resetAllData: (): void => {
     setStoredItem(STORAGE_KEYS.USERS, SEED_USERS);
@@ -1916,6 +2440,21 @@ export const StorageService = {
     setStoredItem(STORAGE_KEYS.SYNC_CONFIG, DEFAULT_SYNC_CONFIG);
     setStoredItem(STORAGE_KEYS.HOLIDAY_CONFIG, DEFAULT_HOLIDAY_CONFIG);
     setStoredItem(STORAGE_KEYS.TREE_WORK_ORDERS, SEED_TREE_WORK_ORDERS);
+    setStoredItem(STORAGE_KEYS.MASJID_DUTY_CONFIG, {});
+  },
+
+  // Configuration for Rolling Piket Aula Masjid (Area & Waktu Pelaksanaan)
+  getMasjidDutyConfig: (): MasjidDutyConfig => {
+    return getStoredItem<MasjidDutyConfig>(STORAGE_KEYS.MASJID_DUTY_CONFIG, {});
+  },
+  saveMasjidDutyConfig: (config: MasjidDutyConfig): void => {
+    setStoredItem(STORAGE_KEYS.MASJID_DUTY_CONFIG, config);
+  },
+
+  // Reset Tree Work Orders specifically to initial official 15 trees
+  resetTreeWorkOrdersToDefault: (): TreeWorkOrder[] => {
+    setStoredItem(STORAGE_KEYS.TREE_WORK_ORDERS, SEED_TREE_WORK_ORDERS);
+    return SEED_TREE_WORK_ORDERS;
   },
 };
 
@@ -1989,6 +2528,27 @@ export const isTaskAssignedToUser = (task: MasterTask, user: User): boolean => {
 
   if (!matchesUnit) return false;
 
+  // 1b. PLH Area Enforcement: Staf lapangan PLH hanya menerima tugas di area tanggung jawab wilayahnya masing-masing
+  if (userDivision === 'PLH' && user.role !== 'kordinator') {
+    const userArea = (user.assignedArea || user.unit || '').trim().toLowerCase();
+    const taskArea = (task.area || '').trim().toLowerCase();
+    if (userArea && taskArea && taskArea !== 'semua unit' && taskArea !== 'semua area' && !taskArea.includes('rolling')) {
+      const isAreaMatch = taskArea === userArea || taskArea.includes(userArea) || userArea.includes(taskArea);
+      if (!isAreaMatch) {
+        const assignee = (task.assignee || '').trim().toLowerCase();
+        const uUsername = (user.username || '').toLowerCase();
+        const uId = (user.id || '').toLowerCase();
+        const uName = (user.name || '').toLowerCase();
+        const isExplicitAssignee = !!(assignee && (
+          assignee.includes(uUsername) || assignee.includes(uId) || assignee.includes(uName)
+        ));
+        if (!isExplicitAssignee) {
+          return false;
+        }
+      }
+    }
+  }
+
   // 2. Kordinator manages all tasks in their assigned division and unit/building
   if (user.role === 'kordinator') {
     return true;
@@ -2005,8 +2565,18 @@ export const isTaskAssignedToUser = (task: MasterTask, user: User): boolean => {
     assignee === 'semua og' ||
     assignee === 'semua unit' ||
     assignee === 'all' ||
-    assignee === 'petugas unit'
+    assignee === 'petugas unit' ||
+    assignee.startsWith('petugas unit') ||
+    assignee.startsWith('semua petugas')
   ) {
+    // If assignee explicitly mentions a specific unit like "Petugas Unit TK (OB)" or "Petugas Unit SD (OB)":
+    const unitKeywords = ['tk', 'sd', 'smp', 'pelangi', 'ar razi', 'khaldun', 'pos 1', 'pos 2', 'kolam'];
+    const specifiedUnit = unitKeywords.find((kw) => assignee.includes(kw));
+    if (specifiedUnit) {
+      if (userHasAllUnits) return true;
+      if (uUnit.includes(specifiedUnit) || specifiedUnit.includes(uUnit)) return true;
+      return false;
+    }
     return true;
   }
 
@@ -2020,7 +2590,16 @@ export const isTaskAssignedToUser = (task: MasterTask, user: User): boolean => {
   const tokens = assignee.split(/[,|;/]+/).map((t) => t.trim().toLowerCase());
   return tokens.some((token) => {
     if (!token) return false;
-    if (token === 'semua' || token === 'semua petugas' || token === 'semua staff') return true;
+    if (
+      token === 'semua' ||
+      token === 'semua petugas' ||
+      token === 'semua staff' ||
+      token === 'semua ob' ||
+      token === 'semua og' ||
+      token.startsWith('petugas unit')
+    ) {
+      return true;
+    }
     return (
       token === uUsername ||
       token === uId ||
@@ -2030,7 +2609,8 @@ export const isTaskAssignedToUser = (task: MasterTask, user: User): boolean => {
       uName.includes(token) ||
       uCleanName.includes(token) ||
       token.includes(uUsername) ||
-      token.includes(uCleanName)
+      token.includes(uCleanName) ||
+      (uUnit && (token.includes(uUnit) || uUnit.includes(token)))
     );
   });
 };

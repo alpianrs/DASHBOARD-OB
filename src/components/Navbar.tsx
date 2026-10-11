@@ -17,7 +17,7 @@ import { StorageService } from '../services/storage';
 
 interface NavbarProps {
   activeUser: User;
-  onSwitchUser: () => void;
+  onSwitchUser?: () => void;
   onLogout?: () => void;
   syncConfig: SyncConfig;
   onOpenSyncModal: () => void;
@@ -94,27 +94,41 @@ export const Navbar: React.FC<NavbarProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  const getRoleBadge = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return (
-          <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-rose-50 text-rose-700 border border-rose-200/80 tracking-wide uppercase">
-            Admin FM
-          </span>
-        );
-      case 'kordinator':
-        return (
-          <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-50 text-amber-700 border border-amber-200/80 tracking-wide uppercase">
-            Kordinator
-          </span>
-        );
-      default:
-        return (
-          <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-sky-50 text-sky-700 border border-sky-200/80 tracking-wide uppercase">
-            Staff OB/OG
-          </span>
-        );
+  const getRoleBadge = (user: User) => {
+    const isPlh = user.division === 'PLH' || user.username.includes('plh') || user.name.includes('PLH');
+    if (user.role === 'admin') {
+      return (
+        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-rose-50 text-rose-700 border border-rose-200/80 tracking-wide uppercase">
+          Admin FM
+        </span>
+      );
     }
+    if (user.role === 'kordinator') {
+      if (isPlh) {
+        return (
+          <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-50 text-emerald-800 border border-emerald-300 tracking-wide uppercase flex items-center gap-1">
+            <span>🌿</span> Kord PLH
+          </span>
+        );
+      }
+      return (
+        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-50 text-amber-800 border border-amber-300 tracking-wide uppercase flex items-center gap-1">
+          <span>🧹</span> Kord OB
+        </span>
+      );
+    }
+    if (isPlh) {
+      return (
+        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 tracking-wide uppercase flex items-center gap-1">
+          <span>🌿</span> Staff PLH
+        </span>
+      );
+    }
+    return (
+      <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-sky-50 text-sky-700 border border-sky-200/80 tracking-wide uppercase flex items-center gap-1">
+        <span>🧹</span> Staff OB
+      </span>
+    );
   };
 
   return (
@@ -136,9 +150,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-500 truncate flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-              <span>Unit: </span>
-              <strong className="text-slate-800 font-semibold">{activeUser.unit}</strong>
+              {activeUser.division === 'PLH' ? (
+                <>
+                  <span className="text-emerald-700 font-bold">🌿 PLH:</span>
+                  <strong className="text-slate-800 font-semibold">{activeUser.assignedArea || 'Semua Area PLH'}</strong>
+                </>
+              ) : (
+                <>
+                  <Building2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                  <span>Unit: </span>
+                  <strong className="text-slate-800 font-semibold">{activeUser.unit}</strong>
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -213,34 +236,30 @@ export const Navbar: React.FC<NavbarProps> = ({
             );
           })()}
 
-          {/* User Profile & Switcher */}
+          {/* User Profile & Logout */}
           <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200">
-            <button
-              onClick={onSwitchUser}
-              title="Ganti Akun / Info Akun"
-              className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1.5 rounded-xl hover:bg-slate-100 transition-all text-left cursor-pointer border border-transparent hover:border-slate-200 group"
-            >
+            <div className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1.5 rounded-xl text-left">
               <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-xs shadow-xs">
                 {activeUser.name.charAt(0)}
               </div>
               <div className="hidden sm:block text-left">
-                <div className="text-xs font-bold text-slate-900 leading-tight group-hover:text-sky-700 transition">
+                <div className="text-xs font-bold text-slate-900 leading-tight">
                   {activeUser.name}
                 </div>
                 <div className="flex items-center gap-1 mt-0.5">
-                  {getRoleBadge(activeUser.role)}
+                  {getRoleBadge(activeUser)}
                 </div>
               </div>
-              <RefreshCw className="w-3.5 h-3.5 text-slate-400 group-hover:rotate-180 transition-transform duration-300 hidden sm:inline-block" />
-            </button>
+            </div>
 
             {onLogout && (
               <button
                 onClick={onLogout}
                 title="Keluar / Logout"
-                className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition cursor-pointer"
+                className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:text-rose-700 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 transition cursor-pointer flex items-center gap-1.5"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-3.5 h-3.5 text-rose-600" />
+                <span className="hidden sm:inline">Keluar</span>
               </button>
             )}
           </div>

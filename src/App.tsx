@@ -666,7 +666,6 @@ export default function App() {
       {/* Top Navbar */}
       <Navbar
         activeUser={activeUser}
-        onSwitchUser={() => setIsLoginModalOpen(true)}
         onLogout={handleLogout}
         syncConfig={syncConfig}
         onOpenSyncModal={() => setIsSyncModalOpen(true)}

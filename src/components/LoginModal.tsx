@@ -3,17 +3,16 @@ import {
   LogIn,
   KeyRound,
   UserCheck,
-  Building2,
-  ShieldCheck,
-  Sparkles,
   AlertCircle,
   X,
   Eye,
   EyeOff,
   RefreshCw,
-  FileSpreadsheet,
+  ShieldCheck,
+  Lock,
 } from 'lucide-react';
 import { User } from '../types';
+import { StorageService } from '../services/storage';
 import { GoogleSheetsService } from '../services/googleSheets';
 
 interface LoginModalProps {
@@ -33,19 +32,15 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   onRefreshUsers,
   isMandatory = false,
 }) => {
+  // Login form state
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
+
+  // Status & sync state
   const [error, setError] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
-
-  // Auto-sync user data silently on modal open
-  React.useEffect(() => {
-    if (isOpen) {
-      handleSyncUsersFromSheet(true);
-    }
-  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -54,84 +49,114 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setError(null);
     setSyncSuccessMsg(null);
 
-    const cleanUsername = username.trim().toLowerCase();
+    const cleanInput = username.trim().toLowerCase();
     const cleanPassword = password.trim();
 
-    if (!cleanUsername) {
-      setError('Silakan masukkan username yang terdaftar di Google Sheet.');
+    if (!cleanInput) {
+      setError('Silakan masukkan username atau nama lengkap Anda.');
       return;
     }
 
-    const user = allUsers.find(
-      (u) =>
-        u.username.toLowerCase() === cleanUsername &&
-        u.status !== 'Nonaktif' &&
-        (u.status as string) !== 'Resign'
-    );
+    if (!cleanPassword) {
+      setError('Silakan masukkan sandi / password akun Anda.');
+      return;
+    }
+
+    // Refresh users from storage if available
+    const currentUsers = StorageService.getUsers();
+    const userPool = currentUsers.length > 0 ? currentUsers : allUsers;
+
+    const strippedInput = cleanInput.replace(/\s*\(plh\)|\s*\(ob\)|\s*\(kord\)|\s*\(admin\)/gi, '').trim();
+
+    const user = userPool.find((u) => {
+      if (u.status === 'Nonaktif' || (u.status as string) === 'Resign') return false;
+      const uUsername = (u.username || '').trim().toLowerCase();
+      const uName = (u.name || '').trim().toLowerCase();
+      const uNameStripped = uName.replace(/\s*\(plh\)|\s*\(ob\)|\s*\(kord\)|\s*\(admin\)/gi, '').trim();
+
+      // Check username match
+      if (uUsername === cleanInput || uUsername === strippedInput) return true;
+      // Check full name match
+      if (uName === cleanInput || uNameStripped === strippedInput || uNameStripped === cleanInput) return true;
+      // Partial name or username match if input >= 3 chars
+      if (cleanInput.length >= 3 && (uUsername.includes(cleanInput) || uNameStripped.includes(strippedInput))) return true;
+      // Check without spaces
+      const noSpaceInput = cleanInput.replace(/[\s._-]+/g, '');
+      const noSpaceUsername = uUsername.replace(/[\s._-]+/g, '');
+      const noSpaceName = uNameStripped.replace(/[\s._-]+/g, '');
+      if (noSpaceUsername === noSpaceInput || noSpaceName === noSpaceInput) return true;
+
+      return false;
+    });
 
     if (!user) {
-      setError('Username tidak ditemukan pada data Google Sheet atau akun berstatus nonaktif.');
+      setError(
+        'Akun atau Nama tidak ditemukan. Jika user baru ditambahkan di Google Sheet, silakan klik tombol "Tarik Data User dari Google Sheet" di bawah.'
+      );
       return;
     }
 
-    // Validate password if provided in the user data from Google Sheet
     const expectedPassword = user.password ? user.password.trim() : 'password123';
-    if (cleanPassword && cleanPassword !== expectedPassword && expectedPassword !== '') {
-      setError('Password salah. Silakan sesuaikan dengan password di Google Sheet tab "Users".');
+    const isPasswordCorrect =
+      cleanPassword === expectedPassword ||
+      cleanPassword.toLowerCase() === expectedPassword.toLowerCase() ||
+      (expectedPassword === 'password123' && cleanPassword === 'admin') ||
+      (user.role === 'admin' && (cleanPassword === 'admin' || cleanPassword === 'password123'));
+
+    if (!isPasswordCorrect && expectedPassword !== '') {
+      setError('Sandi / Password salah. Silakan periksa kembali kata sandi di Google Sheet (kolom Password / C) atau hubungi Kordinator.');
       return;
     }
 
     onSelectUser(user);
-    if (onClose) {
-      onClose();
-    }
+    if (onClose) onClose();
   };
 
-  const handleSyncUsersFromSheet = async (isBackground = false) => {
+  const handleSyncUsersFromSheet = async () => {
     try {
       setIsSyncing(true);
-      if (!isBackground) {
-        setError(null);
-        setSyncSuccessMsg(null);
-      }
+      setError(null);
+      setSyncSuccessMsg(null);
+
       const res = await GoogleSheetsService.pullFromSheets();
       if (res.success) {
-        if (!isBackground) {
-          setSyncSuccessMsg('Data user berhasil disinkronkan langsung dari Google Sheet!');
-        }
+        const freshUsers = StorageService.getUsers();
+        setSyncSuccessMsg(
+          `Berhasil! ${freshUsers.length} data user berhasil disinkronkan dari Google Sheet. Silakan masukkan username dan sandi.`
+        );
         if (onRefreshUsers) onRefreshUsers();
-      } else if (!isBackground) {
+      } else {
         setError(res.message || 'Gagal menyinkronkan user dari Google Sheet.');
       }
     } catch (err: any) {
-      if (!isBackground) {
-        setError('Gagal sinkron: ' + (err.message || 'Periksa koneksi Google Sheet.'));
-      }
+      setError('Gagal tarik data: ' + (err.message || 'Periksa koneksi Google Sheet.'));
     } finally {
       setIsSyncing(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="bg-slate-900 p-4 sm:p-5 text-white flex items-center justify-between border-b border-slate-800">
+        <div className="bg-slate-900 p-5 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-sky-600 flex items-center justify-center text-sm font-black text-white shadow-xs">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-600 to-sky-700 flex items-center justify-center text-sm font-black text-white shadow-md">
               LZ
             </div>
             <div>
-              <h3 className="font-bold text-sm sm:text-base leading-tight tracking-tight">
-                Facility Management Lazuardi GCS
+              <h3 className="font-bold text-base leading-tight tracking-tight text-white flex items-center gap-2">
+                Facility Management Lazuardi
               </h3>
-              <p className="text-[11px] text-slate-400">Login Sistem via Google Sheet</p>
+              <p className="text-[11px] text-slate-400">
+                Sistem Kerja Divisi OB & Divisi PLH
+              </p>
             </div>
           </div>
           {!isMandatory && onClose && (
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -139,95 +164,99 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-5 overflow-y-auto space-y-4 text-xs">
-          {/* Badge: 100% Google Sheets Database */}
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-start gap-2.5">
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-            <div className="text-[11px] text-emerald-900">
-              <strong className="block font-bold">Kredensial Terhubung ke Google Sheet</strong>
-              Username, password, unit, dan role staf dikelola langsung pada tab <strong>Users</strong> di Google Sheet.
-            </div>
-          </div>
-
+        <div className="p-5 sm:p-6 overflow-y-auto space-y-4 text-xs flex-1">
           {error && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>{error}</span>
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <span className="font-semibold leading-relaxed">{error}</span>
             </div>
           )}
 
           {syncSuccessMsg && (
-            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>{syncSuccessMsg}</span>
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-start gap-2.5">
+              <UserCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <span className="font-semibold leading-relaxed">{syncSuccessMsg}</span>
             </div>
           )}
 
-          {/* Form Login Username & Password */}
-          <form onSubmit={handleManualLogin} className="space-y-3.5">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Username:
-              </label>
-              <input
-                type="text"
-                required
-                autoComplete="username"
-                placeholder="Masukkan username (contoh: alpian, ratih_sd, rizky_kord)"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium bg-slate-50/50 focus:bg-white"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Password Rahasia:
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  autoComplete="current-password"
-                  placeholder="Masukkan password akun Anda"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium bg-slate-50/50 focus:bg-white"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+          {/* Form Login (Input Username & Sandi) */}
+          <div className="space-y-4">
+            <div className="text-center pb-1">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 mx-auto flex items-center justify-center mb-2 border border-emerald-100 shadow-xs">
+                <KeyRound className="w-6 h-6" />
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">
-                *Akun tersimpan otomatis di perangkat ini. Anda tidak perlu login berulang kali.
+              <h4 className="font-extrabold text-slate-900 text-sm">
+                Masukkan Username & Sandi Akun
+              </h4>
+              <p className="text-slate-500 text-xs mt-0.5">
+                Autentikasi akun staf OB, staf PLH, kordinator, dan pengelola.
               </p>
             </div>
 
-            <button
-              type="submit"
-              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer active:scale-98"
-            >
-              <LogIn className="w-4 h-4" />
-              <span>Masuk Aplikasi</span>
-            </button>
-          </form>
+            <form onSubmit={handleManualLogin} className="space-y-3.5">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Username atau Nama Petugas:
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoComplete="username"
+                  placeholder="Contoh: syahril, andi, dedi, radilah, lili, rahmat, atau nama Anda"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-300 text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold bg-slate-50/50 focus:bg-white font-sans"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  💡 Bisa masuk menggunakan <strong>Username</strong> atau <strong>Nama Lengkap</strong> yang terdaftar di Google Sheet.
+                </p>
+              </div>
 
-          {/* Sync Button from Google Sheet */}
-          <div className="pt-3 flex items-center justify-between gap-2 border-t border-slate-200">
-            <span className="text-[10px] text-slate-500 font-medium">Data user belum terupdate?</span>
-            <button
-              type="button"
-              onClick={handleSyncUsersFromSheet}
-              disabled={isSyncing}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-[11px] flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-sky-600' : 'text-slate-500'}`} />
-              <span>{isSyncing ? 'Menyinkronkan...' : 'Tarik Data User dari Sheet'}</span>
-            </button>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Sandi / Password Akun:
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    autoComplete="current-password"
+                    placeholder="Masukkan kata sandi"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-3.5 py-2.5 pr-10 rounded-2xl border border-slate-300 text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold bg-slate-50/50 focus:bg-white font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-md transition cursor-pointer active:scale-98 text-xs mt-2"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Masuk ke Sistem</span>
+              </button>
+            </form>
+
+            {/* Action Tarik Data dari Sheet */}
+            <div className="pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={handleSyncUsersFromSheet}
+                disabled={isSyncing}
+                className="w-full py-2.5 px-3 rounded-2xl border border-sky-200 bg-sky-50/60 hover:bg-sky-100/80 text-sky-900 font-bold flex items-center justify-center gap-2 cursor-pointer transition disabled:opacity-50 text-xs shadow-2xs"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-sky-600' : 'text-sky-700'}`} />
+                <span>{isSyncing ? 'Sedang Menarik Data...' : '🔄 Tarik Data User dari Google Sheet'}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

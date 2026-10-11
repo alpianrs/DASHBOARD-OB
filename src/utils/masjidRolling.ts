@@ -67,16 +67,21 @@ export function formatWeekRange(mondayDateStr: string): string {
 
 /**
  * Menghitung jadwal giliran Piket Aula Masjid untuk minggu berjalan.
- * Aturan Penting Lazuardi GCS:
- * - 4 Area PLH yang berputar: Area Pos 2, Area Kolam Renang, Area Ex Minifarm, Area Khaldun.
+ * Aturan Resmi Lazuardi GCS (Rotasi Otomatis & Terkunci):
+ * - Urutan 4 Area Luar PLH:
+ *   1. Area Pos 2 (PJ: Ahmad Syahril) -> Minggu ini (Mulai 05 Oktober 2026)
+ *   2. Area Kolam Renang (PJ: Radilah) -> Minggu berikutnya
+ *   3. Area Ex Minifarm (PJ: Dedi Junaedi) -> Minggu berikutnya
+ *   4. Area Khaldun (PJ: Andi Komala) -> Minggu berikutnya
  * - Area Pos 1 TIDAK IKUT (dikecualikan karena fokus penjagaan gerbang utama & pos depan).
- * - Reset otomatis setiap hari Senin jam 00:00 WIB.
+ * - Waktu pelaksanaan: Khusus Pre-Readiness Pagi (06:30 – 08:30 WIB).
+ * - Reset otomatis setiap hari Senin jam 00:00 WIB tanpa perlu diedit manual.
  */
 export function getMasjidRollingSchedule(dateInput?: string | Date): MasjidRollingSchedule {
   const monday = getMondayOfWeek(dateInput);
   
-  // Referensi patokan Senin awal tahun 2026 (Senin, 5 Januari 2026)
-  const refMonday = new Date(2026, 0, 5).getTime();
+  // Referensi patokan resmi: Senin, 5 Oktober 2026 (Minggu Ini: Area Pos 2)
+  const refMonday = new Date(2026, 9, 5).getTime();
   const [y, m, d] = monday.split('-').map(Number);
   const currentMondayTime = new Date(y, m - 1, d).getTime();
   
@@ -92,6 +97,9 @@ export function getMasjidRollingSchedule(dateInput?: string | Date): MasjidRolli
     activeArea: MASJID_ROLLING_AREAS[activeIndex],
     nextArea: MASJID_ROLLING_AREAS[nextIndex],
     allCycle: [...MASJID_ROLLING_AREAS],
+    timeSlot: 'pagi',
+    customTimeText: '06:30 – 08:30 WIB (Pre-Readiness)',
+    isOverridden: false,
   };
 }
 
@@ -114,6 +122,7 @@ export function getMasjidRollingProjection(weeksCount = 4, startDateInput?: stri
   weekRangeText: string;
   area: MasjidRollingArea;
   isCurrentWeek: boolean;
+  timeText?: string;
 }[] {
   const currentMonday = getMondayOfWeek(startDateInput);
   const [y, m, d] = currentMonday.split('-').map(Number);
@@ -128,6 +137,7 @@ export function getMasjidRollingProjection(weeksCount = 4, startDateInput?: stri
       weekRangeText: schedule.weekRangeText,
       area: schedule.activeArea,
       isCurrentWeek: i === 0,
+      timeText: schedule.customTimeText,
     });
   }
 

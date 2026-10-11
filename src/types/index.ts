@@ -39,13 +39,13 @@ export const PLH_AREAS = [
 
 export type PLHAreaType = typeof PLH_AREAS[number];
 
-// Pemetaan Standar Petugas Penanggung Jawab Area PLH
+// Pemetaan Standar Petugas Penanggung Jawab Area PLH Sesuai Database Google Sheet
 export const DEFAULT_PLH_AREA_STAFF: Record<string, { id: string; name: string }> = {
-  'Area Pos 1': { id: 'u-plh-01', name: 'Bambang Irawan (PLH)' },
-  'Area Pos 2': { id: 'u-plh-02', name: 'Surya Wijaya (PLH)' },
-  'Area Khaldun': { id: 'u-plh-03', name: 'Kusnadi (PLH)' },
-  'Area Ex Minifarm': { id: 'u-plh-04', name: 'Ahmad Fauzi (PLH)' },
-  'Area Kolam Renang': { id: 'u-plh-05', name: 'Darmanto (PLH)' },
+  'Area Pos 1': { id: 'u-kord-plh', name: 'Rahmat Hidayat (Kord PLH)' },
+  'Area Pos 2': { id: 'u-plh-01', name: 'Ahmad Syahril (PLH)' },
+  'Area Khaldun': { id: 'u-plh-02', name: 'Andi Komala (PLH)' },
+  'Area Ex Minifarm': { id: 'u-plh-03', name: 'Dedi Junaedi (PLH)' },
+  'Area Kolam Renang': { id: 'u-plh-04', name: 'Radilah (PLH)' },
 };
 
 export interface MasterTask {
@@ -61,7 +61,7 @@ export interface MasterTask {
   estimatedMinutes?: number;
   area?: string;
   isActive: boolean;
-  assignee?: string; // e.g. "Budi Santoso", "budi_tk", "Semua Petugas", or custom name
+  assignee?: string; // e.g. "Petugas Unit", "Semua Petugas", or custom name
   assigneeId?: string; // Optional user ID reference
   assigneeName?: string;
 }
@@ -98,6 +98,8 @@ export interface TaskLog {
   peerInspectorUnit?: UnitType;
   peerScore?: number;
   peerNotes?: string;
+  isIncidental?: boolean; // True jika tugas tambahan / insidental harian (misal: nyemai bibit, dll.)
+  area?: string; // Lokasi area pengerjaan tugas tambahan
 }
 
 export interface JobBareng {
@@ -276,6 +278,19 @@ export interface MasjidRollingSchedule {
   activeArea: MasjidRollingArea;
   nextArea: MasjidRollingArea;
   allCycle: MasjidRollingArea[];
+  timeSlot?: 'pagi' | 'siang' | 'sore' | 'fleksibel' | 'custom';
+  customTimeText?: string;
+  isOverridden?: boolean;
+}
+
+export interface MasjidDutyConfig {
+  activeAreaOverride?: MasjidRollingArea | null;
+  overrideWeekMonday?: string;
+  timeSlot?: 'pagi' | 'siang' | 'sore' | 'fleksibel' | 'custom';
+  customTimeText?: string;
+  notes?: string;
+  updatedAt?: string;
+  updatedBy?: string;
 }
 
 // Work Order Khusus Pohon untuk Divisi PLH
@@ -296,6 +311,47 @@ export type TreeTreatmentType =
 
 export type TreeHandlerType = 'Internal PLH' | 'Vendor Luar';
 
+export type TreeTreatmentStatus =
+  | 'Tidak Perlu Penanganan'
+  | 'Belum Ditangani'
+  | 'Sedang Ditangani'
+  | 'Sudah Ditangani';
+
+export interface TreeInspectionRecord {
+  id: string;
+  treeId: string;
+  date: string; // YYYY-MM-DD
+  time: string; // e.g. "08:30 WIB"
+  inspectorId: string;
+  inspectorName: string;
+  condition: TreeCondition;
+  checkStatus: 'Sudah Dicek Aman' | 'Perlu Penanganan' | 'Dalam Penanganan' | 'Sudah Ditangani';
+  notes?: string;
+  // Penanganan (Treatment) details
+  treatmentNeeded?: TreeTreatmentType | string;
+  treatmentStatus?: TreeTreatmentStatus;
+  handlerType?: TreeHandlerType; // 'Internal PLH' or 'Vendor Luar'
+  isLargeTreatment?: boolean;
+  vendorName?: string;
+  vendorCost?: number;
+  handledBy?: string; // ID atau nama petugas pelaksana / vendor
+  handledByName?: string;
+  handledAt?: string; // Tanggal & waktu selesai penanganan
+  treatmentReport?: string; // Laporan detail tindakan yang telah dilakukan
+  // Foto Dokumentasi Pemeriksaan & Foto Before/After
+  photoUrl?: string; // Foto dokumentasi pohon saat pemeriksaan harian/mingguan
+  drivePhotoUrl?: string;
+  photoBeforeUrl?: string; // Foto kondisi sebelum penanganan
+  photoAfterUrl?: string; // Foto hasil setelah penanganan
+  drivePhotoBeforeUrl?: string;
+  drivePhotoAfterUrl?: string;
+  drivePhotoBeforeId?: string;
+  drivePhotoAfterId?: string;
+  photoType?: 'full_tree' | 'detail_issue' | 'routine_inspection'; // Jenis foto: Pohon Utuh vs Detail Temuan
+  photoAngleGuide?: string; // Panduan sudut & jarak foto yang digunakan
+  timestamp: string;
+}
+
 export interface TreeWorkOrder {
   id: string;
   date: string; // YYYY-MM-DD
@@ -312,20 +368,53 @@ export interface TreeWorkOrder {
   notes: string; // Catatan khusus kondisi pohon
   photoBeforeUrl?: string;
   photoAfterUrl?: string;
+  drivePhotoBeforeUrl?: string;
+  drivePhotoAfterUrl?: string;
+  // Foto Acuan Standar & Panduan Monitoring Pohon
+  standardPhotoUrl?: string; // Foto acuan standar pohon resmi Lazuardi (Benchmark)
+  standardPhotoAngleGuide?: string; // Panduan sudut & jarak pengambilan foto agar pohon terlihat jelas
+  standardInstructions?: string[]; // SOP standar instruksi pemeriksaan pohon (Tajuk, Batang, Daun, Perakaran)
   status: 'Perlu Penanganan' | 'Dijadwalkan' | 'Sedang Dikerjakan' | 'Selesai';
+  treatmentStatus?: TreeTreatmentStatus; // 'Tidak Perlu Penanganan' | 'Belum Ditangani' | 'Sedang Ditangani' | 'Sudah Ditangani'
   reportedBy: string;
   reportedByName: string;
   assignedStaffId?: string; // Petugas penanggung jawab area pohon
   assignedStaffName?: string; // Nama petugas penanggung jawab area
+  // Laporan pelaksanaan penanganan terkini
+  handledBy?: string;
+  handledByName?: string;
+  handledAt?: string;
+  treatmentReport?: string;
   completedAt?: string;
   completedBy?: string;
   completedByName?: string;
   lastCheckedDate?: string; // YYYY-MM-DD tanggal terakhir dilakukan pengecekan
   lastCheckedTime?: string; // Jam pengecekan (e.g. "08:30 WIB")
   lastCheckedByName?: string; // Petugas PLH yang melakukan pengecekan
+  lastCheckedPhotoUrl?: string; // Foto dokumentasi hasil pengecekan pohon terkini
+  lastCheckedDrivePhotoUrl?: string;
   checkStatusToday?: 'Sudah Dicek Aman' | 'Perlu Penanganan' | 'Sudah Dicek' | 'Belum Dicek';
   inspectionNotes?: string;
+  inspectionHistory?: TreeInspectionRecord[]; // Riwayat seluruh pemeriksaan & penanganan oleh tim PLH
   syncedToSheet?: boolean;
+  createdAt: string;
+}
+
+// Pekerjaan Tambahan / Mandiri Harian Staf PLH (Misal: Nyemai Tanaman, Pembuatan Media Tanam, dll.)
+export interface AdhocDailyTask {
+  id: string;
+  date: string; // YYYY-MM-DD
+  userId: string;
+  userName: string;
+  division: DivisionType; // 'PLH'
+  area: string;
+  title: string;
+  notes: string;
+  estimatedMinutes?: number;
+  photoUrl?: string;
+  drivePhotoUrl?: string;
+  status: 'Selesai' | 'Sedang Dikerjakan';
+  completedAt?: string;
   createdAt: string;
 }
 

@@ -28,6 +28,7 @@ import {
   ArrowUpRight,
   TreePine,
   Zap,
+  Printer,
 } from 'lucide-react';
 import {
   User,
@@ -46,6 +47,7 @@ import { UserTaskView } from './UserTaskView';
 import { JobBarengCard } from './JobBarengCard';
 import { MasjidRollingCard } from './MasjidRollingCard';
 import { TreeWorkOrderView } from './TreeWorkOrderView';
+import { generateWorkOrderSummaryPdf, printHtmlAsPdf } from '../utils/pdfGenerator';
 import { getJakartaDateString, isSameDay, normalizeDateString, isJobBarengExpired } from '../utils/dateHelper';
 import { formatGoogleDriveImageUrl, getGoogleDriveViewLink, getGoogleDriveThumbnailFallback } from '../utils/driveHelper';
 import {
@@ -119,8 +121,10 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
   const [jbAssignmentType, setJbAssignmentType] = useState<'all' | 'specific'>('all');
   const [jbSelectedUserIds, setJbSelectedUserIds] = useState<string[]>([]);
 
-  // Multi-unit filter for Coordinator inspection
-  const [selectedUnitFilter, setSelectedUnitFilter] = useState<UnitType | 'Semua Unit'>('Semua Unit');
+  // Multi-unit or Area filter for Coordinator inspection
+  const [selectedUnitFilter, setSelectedUnitFilter] = useState<string>(
+    kordDivision === 'PLH' ? 'Semua Area' : 'Semua Unit'
+  );
 
   // Strict division-scoped staff
   const divisionStaff = allUsers.filter(
@@ -159,19 +163,30 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
   // Selected Photo Preview
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
-  // Filter staff by unit within this coordinator's division
-  const filteredStaff = selectedUnitFilter === 'Semua Unit'
-    ? divisionStaff
-    : divisionStaff.filter((u) => u.unit === selectedUnitFilter);
+  // Filter staff by unit/area within this coordinator's division
+  const filteredStaff =
+    selectedUnitFilter === 'Semua Unit' || selectedUnitFilter === 'Semua Area'
+      ? divisionStaff
+      : divisionStaff.filter(
+          (u) =>
+            u.unit === selectedUnitFilter ||
+            u.assignedArea === selectedUnitFilter
+        );
 
   // Filter logs strictly by this coordinator's division
   const today = getJakartaDateString();
   const divisionLogs = taskLogs.filter((l) => (l.division || 'OB') === kordDivision);
   const todayLogs = divisionLogs.filter((l) => isSameDay(l.date, today) || (l.timestamp && isSameDay(l.timestamp, today)));
 
-  const filteredLogs = selectedUnitFilter === 'Semua Unit'
-    ? todayLogs
-    : todayLogs.filter((l) => l.unit === selectedUnitFilter);
+  const filteredLogs =
+    selectedUnitFilter === 'Semua Unit' || selectedUnitFilter === 'Semua Area'
+      ? todayLogs
+      : todayLogs.filter(
+          (l) =>
+            l.unit === selectedUnitFilter ||
+            l.area === selectedUnitFilter ||
+            (l as any).assignedArea === selectedUnitFilter
+        );
 
   // Scoped Job Bareng for this coordinator's division
   const divisionJobBareng = jobBarengList.filter((j) => (j.division || 'OB') === kordDivision);
@@ -359,17 +374,50 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
           </div>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2">
-          <span className="text-[11px] text-slate-500 font-medium">Anggota Terdaftar:</span>
-          <span
-            className={`px-2.5 py-1 rounded-lg text-xs font-black border ${
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const html = generateWorkOrderSummaryPdf(
+                taskLogs,
+                masterTasks,
+                jobBarengList,
+                allUsers,
+                {
+                  division: kordDivision,
+                  startDate: today,
+                  endDate: today,
+                  title: 'REKAP REALISASI WORK ORDER TUGAS',
+                }
+              );
+              printHtmlAsPdf(
+                html,
+                `WorkOrder_${kordDivision}_${today}`
+              );
+            }}
+            className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs ${
               kordDivision === 'PLH'
-                ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                : 'bg-sky-100 text-sky-900 border-sky-300'
+                ? 'bg-emerald-700 hover:bg-emerald-800 text-white'
+                : 'bg-sky-700 hover:bg-sky-800 text-white'
             }`}
+            title={`Unduh Dokumen PDF Work Order Resmi Hari Ini untuk Seluruh Anggota Divisi ${kordDivision}`}
           >
-            {divisionStaff.length} Petugas
-          </span>
+            <Printer className="w-3.5 h-3.5" />
+            <span>Unduh PDF Work Order ({kordDivision})</span>
+          </button>
+
+          <div className="hidden sm:flex items-center gap-2">
+            <span className="text-[11px] text-slate-500 font-medium">Anggota Terdaftar:</span>
+            <span
+              className={`px-2.5 py-1 rounded-lg text-xs font-black border ${
+                kordDivision === 'PLH'
+                  ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                  : 'bg-sky-100 text-sky-900 border-sky-300'
+              }`}
+            >
+              {divisionStaff.length} Petugas
+            </span>
+          </div>
         </div>
       </div>
 
@@ -384,7 +432,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
           }`}
         >
           <Eye className="w-3.5 h-3.5" />
-          <span>Live Monitoring Tim</span>
+          <span>{kordDivision === 'PLH' ? 'AssignedArea PLH' : 'Live Monitoring Tim'}</span>
         </button>
 
         <button
@@ -450,21 +498,31 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
         )}
       </div>
 
-      {/* TAB 1: LIVE MONITORING TIM */}
+      {/* TAB 1: LIVE MONITORING TIM / ASSIGNED AREA PLH */}
       {activeKordTab === 'monitoring' && (
         <div className="space-y-4 animate-in fade-in duration-150">
-          {/* Unit Filter Selector */}
+          {/* Unit / Area Filter Selector */}
           <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-700 shrink-0">
-                <Building2 className="w-5 h-5" />
+              <div
+                className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${
+                  kordDivision === 'PLH'
+                    ? 'bg-emerald-50 border-emerald-100 text-emerald-700'
+                    : 'bg-sky-50 border-sky-100 text-sky-700'
+                }`}
+              >
+                {kordDivision === 'PLH' ? (
+                  <TreePine className="w-5 h-5" />
+                ) : (
+                  <Building2 className="w-5 h-5" />
+                )}
               </div>
               <div>
                 <h3 className="font-bold text-sm text-slate-900 tracking-tight">
-                  Monitoring Pekerjaan Hari Ini
+                  {kordDivision === 'PLH' ? 'AssignedArea PLH' : 'Monitoring Pekerjaan Hari Ini'}
                 </h3>
                 <p className="text-xs text-slate-500">
-                  {filteredLogs.length} Aktivitas tercatat hari ini ({today})
+                  {filteredLogs.length} Aktivitas {kordDivision === 'PLH' ? 'area' : 'unit'} tercatat hari ini ({today})
                 </p>
               </div>
             </div>
@@ -472,15 +530,17 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
             {/* Filter Pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
               {(
-                [
-                  'Semua Unit',
-                  'TK',
-                  'SD',
-                  'SMP',
-                  'Pelangi Direktorat',
-                  'Ar Razi',
-                  'Khaldun',
-                ] as const
+                kordDivision === 'PLH'
+                  ? (['Semua Area', ...PLH_AREAS] as const)
+                  : ([
+                      'Semua Unit',
+                      'TK',
+                      'SD',
+                      'SMP',
+                      'Pelangi Direktorat',
+                      'Ar Razi',
+                      'Khaldun',
+                    ] as const)
               ).map((u) => (
                 <button
                   key={u}
@@ -494,6 +554,42 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                   {u}
                 </button>
               ))}
+
+              <button
+                type="button"
+                onClick={() => {
+                  const targetLogs =
+                    selectedUnitFilter === 'Semua Unit' || selectedUnitFilter === 'Semua Area'
+                      ? filteredLogs
+                      : filteredLogs.filter(
+                          (l) => l.unit === selectedUnitFilter || l.area === selectedUnitFilter
+                        );
+                  const html = generateWorkOrderSummaryPdf(
+                    targetLogs,
+                    masterTasks,
+                    jobBarengList,
+                    allUsers,
+                    {
+                      division: kordDivision,
+                      startDate: today,
+                      endDate: today,
+                      unitFilter:
+                        selectedUnitFilter === 'Semua Unit' || selectedUnitFilter === 'Semua Area'
+                          ? 'Semua'
+                          : selectedUnitFilter,
+                    }
+                  );
+                  printHtmlAsPdf(
+                    html,
+                    `WorkOrder_${kordDivision}_${selectedUnitFilter.replace(/\s+/g, '_')}_${today}`
+                  );
+                }}
+                className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold transition-all cursor-pointer whitespace-nowrap text-[11px] flex items-center gap-1 shadow-2xs shrink-0"
+                title={`Unduh Dokumen PDF Work Order (${selectedUnitFilter})`}
+              >
+                <Printer className="w-3.5 h-3.5 text-emerald-400" />
+                <span>📄 Cetak PDF ({selectedUnitFilter})</span>
+              </button>
             </div>
           </div>
 
@@ -510,7 +606,9 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-sm text-slate-900">{log.userName}</span>
                         <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold text-[10px] border border-slate-200/60">
-                          Unit {log.unit}
+                          {kordDivision === 'PLH'
+                            ? (log.area || (log as any).assignedArea || 'Area PLH')
+                            : `Unit ${log.unit}`}
                         </span>
                         {log.isLate || log.status === 'Terlambat' ? (
                           Boolean(log.lateReason && log.lateReason.trim().length > 0) ? (
