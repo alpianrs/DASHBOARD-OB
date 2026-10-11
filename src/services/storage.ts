@@ -17,6 +17,7 @@ import {
   AdhocDailyTask,
   DEFAULT_PLH_AREA_STAFF,
   MasjidDutyConfig,
+  normalizePlhArea,
 } from '../types';
 import { isSameDay, getJakartaDateString, normalizeDateString } from '../utils/dateHelper';
 
@@ -72,7 +73,7 @@ export const SEED_PLH_USERS: User[] = [
     name: 'Rahmat Hidayat (Kord PLH)',
     role: 'kordinator',
     division: 'PLH',
-    unit: 'Semua Unit',
+    unit: 'Pos 1',
     assignedArea: 'Area Pos 1',
     status: 'Aktif',
     phone: '08129999001',
@@ -84,7 +85,7 @@ export const SEED_PLH_USERS: User[] = [
     name: 'Ahmad Syahril (PLH)',
     role: 'user',
     division: 'PLH',
-    unit: 'Semua Unit',
+    unit: 'Pos 2',
     assignedArea: 'Area Pos 2',
     status: 'Aktif',
     phone: '081234560001',
@@ -96,7 +97,7 @@ export const SEED_PLH_USERS: User[] = [
     name: 'Andi Komala (PLH)',
     role: 'user',
     division: 'PLH',
-    unit: 'Semua Unit',
+    unit: 'Area Khaldun',
     assignedArea: 'Area Khaldun',
     status: 'Aktif',
     phone: '081234560002',
@@ -108,7 +109,7 @@ export const SEED_PLH_USERS: User[] = [
     name: 'Dedi Junaedi (PLH)',
     role: 'user',
     division: 'PLH',
-    unit: 'Semua Unit',
+    unit: 'Area Ex Minifarm',
     assignedArea: 'Area Ex Minifarm',
     status: 'Aktif',
     phone: '081234560003',
@@ -120,7 +121,7 @@ export const SEED_PLH_USERS: User[] = [
     name: 'Radilah (PLH)',
     role: 'user',
     division: 'PLH',
-    unit: 'Semua Unit',
+    unit: 'Area Kolam Renang',
     assignedArea: 'Area Kolam Renang',
     status: 'Aktif',
     phone: '081234560004',
@@ -1456,12 +1457,40 @@ export const StorageService = {
 
     // Ensure all existing users have division set ('OB' by default unless PLH)
     let updatedUsers = cleaned.map((u) => {
-      if (!u.division && u.role !== 'admin') {
-        const isPlh = u.id.includes('plh') || u.username.includes('plh') || u.name.includes('(PLH)');
-        needsResave = true;
-        return { ...u, division: isPlh ? ('PLH' as const) : ('OB' as const) };
+      let mod = { ...u };
+      let changed = false;
+      if (!mod.division && mod.role !== 'admin') {
+        const isPlh = mod.id.includes('plh') || mod.username.includes('plh') || mod.name.includes('(PLH)');
+        mod.division = isPlh ? ('PLH' as const) : ('OB' as const);
+        changed = true;
       }
-      return u;
+
+      // Pastikan unit & assignedArea staf PLH tersinkronisasi untuk rolling unit tahunan
+      if (mod.division === 'PLH' && mod.role !== 'admin') {
+        const uUnitLower = (mod.unit || '').trim().toLowerCase();
+        if (!mod.unit || uUnitLower === 'semua unit' || uUnitLower === 'semua' || uUnitLower === 'tk') {
+          const seedMatch = SEED_PLH_USERS.find((sp) => sp.id === mod.id || sp.username === mod.username);
+          if (seedMatch) {
+            mod.unit = seedMatch.unit;
+            mod.assignedArea = seedMatch.assignedArea;
+            changed = true;
+          } else if (mod.assignedArea) {
+            mod.unit = mod.assignedArea;
+            changed = true;
+          }
+        } else {
+          const normArea = normalizePlhArea(mod.unit);
+          if (mod.assignedArea !== normArea) {
+            mod.assignedArea = normArea;
+            changed = true;
+          }
+        }
+      }
+
+      if (changed) {
+        needsResave = true;
+      }
+      return mod;
     });
 
     // Ensure core seed users (admin, lili, rahmat) are present

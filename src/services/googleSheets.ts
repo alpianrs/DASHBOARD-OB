@@ -11,6 +11,7 @@ import {
   PeerInspection,
   WeeklyScore,
   TreeWorkOrder,
+  normalizePlhArea,
 } from '../types';
 import { parseInstructionSteps } from '../utils/instructionHelper';
 import { normalizeDateString, getJakartaDateString } from '../utils/dateHelper';
@@ -222,7 +223,8 @@ function setupDatabase() {
     "LastCheckedDate", "LastCheckedTime", "LastCheckedByName", "CheckStatusToday", "InspectionNotes",
     "CompletedAt", "CompletedByName", "CreatedAt",
     "TreatmentStatus", "HandledByName", "HandledAt", "TreatmentReport",
-    "DrivePhotoBeforeURL", "DrivePhotoAfterURL", "InspectionHistoryJSON"
+    "DrivePhotoBeforeURL", "DrivePhotoAfterURL", "InspectionHistoryJSON",
+    "StandardPhotoURL", "StandardPhotoAngleGuide", "StandardInstructions"
   ];
   var initialTreeOrders = [
     // 1. Area Kolam Renang (Radilah)
@@ -1499,6 +1501,7 @@ export const GoogleSheetsService = {
       'CompletedAt', 'CompletedByName', 'CreatedAt',
       'TreatmentStatus', 'HandledByName', 'HandledAt', 'TreatmentReport',
       'DrivePhotoBeforeURL', 'DrivePhotoAfterURL', 'InspectionHistoryJSON',
+      'StandardPhotoURL', 'StandardPhotoAngleGuide', 'StandardInstructions',
     ];
     const treeRows = [
       treeHeader,
@@ -1535,6 +1538,9 @@ export const GoogleSheetsService = {
         to.drivePhotoBeforeUrl || to.photoBeforeUrl || '',
         to.drivePhotoAfterUrl || to.photoAfterUrl || '',
         JSON.stringify(to.inspectionHistory || []),
+        to.standardPhotoUrl || '',
+        to.standardPhotoAngleGuide || '',
+        (to.standardInstructions || []).join(' | '),
       ]),
     ];
 
@@ -1597,7 +1603,7 @@ export const GoogleSheetsService = {
       try {
         await Promise.all([
           fetch(
-            `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/WorkOrder_Pohon!A1:AF${treeRows.length + 10}?valueInputOption=USER_ENTERED`,
+            `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/WorkOrder_Pohon!A1:AI${treeRows.length + 10}?valueInputOption=USER_ENTERED`,
             {
               method: 'PUT',
               headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -1842,6 +1848,7 @@ export const GoogleSheetsService = {
       'CompletedAt', 'CompletedByName', 'CreatedAt',
       'TreatmentStatus', 'HandledByName', 'HandledAt', 'TreatmentReport',
       'DrivePhotoBeforeURL', 'DrivePhotoAfterURL', 'InspectionHistoryJSON',
+      'StandardPhotoURL', 'StandardPhotoAngleGuide', 'StandardInstructions',
     ];
     const workOrderRows = [
       treeHeader,
@@ -1878,6 +1885,9 @@ export const GoogleSheetsService = {
         to.drivePhotoBeforeUrl || to.photoBeforeUrl || '',
         to.drivePhotoAfterUrl || to.photoAfterUrl || '',
         JSON.stringify(to.inspectionHistory || []),
+        to.standardPhotoUrl || '',
+        to.standardPhotoAngleGuide || '',
+        (to.standardInstructions || []).join(' | '),
       ]),
     ];
 
@@ -2015,7 +2025,7 @@ export const GoogleSheetsService = {
         { range: 'JobBareng_PLH!A1:M' + (plhJobRows.length + 10), values: plhJobRows },
         { range: 'WeeklyScores!A1:L' + (obWeeklyRows.length + 10), values: obWeeklyRows },
         { range: 'WeeklyScores_PLH!A1:L' + (plhWeeklyRows.length + 10), values: plhWeeklyRows },
-        { range: 'WorkOrder_Pohon!A1:AF' + (workOrderRows.length + 15), values: workOrderRows },
+        { range: 'WorkOrder_Pohon!A1:AI' + (workOrderRows.length + 15), values: workOrderRows },
         { range: 'TaskLogs_Pohon!A1:U' + (treeLogRows.length + 15), values: treeLogRows },
         { range: 'DinasRequests!A1:K' + (dinasRows.length + 10), values: dinasRows },
         { range: 'PeerInspections!A1:N' + (peerRows.length + 10), values: peerRows },
@@ -2154,12 +2164,17 @@ export const GoogleSheetsService = {
                 }
 
                 let assignedArea = isStandardLayout && row[9] ? String(row[9]).trim() : undefined;
-                if (!assignedArea && division === 'PLH') {
-                  if (combinedStr.includes('syahril')) assignedArea = 'Area Pos 2';
-                  else if (combinedStr.includes('komala') || combinedStr.includes('andi')) assignedArea = 'Area Khaldun';
-                  else if (combinedStr.includes('junaedi') || combinedStr.includes('dedi')) assignedArea = 'Area Ex Minifarm';
-                  else if (combinedStr.includes('radilah')) assignedArea = 'Area Kolam Renang';
-                  else if (combinedStr.includes('rahmat')) assignedArea = 'Area Pos 1';
+                if (division === 'PLH') {
+                  const uLower = (unit || '').toLowerCase();
+                  if (unit && uLower !== 'semua unit' && uLower !== 'semua' && uLower !== 'tk') {
+                    assignedArea = normalizePlhArea(unit);
+                  } else if (!assignedArea) {
+                    if (combinedStr.includes('syahril')) assignedArea = 'Area Pos 2';
+                    else if (combinedStr.includes('komala') || combinedStr.includes('andi')) assignedArea = 'Area Khaldun';
+                    else if (combinedStr.includes('junaedi') || combinedStr.includes('dedi')) assignedArea = 'Area Ex Minifarm';
+                    else if (combinedStr.includes('radilah')) assignedArea = 'Area Kolam Renang';
+                    else if (combinedStr.includes('rahmat')) assignedArea = 'Area Pos 1';
+                  }
                 }
 
                 return {
@@ -2548,6 +2563,9 @@ export const GoogleSheetsService = {
                 completedAt: row[22] || undefined,
                 completedByName: row[23] || undefined,
                 createdAt: row[24] || now,
+                standardPhotoUrl: row[32] || undefined,
+                standardPhotoAngleGuide: row[33] || undefined,
+                standardInstructions: row[34] ? String(row[34]).split(' | ').filter(Boolean) : undefined,
               }));
             if (parsedWorkOrders.length > 0) {
               StorageService.saveTreeWorkOrders(parsedWorkOrders);
@@ -2590,7 +2608,7 @@ export const GoogleSheetsService = {
         'PeerInspections!A2:N',   // 8
         'WeeklyScores!A2:L',      // 9
         'WeeklyScores_PLH!A2:L',  // 10
-        'WorkOrder_Pohon!A2:AF',  // 11
+        'WorkOrder_Pohon!A2:AI',  // 11
         'TaskLogs_Pohon!A2:U',    // 12
       ];
       const query = ranges.map((r) => `ranges=${encodeURIComponent(r)}`).join('&');
@@ -2667,12 +2685,17 @@ export const GoogleSheetsService = {
             }
 
             let assignedArea = isStandardLayout && row[9] ? String(row[9]).trim() : undefined;
-            if (!assignedArea && division === 'PLH') {
-              if (combinedStr.includes('syahril')) assignedArea = 'Area Pos 2';
-              else if (combinedStr.includes('komala') || combinedStr.includes('andi')) assignedArea = 'Area Khaldun';
-              else if (combinedStr.includes('junaedi') || combinedStr.includes('dedi')) assignedArea = 'Area Ex Minifarm';
-              else if (combinedStr.includes('radilah')) assignedArea = 'Area Kolam Renang';
-              else if (combinedStr.includes('rahmat')) assignedArea = 'Area Pos 1';
+            if (division === 'PLH') {
+              const uLower = (unit || '').toLowerCase();
+              if (unit && uLower !== 'semua unit' && uLower !== 'semua' && uLower !== 'tk') {
+                assignedArea = normalizePlhArea(unit);
+              } else if (!assignedArea) {
+                if (combinedStr.includes('syahril')) assignedArea = 'Area Pos 2';
+                else if (combinedStr.includes('komala') || combinedStr.includes('andi')) assignedArea = 'Area Khaldun';
+                else if (combinedStr.includes('junaedi') || combinedStr.includes('dedi')) assignedArea = 'Area Ex Minifarm';
+                else if (combinedStr.includes('radilah')) assignedArea = 'Area Kolam Renang';
+                else if (combinedStr.includes('rahmat')) assignedArea = 'Area Pos 1';
+              }
             }
 
             return {
@@ -3152,6 +3175,9 @@ export const GoogleSheetsService = {
               drivePhotoBeforeUrl: row[29] || (beforePhoto && beforePhoto.startsWith('http') ? beforePhoto : undefined),
               drivePhotoAfterUrl: row[30] || (afterPhoto && afterPhoto.startsWith('http') ? afterPhoto : undefined),
               inspectionHistory: history.length > 0 ? history : undefined,
+              standardPhotoUrl: row[32] || undefined,
+              standardPhotoAngleGuide: row[33] || undefined,
+              standardInstructions: row[34] ? String(row[34]).split(' | ').filter(Boolean) : undefined,
             };
           });
         if (parsedWorkOrders.length > 0) {

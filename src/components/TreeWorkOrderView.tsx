@@ -232,6 +232,11 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
   const [showSopChecklist, setShowSopChecklist] = useState<boolean>(true);
   const [selectedTreeGuide, setSelectedTreeGuide] = useState<TreeWorkOrder | null>(null);
   const [showFullStandardPhoto, setShowFullStandardPhoto] = useState<string | null>(null);
+  const [editingBenchmarkTree, setEditingBenchmarkTree] = useState<TreeWorkOrder | null>(null);
+  const [benchmarkInputUrl, setBenchmarkInputUrl] = useState<string>('');
+  const [benchmarkInputAngle, setBenchmarkInputAngle] = useState<string>('');
+  const [isUploadingBenchmarkPhoto, setIsUploadingBenchmarkPhoto] = useState<boolean>(false);
+  const [isSavingBenchmark, setIsSavingBenchmark] = useState<boolean>(false);
   const [isUploadingInspectPhoto, setIsUploadingInspectPhoto] = useState<boolean>(false);
   const [isSavingInspection, setIsSavingInspection] = useState<boolean>(false);
   const [isSyncingAllTrees, setIsSyncingAllTrees] = useState<boolean>(false);
@@ -313,7 +318,10 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     'Perlu Penanganan' | 'Dijadwalkan' | 'Sedang Dikerjakan' | 'Selesai'
   >('Perlu Penanganan');
   const [formTreatmentStatus, setFormTreatmentStatus] = useState<TreeTreatmentStatus>('Belum Ditangani');
+  const [formStandardPhotoUrl, setFormStandardPhotoUrl] = useState<string>('');
+  const [formStandardPhotoAngleGuide, setFormStandardPhotoAngleGuide] = useState<string>('');
   const [isUploadingFormPhoto, setIsUploadingFormPhoto] = useState<boolean>(false);
+  const [isUploadingFormStandardPhoto, setIsUploadingFormStandardPhoto] = useState<boolean>(false);
 
   const today = getJakartaDateString();
 
@@ -343,6 +351,8 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     setFormPhotoAfter('');
     setFormDrivePhotoBefore('');
     setFormDrivePhotoAfter('');
+    setFormStandardPhotoUrl('');
+    setFormStandardPhotoAngleGuide('Foto utuh dari jarak 5–10 meter agar seluruh profil pohon terlihat jelas.');
     setFormStatus('Perlu Penanganan');
     setFormTreatmentStatus('Belum Ditangani');
     setIsFormOpen(true);
@@ -365,6 +375,8 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     setFormPhotoAfter(order.photoAfterUrl || '');
     setFormDrivePhotoBefore(order.drivePhotoBeforeUrl || '');
     setFormDrivePhotoAfter(order.drivePhotoAfterUrl || '');
+    setFormStandardPhotoUrl(order.standardPhotoUrl || '');
+    setFormStandardPhotoAngleGuide(order.standardPhotoAngleGuide || '');
     setFormStatus(order.status);
     setFormTreatmentStatus(order.treatmentStatus || (order.status === 'Selesai' ? 'Sudah Ditangani' : order.status === 'Perlu Penanganan' ? 'Belum Ditangani' : 'Tidak Perlu Penanganan'));
     setIsFormOpen(true);
@@ -404,6 +416,8 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
         photoAfterUrl: formPhotoAfter,
         drivePhotoBeforeUrl: formDrivePhotoBefore,
         drivePhotoAfterUrl: formDrivePhotoAfter,
+        standardPhotoUrl: formStandardPhotoUrl.trim() || undefined,
+        standardPhotoAngleGuide: formStandardPhotoAngleGuide.trim() || undefined,
         status: formStatus,
         treatmentStatus: formTreatmentStatus,
         completedAt: formStatus === 'Selesai' ? (editingOrder.completedAt || new Date().toISOString()) : undefined,
@@ -452,6 +466,8 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
         photoAfterUrl: formPhotoAfter,
         drivePhotoBeforeUrl: formDrivePhotoBefore,
         drivePhotoAfterUrl: formDrivePhotoAfter,
+        standardPhotoUrl: formStandardPhotoUrl.trim() || undefined,
+        standardPhotoAngleGuide: formStandardPhotoAngleGuide.trim() || undefined,
         status: formStatus,
         treatmentStatus: formTreatmentStatus,
         reportedBy: activeUser.id,
@@ -523,6 +539,55 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     StorageService.updateTreeWorkOrder(updated);
     refreshData();
     googleSheetsService.saveTreeWorkOrdersToSheets().catch(console.warn);
+  };
+
+  // Open Benchmark Standard Photo Editor Modal
+  const openBenchmarkModal = (order: TreeWorkOrder) => {
+    setEditingBenchmarkTree(order);
+    setBenchmarkInputUrl(order.standardPhotoUrl || '');
+    setBenchmarkInputAngle(order.standardPhotoAngleGuide || '');
+  };
+
+  // Save Benchmark Standard Photo & Angle Guide
+  const handleSaveBenchmark = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBenchmarkTree) return;
+
+    setIsSavingBenchmark(true);
+    const updated: TreeWorkOrder = {
+      ...editingBenchmarkTree,
+      standardPhotoUrl: benchmarkInputUrl.trim() || undefined,
+      standardPhotoAngleGuide: benchmarkInputAngle.trim() || undefined,
+    };
+
+    StorageService.updateTreeWorkOrder(updated);
+    refreshData();
+    if (selectedTreeGuide && selectedTreeGuide.id === updated.id) {
+      setSelectedTreeGuide(updated);
+    }
+    if (inspectingOrder && inspectingOrder.id === updated.id) {
+      setInspectingOrder(updated);
+    }
+
+    try {
+      await googleSheetsService.saveTreeWorkOrdersToSheets();
+    } catch (err) {
+      console.warn('Sync benchmark photo warning:', err);
+    }
+
+    setIsSavingBenchmark(false);
+    setEditingBenchmarkTree(null);
+
+    setFeedbackNotification({
+      show: true,
+      type: 'success',
+      title: 'Foto Acuan Standar Berhasil Disimpan!',
+      message: `Foto acuan standar resmi untuk ${updated.treeName} berhasil diperbarui.`,
+      treeName: updated.treeName,
+      area: updated.area,
+      statusText: 'Database Tersinkron',
+      syncNote: 'Tersimpan di database lokal & otomatis disinkronkan ke Google Sheet (WorkOrder_Pohon Kolom AG).',
+    });
   };
 
   // Open Quick Daily Inspection Modal
@@ -1789,6 +1854,15 @@ function setupTabWorkOrderPohon() {
                           >
                             Panduan Lengkap & Foto HD ↗
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => openBenchmarkModal(order)}
+                            className="text-[9.5px] font-bold text-amber-800 hover:text-amber-950 flex items-center gap-1 cursor-pointer bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200 transition"
+                            title="Ganti foto acuan standar dengan link foto di Google Drive"
+                          >
+                            <Edit3 className="w-3 h-3 text-amber-600" />
+                            <span>Ganti Foto Acuan (Drive)</span>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -2344,6 +2418,92 @@ function setupTabWorkOrderPohon() {
                       <div className="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
                         <Check className="w-3 h-3 text-emerald-600" />
                         <span>Tersimpan di Google Drive</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Foto Acuan Standar Resmi (Benchmark URL Drive / Upload) */}
+              <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <span>Foto Acuan Standar Resmi (Benchmark Google Drive):</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-700">
+                    Disinkronkan ke Kolom AG Sheet
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      URL Link Foto Google Drive:
+                    </label>
+                    <input
+                      type="text"
+                      value={formStandardPhotoUrl}
+                      onChange={(e) => setFormStandardPhotoUrl(e.target.value)}
+                      placeholder="https://drive.google.com/file/d/.../view atau https://..."
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 bg-white"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-0.5 block italic">
+                      Mendukung URL share Google Drive ("Anyone with link"). Otomatis tampil di profil acuan pohon.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Panduan Sudut & Jarak Pengambilan Foto (Instruksi Staf):
+                    </label>
+                    <input
+                      type="text"
+                      value={formStandardPhotoAngleGuide}
+                      onChange={(e) => setFormStandardPhotoAngleGuide(e.target.value)}
+                      placeholder="Contoh: Foto dari jarak 5–10 meter agar seluruh profil pohon tampak utuh..."
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 bg-white"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <label className="px-3 py-1.5 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-900 text-xs font-bold cursor-pointer flex items-center gap-1.5 transition">
+                      <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{formStandardPhotoUrl ? 'Ganti Foto Acuan (Upload)' : 'Unggah Foto Acuan ke Drive'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(e) =>
+                          handlePhotoUploadGeneric(
+                            e,
+                            `benchmark_${formTreeName || 'pohon'}`,
+                            setIsUploadingFormStandardPhoto,
+                            (b64, driveUrl) => {
+                              if (driveUrl) {
+                                setFormStandardPhotoUrl(driveUrl);
+                              } else if (b64) {
+                                setFormStandardPhotoUrl(b64);
+                              }
+                            }
+                          )
+                        }
+                        className="hidden"
+                      />
+                    </label>
+                    {isUploadingFormStandardPhoto && (
+                      <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                        <Clock className="w-3 h-3 animate-spin" />
+                        <span>Mengupload ke Drive...</span>
+                      </div>
+                    )}
+                    {formStandardPhotoUrl && (
+                      <div className="relative rounded-lg overflow-hidden border border-emerald-300 w-20 h-14 bg-slate-900 shrink-0 shadow-2xs">
+                        <img
+                          src={formatGoogleDriveImageUrl(formStandardPhotoUrl)}
+                          alt="Preview Acuan"
+                          className="w-full h-full object-cover"
+                        />
                       </div>
                     )}
                   </div>
@@ -3647,9 +3807,20 @@ function setupTabWorkOrderPohon() {
                     <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                     <span>1. Foto Acuan Standar Resmi (Benchmark):</span>
                   </span>
-                  <span className="text-[10px] text-emerald-700 font-bold">
-                    Tolok Ukur Sudut Lapangan
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => openBenchmarkModal(selectedTreeGuide)}
+                      className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-[10px] flex items-center gap-1 cursor-pointer shadow-xs transition"
+                      title="Ganti foto acuan standar dengan link Google Drive"
+                    >
+                      <Edit3 className="w-3 h-3 text-slate-950" />
+                      <span>Ganti Pakai URL Drive</span>
+                    </button>
+                    <span className="text-[10px] text-emerald-700 font-bold hidden sm:inline">
+                      Tolok Ukur Sudut
+                    </span>
+                  </div>
                 </div>
 
                 {selectedTreeGuide.standardPhotoUrl ? (
@@ -3660,7 +3831,16 @@ function setupTabWorkOrderPohon() {
                       className="w-full h-full object-cover group-hover:scale-102 transition duration-300"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20 p-3 flex flex-col justify-between">
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openBenchmarkModal(selectedTreeGuide)}
+                          className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-[10px] flex items-center gap-1 backdrop-blur-xs cursor-pointer shadow-xs"
+                          title="Ganti foto acuan standar dengan link Google Drive"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                          <span>Ganti URL Drive</span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => setShowFullStandardPhoto(selectedTreeGuide.standardPhotoUrl!)}
@@ -3683,7 +3863,15 @@ function setupTabWorkOrderPohon() {
                   <div className="h-44 rounded-2xl border border-dashed border-emerald-300 bg-emerald-50/50 flex flex-col items-center justify-center text-emerald-800 p-4 text-center">
                     <TreePine className="w-8 h-8 mb-1.5 text-emerald-600" />
                     <span className="font-bold">Foto Acuan Standar Belum Diunggah</span>
-                    <span className="text-[11px] text-slate-500 mt-1">Gunakan foto pohon utuh dari jarak 5–10 meter.</span>
+                    <span className="text-[11px] text-slate-500 mt-1 mb-2">Gunakan foto pohon utuh dari jarak 5–10 meter.</span>
+                    <button
+                      type="button"
+                      onClick={() => openBenchmarkModal(selectedTreeGuide)}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Input URL Foto Drive</span>
+                    </button>
                   </div>
                 )}
               </div>
@@ -3783,6 +3971,230 @@ function setupTabWorkOrderPohon() {
                 <span>Mulai Ceklis & Foto Pohon Ini ↗</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Edit / Update Foto Acuan Standar Resmi (Benchmark URL Drive / Upload) */}
+      {editingBenchmarkTree && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full p-5 sm:p-6 my-8 animate-in fade-in zoom-in-95 duration-200 border border-emerald-100 max-h-[94vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2 flex-wrap">
+                    <span>Ganti Foto Acuan Standar (Benchmark)</span>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      Tersimpan di Database & Sheet
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {editingBenchmarkTree.area} • <strong className="text-slate-800">{editingBenchmarkTree.treeName}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingBenchmarkTree(null)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBenchmark} className="mt-4 space-y-4 overflow-y-auto pr-1">
+              {/* Petunjuk Penggunaan Link Drive */}
+              <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-2xl text-[11px] text-amber-900 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-amber-950">
+                  <Info className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                  <span>Apakah ini tersimpan di database?</span>
+                </div>
+                <p className="leading-relaxed">
+                  <strong>Ya, tersimpan langsung di database aplikasi & Google Sheets (Tab WorkOrder_Pohon Kolom AG).</strong> Anda dapat menempelkan URL file foto Google Drive di bawah ini atau mengunggah langsung dari galeri/kamera.
+                </p>
+              </div>
+
+              {/* Input URL Google Drive */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-800">
+                    URL Foto Acuan di Google Drive:
+                  </label>
+                  <span className="text-[10px] font-medium text-slate-500">
+                    Mendukung link share Drive ("Anyone with link")
+                  </span>
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={benchmarkInputUrl}
+                    onChange={(e) => setBenchmarkInputUrl(e.target.value)}
+                    placeholder="https://drive.google.com/file/d/1a2b3c4d5e.../view?usp=sharing"
+                    className="w-full pl-3 pr-20 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 bg-white"
+                  />
+                  {benchmarkInputUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setBenchmarkInputUrl('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-[10px] text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10.5px] text-slate-500 italic">
+                  Format link Google Drive (view link, export=view, atau lh3) otomatis dikonversi menjadi gambar tampilan resmi.
+                </p>
+              </div>
+
+              {/* Atau Unggah Foto Baru ke Google Drive */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                <label className="block text-xs font-bold text-slate-800">
+                  Atau Ambil / Unggah Foto Acuan Baru (Otomatis Masuk Drive):
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-xs font-bold cursor-pointer flex items-center gap-1.5 transition shadow-2xs">
+                    <Camera className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>{benchmarkInputUrl ? 'Unggah Ganti Foto' : 'Pilih Foto dari Galeri / Kamera'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(e) =>
+                        handlePhotoUploadGeneric(
+                          e,
+                          `benchmark_${editingBenchmarkTree.treeName || 'pohon'}`,
+                          setIsUploadingBenchmarkPhoto,
+                          (b64, driveUrl) => {
+                            if (driveUrl) {
+                              setBenchmarkInputUrl(driveUrl);
+                            } else if (b64) {
+                              setBenchmarkInputUrl(b64);
+                            }
+                          }
+                        )
+                      }
+                      className="hidden"
+                    />
+                  </label>
+
+                  {isUploadingBenchmarkPhoto && (
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                      <Clock className="w-3.5 h-3.5 animate-spin" />
+                      <span>Mengunggah ke Google Drive...</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Live Preview Foto Acuan */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-800">
+                  Live Preview Foto Acuan Standar:
+                </label>
+                {benchmarkInputUrl.trim() ? (
+                  <div className="relative rounded-2xl overflow-hidden border border-emerald-300 bg-slate-900 h-48 sm:h-56 shadow-inner group">
+                    <img
+                      src={formatGoogleDriveImageUrl(benchmarkInputUrl)}
+                      alt="Preview Foto Acuan"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src =
+                          'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=800&q=80';
+                      }}
+                    />
+                    <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between pointer-events-none">
+                      <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-emerald-700/90 text-white shadow-xs backdrop-blur-xs">
+                        ✓ Preview Berhasil Ditampilkan
+                      </span>
+                      {benchmarkInputUrl.includes('drive.google.com') && (
+                        <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-sky-700/90 text-white shadow-xs backdrop-blur-xs">
+                          Google Drive Link
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-36 rounded-2xl border border-dashed border-slate-300 bg-slate-50 flex flex-col items-center justify-center text-slate-500 p-3 text-center">
+                    <TreePine className="w-8 h-8 text-slate-400 mb-1" />
+                    <span className="text-xs font-bold">Belum Ada URL Foto Acuan</span>
+                    <span className="text-[10.5px] text-slate-400 mt-0.5">
+                      Tempel URL Drive di atas atau klik unggah untuk melihat pratinjau.
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Panduan Sudut & Jarak Pengambilan */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-800">
+                  Panduan Sudut & Jarak Pengambilan (Instruksi Staf):
+                </label>
+                <textarea
+                  rows={2}
+                  value={benchmarkInputAngle}
+                  onChange={(e) => setBenchmarkInputAngle(e.target.value)}
+                  placeholder="Contoh: Foto dari jarak 6–8 meter arah jalan utama. Seluruh tajuk atas dekat kabel PLN dan batang pohon tampak utuh."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 bg-white"
+                />
+                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                  <span className="text-[10px] text-slate-500 font-bold">Template Cepat:</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setBenchmarkInputAngle(
+                        'Foto dari jarak 5–10 meter agar seluruh profil pohon tampak utuh dari pucuk kanopi atas hingga pangkal akar tanah.'
+                      )
+                    }
+                    className="text-[9.5px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-pointer"
+                  >
+                    + Jarak 5-10m Utuh
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setBenchmarkInputAngle(
+                        'Foto dari samping jarak 7 meter. Perhatikan jarak dahan ke kabel listrik PLN dan bangunan atap terdekat.'
+                      )
+                    }
+                    className="text-[9.5px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-pointer"
+                  >
+                    + Cek Jarak Kabel PLN
+                  </button>
+                </div>
+              </div>
+
+              {/* Tombol Simpan */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setEditingBenchmarkTree(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingBenchmark}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white cursor-pointer shadow-md flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isSavingBenchmark ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menyimpan ke Database...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Simpan Foto Acuan ke Database</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

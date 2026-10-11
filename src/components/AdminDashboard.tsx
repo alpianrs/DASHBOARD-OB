@@ -73,6 +73,8 @@ import {
   UserRole,
   EVALUATION_CATEGORIES,
   PLH_AREAS,
+  PLH_UNITS,
+  normalizePlhArea,
 } from '../types';
 import { StorageService, isTaskAssignedToUser } from '../services/storage';
 import { GOOGLE_APPS_SCRIPT_CODE, GoogleSheetsService } from '../services/googleSheets';
@@ -871,9 +873,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       username: newUserUsername.trim(),
       password: 'password123',
       role: newUserRole,
-      unit: newUserDivision === 'PLH' ? 'Semua Unit' : newUserUnit,
+      unit: newUserUnit,
       division: newUserDivision,
-      assignedArea: newUserDivision === 'PLH' ? newUserAssignedArea : (newUserUnit !== 'Semua Unit' ? `Unit ${newUserUnit}` : undefined),
+      assignedArea: newUserDivision === 'PLH' ? normalizePlhArea(newUserUnit || newUserAssignedArea) : (newUserUnit !== 'Semua Unit' ? `Unit ${newUserUnit}` : undefined),
       status: 'Aktif',
     };
 
@@ -2728,18 +2730,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </label>
                     <select
                       value={u.unit}
-                      onChange={(e) =>
-                        onUpdateUser({ ...u, unit: e.target.value as UnitType })
-                      }
+                      onChange={(e) => {
+                        const newUnit = e.target.value as UnitType;
+                        onUpdateUser({
+                          ...u,
+                          unit: newUnit,
+                          assignedArea: u.division === 'PLH' ? normalizePlhArea(newUnit) : u.assignedArea,
+                        });
+                      }}
                       className="w-full px-2 py-1.5 rounded-lg border border-slate-300 font-semibold bg-white text-xs"
                     >
-                      <option value="TK">TK</option>
-                      <option value="SD">SD</option>
-                      <option value="SMP">SMP</option>
-                      <option value="Pelangi Direktorat">Pelangi Direktorat</option>
-                      <option value="Ar Razi">Ar Razi</option>
-                      <option value="Khaldun">Khaldun</option>
-                      <option value="Semua Unit">Semua Unit</option>
+                      {u.division === 'PLH' ? (
+                        <>
+                          <option value="Pos 1">Pos 1</option>
+                          <option value="Pos 2">Pos 2</option>
+                          <option value="Area Kolam Renang">Area Kolam Renang</option>
+                          <option value="Area Ex Minifarm">Area Ex Minifarm</option>
+                          <option value="Area Khaldun">Area Khaldun</option>
+                          <option value="Semua Unit">Semua Unit (Kordinator)</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="TK">TK</option>
+                          <option value="SD">SD</option>
+                          <option value="SMP">SMP</option>
+                          <option value="Pelangi Direktorat">Pelangi Direktorat</option>
+                          <option value="Ar Razi">Ar Razi</option>
+                          <option value="Khaldun">Khaldun</option>
+                          <option value="Semua Unit">Semua Unit</option>
+                        </>
+                      )}
                     </select>
                   </div>
 
@@ -2749,9 +2769,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </label>
                     <select
                       value={u.division || 'OB'}
-                      onChange={(e) =>
-                        onUpdateUser({ ...u, division: e.target.value as 'OB' | 'PLH' })
-                      }
+                      onChange={(e) => {
+                        const newDiv = e.target.value as 'OB' | 'PLH';
+                        onUpdateUser({
+                          ...u,
+                          division: newDiv,
+                          unit: newDiv === 'PLH' ? 'Pos 1' : 'TK',
+                          assignedArea: newDiv === 'PLH' ? 'Area Pos 1' : undefined,
+                        });
+                      }}
                       className="w-full px-2 py-1.5 rounded-lg border border-slate-300 font-semibold bg-white text-xs"
                     >
                       <option value="OB">🧹 OB</option>
@@ -4223,19 +4249,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Unit:</label>
+                  <label className="block font-bold text-slate-700 mb-1">Unit Kerja:</label>
                   <select
                     value={newUserUnit}
-                    onChange={(e) => setNewUserUnit(e.target.value as UnitType)}
+                    onChange={(e) => {
+                      const selUnit = e.target.value as UnitType;
+                      setNewUserUnit(selUnit);
+                      if (newUserDivision === 'PLH') {
+                        setNewUserAssignedArea(normalizePlhArea(selUnit));
+                      }
+                    }}
                     className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-sky-500"
                   >
-                    <option value="TK">TK</option>
-                    <option value="SD">SD</option>
-                    <option value="SMP">SMP</option>
-                    <option value="Pelangi Direktorat">Pelangi</option>
-                    <option value="Ar Razi">Ar Razi</option>
-                    <option value="Khaldun">Khaldun</option>
-                    <option value="Semua Unit">Semua</option>
+                    {newUserDivision === 'PLH' ? (
+                      <>
+                        <option value="Pos 1">Pos 1</option>
+                        <option value="Pos 2">Pos 2</option>
+                        <option value="Area Kolam Renang">Area Kolam Renang</option>
+                        <option value="Area Ex Minifarm">Area Ex Minifarm</option>
+                        <option value="Area Khaldun">Area Khaldun</option>
+                        <option value="Semua Unit">Semua Unit</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="TK">TK</option>
+                        <option value="SD">SD</option>
+                        <option value="SMP">SMP</option>
+                        <option value="Pelangi Direktorat">Pelangi</option>
+                        <option value="Ar Razi">Ar Razi</option>
+                        <option value="Khaldun">Khaldun</option>
+                        <option value="Semua Unit">Semua</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>

@@ -8,7 +8,40 @@ export type UnitType =
   | 'Pelangi Direktorat'
   | 'Ar Razi'
   | 'Khaldun'
-  | 'Semua Unit';
+  | 'Pos 1'
+  | 'Pos 2'
+  | 'Area Pos 1'
+  | 'Area Pos 2'
+  | 'Area Kolam Renang'
+  | 'Kolam Renang'
+  | 'Area Ex Minifarm'
+  | 'Ex Minifarm'
+  | 'Area Khaldun'
+  | 'Semua Unit'
+  | string;
+
+// Daftar Unit Resmi Khusus Divisi PLH (Untuk Rolling Tahunan Staff PLH)
+export const PLH_UNITS = [
+  'Pos 1',
+  'Pos 2',
+  'Area Kolam Renang',
+  'Area Ex Minifarm',
+  'Area Khaldun',
+] as const;
+
+export function normalizePlhArea(val: string | undefined | null): string {
+  if (!val) return 'Area Pos 1';
+  const trimmed = val.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower === 'pos 1' || lower === 'area pos 1') return 'Area Pos 1';
+  if (lower === 'pos 2' || lower === 'area pos 2') return 'Area Pos 2';
+  if (lower.includes('kolam') || lower.includes('renang')) return 'Area Kolam Renang';
+  if (lower.includes('minifarm')) return 'Area Ex Minifarm';
+  if (lower.includes('khaldun')) return 'Area Khaldun';
+  if (lower.includes('lapangan')) return 'Area Lapangan Utama';
+  if (lower.startsWith('area ')) return trimmed;
+  return `Area ${trimmed}`;
+}
 
 export interface User {
   id: string;
