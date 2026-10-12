@@ -136,44 +136,48 @@ export const SEED_KEPALA_UNIT_USERS: User[] = [
   {
     id: 'u-ku-tk',
     username: 'kepala.tk',
-    password: 'password123',
-    name: 'Kepala Unit TK',
+    password: 'tk123',
+    name: 'Kepala Unit TK (Monitoring)',
     role: 'kepala_unit',
     division: 'OB',
     unit: 'TK',
+    assignedArea: 'Area TK',
     status: 'Aktif',
     phone: '08123456701',
   },
   {
     id: 'u-ku-sd',
     username: 'kepala.sd',
-    password: 'password123',
-    name: 'Kepala Unit SD',
+    password: 'sd123',
+    name: 'Kepala Unit SD (Monitoring)',
     role: 'kepala_unit',
     division: 'OB',
     unit: 'SD',
+    assignedArea: 'Area SD',
     status: 'Aktif',
     phone: '08123456702',
   },
   {
     id: 'u-ku-smp',
     username: 'kepala.smp',
-    password: 'password123',
-    name: 'Kepala Unit SMP',
+    password: 'smp123',
+    name: 'Kepala Unit SMP (Monitoring)',
     role: 'kepala_unit',
     division: 'OB',
     unit: 'SMP',
+    assignedArea: 'Area SMP',
     status: 'Aktif',
     phone: '08123456703',
   },
   {
     id: 'u-ku-pelangi',
     username: 'kepala.pelangi',
-    password: 'password123',
-    name: 'Kepala Unit Pelangi',
+    password: 'pelangi123',
+    name: 'Kepala Unit Pelangi Direktorat (Monitoring)',
     role: 'kepala_unit',
     division: 'OB',
     unit: 'Pelangi Direktorat',
+    assignedArea: 'Area Pelangi Direktorat',
     status: 'Aktif',
     phone: '08123456704',
   },
@@ -446,349 +450,8 @@ const SEED_MASTER_TASKS: MasterTask[] = [
   },
 ];
 
-// Seed Master Tasks for PLH (Pekerja Lingkungan Hidup)
-// Khusus 5 Area Luar: Area Pos 1, Area Pos 2, Area Khaldun, Area Ex Minifarm, Area Kolam Renang
-export const SEED_PLH_MASTER_TASKS: MasterTask[] = [
-  // PRE-READINESS PLH (00:00 - 09:00)
-  {
-    id: 'mt-plh-pr-01',
-    title: 'Pre-Readiness: Penyiraman Taman & Perapihan Area Pos 1',
-    unit: 'Semua Unit',
-    category: 'Harian',
-    timingType: 'pre_readiness',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Siram seluruh tanaman hias, pohon kecil, dan rumput di sekitar gerbang dan Area Pos 1 sebelum terik pagi.',
-      'Sapu bersih daun gugur dan ranting di paving dan trotoar akses utama.',
-      'Pastikan selang air dirapikan kembali dan tidak melintang di jalan.',
-    ],
-    photoRequired: true,
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80',
-    estimatedMinutes: 30,
-    area: 'Area Pos 1',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-pr-02',
-    title: 'Pre-Readiness: Kebersihan Taman & Drainase Area Pos 2',
-    unit: 'Semua Unit',
-    category: 'Harian',
-    timingType: 'pre_readiness',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Sapu bersih daun kering dan sampah luar di sekeliling Area Pos 2.',
-      'Periksa grill penutup selokan drainase air hujan dari sumbatan daun/plastik.',
-      'Siram tanaman pot dan tanaman pagar di sekitar Pos 2.',
-    ],
-    photoRequired: true,
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1590402494682-cd3fb53b1f70?auto=format&fit=crop&w=800&q=80',
-    estimatedMinutes: 25,
-    area: 'Area Pos 2',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-pr-03',
-    title: 'Pre-Readiness: Perawatan Lanskap & Taman Terbuka Area Khaldun',
-    unit: 'Semua Unit',
-    category: 'Harian',
-    timingType: 'pre_readiness',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Siram tanaman lanskap terbuka dan rumput di Area Khaldun.',
-      'Kumpulkan daun kering ke keranjang untuk bahan komposter.',
-      'Pastikan area pedestrian Khaldun bersih dari lumut dan genangan air.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 25,
-    area: 'Area Khaldun',
-    isActive: true,
-  },
-
-  // ANYTIME / OPERASIONAL HARIAN PLH
-  {
-    id: 'mt-plh-at-01',
-    title: 'Pemeliharaan Tanaman, Bedengan & Kompos Area Ex Minifarm',
-    unit: 'Semua Unit',
-    category: 'Harian',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Pangkas gulma / rumput liar (weeding) di sekitar bedengan dan tanaman produktif Ex Minifarm.',
-      'Kelola bak komposter organik daun dan semprotkan cairan pengurai jika perlu.',
-      'Rapikan tumpukan daun dan pastikan area pembibitan bersih dan tertata.',
-    ],
-    photoRequired: true,
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6eb2251a?auto=format&fit=crop&w=800&q=80',
-    estimatedMinutes: 45,
-    area: 'Area Ex Minifarm',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-at-02',
-    title: 'Pembersihan Daun, Bibir Kolam & Saluran Area Kolam Renang',
-    unit: 'Semua Unit',
-    category: 'Harian',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Jaring daun-daun dan ranting yang jatuh ke permukaan kolam renang.',
-      'Sapu dan sikat deck pinggir kolam dari lumut dan kotoran tanah.',
-      'Pangkas dahan pohon yang menjuntai terlalu dekat ke air kolam.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 40,
-    area: 'Area Kolam Renang',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-at-03',
-    title: 'Pemangkasan Dahan Rendah & Pengecekan Pohon Rawan Tumbang',
-    unit: 'Semua Unit',
-    category: 'Harian',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Inspeksi keliling 5 area luar untuk mengecek pohon yang condong atau ranting lapuk.',
-      'Potong dahan yang berpotensi patah atau menghalangi jalur lintasan.',
-      'Laporkan ke kordinator bila ada pohon besar yang membutuhkan penanganan insidental.',
-    ],
-    photoRequired: false,
-    estimatedMinutes: 35,
-    area: 'Area Khaldun',
-    isActive: true,
-  },
-
-  // CLOCK OUT PLH (09:00 - 23:59)
-  {
-    id: 'mt-plh-co-01',
-    title: 'Clock Out: Penyiraman Sore & Cek Sirkulasi Area Kolam Renang',
-    unit: 'Semua Unit',
-    category: 'Harian',
-    timingType: 'clock_out',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Siram kembali tanaman lanskap di sekitar Kolam Renang dan Area Pos 1.',
-      'Pastikan saluran overflow kolam bersih dari dedaunan.',
-      'Matikan kran air utama luar setelah penyiraman sore selesai.',
-    ],
-    photoRequired: true,
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80',
-    estimatedMinutes: 30,
-    area: 'Area Kolam Renang',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-co-02',
-    title: 'Clock Out: Perapihan Peralatan, Mesin Rumput & Gudang PLH',
-    unit: 'Semua Unit',
-    category: 'Harian',
-    timingType: 'clock_out',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Bersihkan dan keringkan gunting tanaman, sabit, cangkul, dan mesin potong rumput.',
-      'Gulung rapi seluruh selang air pada tempatnya di Area Ex Minifarm / Pos.',
-      'Kunci gudang penyimpanan alat kerja PLH dengan aman.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 20,
-    area: 'Area Ex Minifarm',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-co-03',
-    title: 'Clock Out: Pengangkutan Sampah Dedaunan 5 Area Luar ke TPS',
-    unit: 'Semua Unit',
-    category: 'Harian',
-    timingType: 'clock_out',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Angkut seluruh hasil sapuan daun kering dari Pos 1, Pos 2, Khaldun, Ex Minifarm, dan Kolam Renang ke TPS.',
-      'Pastikan tidak ada tumpukan daun berserakan di trotoar atau pinggir lapangan.',
-      'Tutup rapat bak sampah luar agar tidak diacak hewan.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 30,
-    area: 'Area Pos 1',
-    isActive: true,
-  },
-
-  // MINGGUAN PLH (Reset Setiap Hari Senin)
-  {
-    id: 'mt-plh-wk-01',
-    title: 'Mingguan: Pemangkasan Pagar Tanaman, Semak & Topiary 5 Area Luar',
-    unit: 'Semua Unit',
-    category: 'Mingguan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Gunakan gunting dahan dan mesin pemotong semak untuk meratakan tinggi pagar tanaman.',
-      'Bentuk rapi tanaman hias di sepanjang trotoar Pos 1, Pos 2, Khaldun, dan Minifarm.',
-      'Sapu bersih serpihan daun hasil pangkasan dan kumpulkan ke polybag kompos.',
-    ],
-    photoRequired: true,
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6eb2251a?auto=format&fit=crop&w=800&q=80',
-    estimatedMinutes: 60,
-    area: 'Area Pos 1',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-wk-02',
-    title: 'Mingguan: Pemupukan Organik, Penggemburan Tanah & Penanganan Hama Kutu Daun',
-    unit: 'Semua Unit',
-    category: 'Mingguan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Gemburkan tanah di sekeliling perakaran tanaman pot dan bedengan Ex Minifarm.',
-      'Berikan pupuk kompos organik matang secukupnya pada media tanam.',
-      'Cek tanda kutu putih atau jamur pada batang/daun dan semprotkan cairan pestisida nabati jika perlu.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 50,
-    area: 'Area Ex Minifarm',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-wk-03',
-    title: 'Mingguan: Pembersihan Sedimen Lumpur & Sampah Saluran Drainase Terbuka Luar',
-    unit: 'Semua Unit',
-    category: 'Mingguan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Buka penutup grill besi selokan di sepanjang lintasan luar dan Area Pos 2.',
-      'Keruk endapan lumpur, pasir, dan daun busuk yang menumpuk di dasar saluran air hujan.',
-      'Siram saluran dengan air hingga aliran lancar menuju pembuangan kota.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 55,
-    area: 'Area Pos 2',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-wk-04',
-    title: 'Mingguan: Deep Cleaning Kolam Renang (Vacuum Dasar Keramik & Sikat Dinding)',
-    unit: 'Semua Unit',
-    category: 'Mingguan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Pasang selang vacuum head dan jalankan penyedotan endapan kotoran dasar kolam.',
-      'Sikat lumut pada sambungan keramik dinding kolam renang.',
-      'Lakukan backwash dan rinse pada tabung filter pompa sirkulasi kolam.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 75,
-    area: 'Area Kolam Renang',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-wk-05',
-    title: 'Mingguan: Piket Kebersihan & Kesiapan Aula Masjid (Rolling Mingguan PLH)',
-    unit: 'Semua Unit',
-    category: 'Mingguan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Tugas ini bergilir otomatis setiap minggu (reset Senin).',
-      'Vacuum seluruh karpet sajadah Aula Masjid dari debu dan kotoran.',
-      'Lap mimbar, rak Al-Quran, jendela kaca, dan wudhu luar masjid.',
-      'Pastikan pendingin/kipas angin dan wewangian karpet terpasang rapi untuk ibadah.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 45,
-    area: 'Aula Masjid (Rolling PLH)',
-    isActive: true,
-  },
-
-  // BULANAN PLH (Reset Setiap Tanggal 1)
-  {
-    id: 'mt-plh-mo-01',
-    title: 'Bulanan: Inspeksi & Treatment Kanopi Pohon Rimbun Seluruh Sekolah',
-    unit: 'Semua Unit',
-    category: 'Bulanan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Inspeksi keliling seluruh pohon besar di 5 area luar sekolah Lazuardi.',
-      'Identifikasi pohon rimbun yang membahayakan genteng atau kabel listrik (Work Order Pohon).',
-      'Lakukan penanganan internal untuk dahan rendah, dan jadwalkan Vendor Luar untuk treatment pohon besar/tinggi.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 90,
-    area: 'Area Pos 1',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-mo-02',
-    title: 'Bulanan: Pemanenan & Pengayakan Kompos Matang Ex Minifarm',
-    unit: 'Semua Unit',
-    category: 'Bulanan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Bongkar bak komposter daun organik yang sudah terurai sempurna di Minifarm.',
-      'Ayak kompos halus dan masukkan ke karung penyimpanan.',
-      'Distribusikan kompos matang ke area taman TK, SD, SMP, dan pot koridor.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 80,
-    area: 'Area Ex Minifarm',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-mo-03',
-    title: 'Bulanan: Overhaul & Servis Rutin Mesin Potong Rumput & Alat Kerja PLH',
-    unit: 'Semua Unit',
-    category: 'Bulanan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Ganti oli mesin potong rumput dan bersihkan busi serta filter udara.',
-      'Asah mata pisau pemotong rumput dan gunting dahan agar tajam maksimal.',
-      'Periksa selang air, sambungan kran luar, dan inventaris alat di gudang PLH.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 60,
-    area: 'Area Ex Minifarm',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-mo-04',
-    title: 'Bulanan: Pengecatan Ulang & Perbaikan Fisik Batas Taman / Pagar Luar',
-    unit: 'Semua Unit',
-    category: 'Bulanan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Cat ulang pembatas taman / kansteen yang kusam atau berlumut di sekitar Pos 1 & Khaldun.',
-      'Perbaiki tiang bambu penyangga pohon muda yang patah atau miring.',
-      'Pastikan papan penunjuk tanaman dan marka taman terbaca jelas.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 90,
-    area: 'Area Pos 1',
-    isActive: true,
-  },
-];
+// Master Tasks for PLH (Pekerja Lingkungan Hidup) bersumber murni dari Google Sheet Database
+export const SEED_PLH_MASTER_TASKS: MasterTask[] = [];
 
 // Standar Operasional Prosedur (SOP) & Instruksi Pemeriksaan Monitoring Pohon Lazuardi
 export const DEFAULT_TREE_SOP_INSTRUCTIONS = [
@@ -1114,9 +777,25 @@ export const StorageService = {
       setStoredItem(STORAGE_KEYS.MASTER_TASKS, ALL_INITIAL_MASTER_TASKS);
       return ALL_INITIAL_MASTER_TASKS;
     }
-    // Ensure every task has division, assignee, and standardPhotoUrl
-    let hasUpdated = false;
-    let normalizedTasks = tasks.map((t) => {
+    // Bersihkan task dummy lama PLH dari localStorage agar murni hanya mengacu ke database Google Sheet
+    const dummyPlhIds = new Set([
+      'mt-plh-pr-01', 'mt-plh-pr-02', 'mt-plh-pr-03',
+      'mt-plh-at-01', 'mt-plh-at-02', 'mt-plh-at-03',
+      'mt-plh-co-01', 'mt-plh-co-02', 'mt-plh-co-03',
+      'mt-plh-wk-01', 'mt-plh-wk-02', 'mt-plh-wk-03', 'mt-plh-wk-04',
+      'mt-plh-mo-01', 'mt-plh-mo-02', 'mt-plh-mo-03', 'mt-plh-mo-04',
+      'mt-plh-01', 'mt-plh-02', 'mt-plh-03', 'mt-plh-04', 'mt-plh-05', 'mt-plh-06'
+    ]);
+    const filteredTasks = tasks.filter((t) => {
+      if (dummyPlhIds.has(t.id)) return false;
+      const tLower = (t.title || '').toLowerCase();
+      if (tLower.includes('perawatan lanskap & taman terbuka area khaldun')) return false;
+      if (tLower.includes('perawatan lanskap terbuka, taman & jalur pedestrian khaldun')) return false;
+      return true;
+    });
+
+    let hasUpdated = filteredTasks.length !== tasks.length;
+    let normalizedTasks = filteredTasks.map((t) => {
       let modified = false;
       const updated = { ...t };
       if (!updated.division) {
@@ -1142,7 +821,6 @@ export const StorageService = {
       return updated;
     });
 
-    // DO NOT re-inject SEED_PLH_MASTER_TASKS so user tasks edited in Google Sheet are preserved
     if (hasUpdated) {
       setStoredItem(STORAGE_KEYS.MASTER_TASKS, normalizedTasks);
     }
