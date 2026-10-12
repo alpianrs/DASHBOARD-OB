@@ -103,6 +103,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         </span>
       );
     }
+    if (user.role === 'kepala_unit') {
+      return (
+        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-indigo-50 text-indigo-800 border border-indigo-200 tracking-wide uppercase flex items-center gap-1">
+          <span>🏛️</span> Kepala Unit {user.unit}
+        </span>
+      );
+    }
     if (user.role === 'kordinator') {
       if (isPlh) {
         return (

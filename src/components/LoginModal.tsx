@@ -10,6 +10,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Lock,
+  Building2,
 } from 'lucide-react';
 import { User } from '../types';
 import { StorageService } from '../services/storage';
@@ -78,6 +79,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       if (uUsername === cleanInput || uUsername === strippedInput) return true;
       // Check full name match
       if (uName === cleanInput || uNameStripped === strippedInput || uNameStripped === cleanInput) return true;
+      
+      // Alias shortcuts for Kepala Unit (tk, sd, smp, pelangi)
+      if (cleanInput === 'tk' && (u.username === 'kepala.tk' || u.id === 'u-ku-tk' || (u.role === 'kepala_unit' && u.unit === 'TK'))) return true;
+      if (cleanInput === 'sd' && (u.username === 'kepala.sd' || u.id === 'u-ku-sd' || (u.role === 'kepala_unit' && u.unit === 'SD'))) return true;
+      if (cleanInput === 'smp' && (u.username === 'kepala.smp' || u.id === 'u-ku-smp' || (u.role === 'kepala_unit' && u.unit === 'SMP'))) return true;
+      if (cleanInput === 'pelangi' && (u.username === 'kepala.pelangi' || u.id === 'u-ku-pelangi' || (u.role === 'kepala_unit' && u.unit.includes('Pelangi')))) return true;
+
       // Partial name or username match if input >= 3 chars
       if (cleanInput.length >= 3 && (uUsername.includes(cleanInput) || uNameStripped.includes(strippedInput))) return true;
       // Check without spaces
@@ -97,11 +105,18 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
 
     const expectedPassword = user.password ? user.password.trim() : 'password123';
+    const isUnitPassword =
+      (user.unit === 'TK' && cleanPassword === 'tk123') ||
+      (user.unit === 'SD' && cleanPassword === 'sd123') ||
+      (user.unit === 'SMP' && cleanPassword === 'smp123') ||
+      (user.unit?.includes('Pelangi') && cleanPassword === 'pelangi123');
+
     const isPasswordCorrect =
       cleanPassword === expectedPassword ||
       cleanPassword.toLowerCase() === expectedPassword.toLowerCase() ||
       (expectedPassword === 'password123' && cleanPassword === 'admin') ||
-      (user.role === 'admin' && (cleanPassword === 'admin' || cleanPassword === 'password123'));
+      (user.role === 'admin' && (cleanPassword === 'admin' || cleanPassword === 'password123')) ||
+      (user.role === 'kepala_unit' && (cleanPassword === 'password123' || isUnitPassword));
 
     if (!isPasswordCorrect && expectedPassword !== '') {
       setError('Sandi / Password salah. Silakan periksa kembali kata sandi di Google Sheet (kolom Password / C) atau hubungi Kordinator.');
@@ -244,6 +259,43 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 <span>Masuk ke Sistem</span>
               </button>
             </form>
+
+            {/* Pintasan Login Akun Kepala Unit (Monitoring OB Per Unit) */}
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Akun Monitoring Kepala Unit (OB):</span>
+                </span>
+                <span className="text-[10px] text-slate-500 font-mono">Sandi: password123</span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { name: 'TK', user: 'kepala.tk', pass: 'password123', label: 'Kepala Unit TK' },
+                  { name: 'SD', user: 'kepala.sd', pass: 'password123', label: 'Kepala Unit SD' },
+                  { name: 'SMP', user: 'kepala.smp', pass: 'password123', label: 'Kepala Unit SMP' },
+                  { name: 'Pelangi', user: 'kepala.pelangi', pass: 'password123', label: 'Kepala Unit Pelangi' },
+                ].map((item) => (
+                  <button
+                    key={item.user}
+                    type="button"
+                    onClick={() => {
+                      setUsername(item.user);
+                      setPassword(item.pass);
+                    }}
+                    className="p-2 rounded-xl bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-left transition cursor-pointer flex items-center justify-between group shadow-2xs"
+                  >
+                    <div>
+                      <div className="font-extrabold text-[11px] text-slate-900 group-hover:text-indigo-900 flex items-center gap-1">
+                        <span>🏛️</span>
+                        <span>{item.label}</span>
+                      </div>
+                      <div className="text-[9px] text-slate-400 font-mono mt-0.5">user: {item.user}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* Action Tarik Data dari Sheet */}
             <div className="pt-3 border-t border-slate-100">

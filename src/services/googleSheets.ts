@@ -2177,12 +2177,16 @@ export const GoogleSheetsService = {
                   }
                 }
 
+                const normalizedRole = (role === 'admin' || role === 'kordinator' || role === 'kepala_unit')
+                  ? role
+                  : (role === 'kepala unit' || username.startsWith('kepala.') || (row[0] && String(row[0]).startsWith('u-ku-')) ? 'kepala_unit' : 'user');
+
                 return {
                   id: row[0] || `u-sheet-${i}`,
                   username,
                   password: password || 'password123',
                   name,
-                  role: (role === 'admin' || role === 'kordinator' ? role : 'user') as any,
+                  role: normalizedRole as any,
                   unit: unit as any,
                   status: (status.toLowerCase() === 'nonaktif' ? 'Nonaktif' : 'Aktif') as any,
                   phone,
@@ -2567,9 +2571,7 @@ export const GoogleSheetsService = {
                 standardPhotoAngleGuide: row[33] || undefined,
                 standardInstructions: row[34] ? String(row[34]).split(' | ').filter(Boolean) : undefined,
               }));
-            if (parsedWorkOrders.length > 0) {
-              StorageService.saveTreeWorkOrders(parsedWorkOrders);
-            }
+            StorageService.saveTreeWorkOrders(parsedWorkOrders);
           }
 
           syncConfig.lastSyncTime = now;
@@ -2698,12 +2700,16 @@ export const GoogleSheetsService = {
               }
             }
 
+            const normalizedRole = (role === 'admin' || role === 'kordinator' || role === 'kepala_unit')
+              ? role
+              : (role === 'kepala unit' || username.startsWith('kepala.') || (row[0] && String(row[0]).startsWith('u-ku-')) ? 'kepala_unit' : 'user');
+
             return {
               id: row[0] || `u-sheet-${i}`,
               username,
               password: password || 'password123',
               name,
-              role: (role === 'admin' || role === 'kordinator' ? role : 'user') as any,
+              role: normalizedRole as any,
               unit: unit as any,
               status: (status.toLowerCase() === 'nonaktif' ? 'Nonaktif' : 'Aktif') as any,
               phone,
@@ -3180,9 +3186,7 @@ export const GoogleSheetsService = {
               standardInstructions: row[34] ? String(row[34]).split(' | ').filter(Boolean) : undefined,
             };
           });
-        if (parsedWorkOrders.length > 0) {
-          StorageService.saveTreeWorkOrders(parsedWorkOrders);
-        }
+        StorageService.saveTreeWorkOrders(parsedWorkOrders);
       }
 
       syncConfig.lastSyncTime = now;

@@ -408,8 +408,11 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
 
   const weeklyTasks = useMemo(() => {
     return userMasterTasks.filter((t) => {
-      // Jika sedang giliran minggu ini, tugas masjid sudah masuk ke pre-readiness harian sehingga tidak perlu tampil ganda di mingguan
-      if (isMyMasjidDutyWeek && (t.id === 'mt-plh-wk-05' || t.title.toLowerCase().includes('aula masjid'))) {
+      const isMasjidTask = t.id === 'mt-plh-wk-05' || t.title.toLowerCase().includes('aula masjid') || t.title.toLowerCase().includes('rolling mingguan plh');
+      if (isMasjidTask) {
+        // Hanya untuk yang saat sedang piket saja! Jika tidak giliran, jangan tampilkan sama sekali
+        if (!isMyMasjidDutyWeek) return false;
+        // Jika sedang piket minggu ini, tugas sudah dimasukkan ke Pre-Readiness Pagi (06:30 - 08:30 WIB)
         return false;
       }
       return normalizeCategory(t.category, t) === 'Mingguan';

@@ -147,6 +147,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onDeleteTaskLog,
   onTriggerSync,
 }) => {
+  const isKepalaUnit = activeUser.role === 'kepala_unit';
+  const kepalaUnitLockedUnit = isKepalaUnit ? (activeUser.unit || 'TK') : null;
+
   const [adminTab, setAdminTab] = useState<
     'analytics' | 'rekap_tugas' | 'job_bareng' | 'dinas_luar' | 'manajemen_user' | 'master_task' | 'hari_libur' | 'google_sync' | 'pohon_masjid'
   >('analytics');
@@ -156,7 +159,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [dateFilterMode, setDateFilterMode] = useState<'today' | '7days' | 'month' | 'all' | 'custom'>('today');
   const [startDate, setStartDate] = useState<string>(todayStr);
   const [endDate, setEndDate] = useState<string>(todayStr);
-  const [selectedUnitFilter, setSelectedUnitFilter] = useState<string>('Semua');
+  const [selectedUnitFilter, setSelectedUnitFilter] = useState<string>(
+    isKepalaUnit ? (activeUser.unit || 'TK') : 'Semua'
+  );
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('Semua');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -247,7 +252,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [taskStandardPhotoUrl, setTaskStandardPhotoUrl] = useState<string>('');
   const [taskIsActive, setTaskIsActive] = useState<boolean>(true);
   const [selectedUserFilter, setSelectedUserFilter] = useState<string>('Semua');
-  const [selectedDivisionFilter, setSelectedDivisionFilter] = useState<'Semua' | 'OB' | 'PLH'>('Semua');
+  const [selectedDivisionFilter, setSelectedDivisionFilter] = useState<'Semua' | 'OB' | 'PLH'>(
+    isKepalaUnit ? 'OB' : 'Semua'
+  );
   const [jbDivision, setJbDivision] = useState<'Semua' | 'OB' | 'PLH'>('Semua');
 
   // Edit & Fix Task Log Modal State
@@ -1129,16 +1136,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-md bg-slate-900 text-white text-[11px] font-bold uppercase tracking-wider">
-              Facility Management Dashboard
+            <span className={`px-2.5 py-0.5 rounded-md text-white text-[11px] font-bold uppercase tracking-wider ${
+              isKepalaUnit ? 'bg-indigo-900' : 'bg-slate-900'
+            }`}>
+              {isKepalaUnit ? `Portal Monitoring Kepala Unit ${activeUser.unit}` : 'Facility Management Dashboard'}
             </span>
             <span className="text-xs text-slate-500 font-medium">Lazuardi GCS</span>
           </div>
           <h2 className="text-lg sm:text-xl font-black text-slate-900 mt-1 tracking-tight">
-            Pusat Kontrol & Rekap Pekerjaan OB/OG
+            {isKepalaUnit ? `Monitoring Kinerja Fasilitas & Pekerjaan OB Unit ${activeUser.unit}` : 'Pusat Kontrol & Rekap Pekerjaan OB/OG'}
           </h2>
           <p className="text-xs text-slate-500">
-            Monitoring diagram pekerjaan harian/mingguan/bulanan, evaluasi kordinator, dan kelola rotasi unit.
+            {isKepalaUnit
+              ? `Pantau kesiapan fasilitas, log foto tugas kebersihan, dan kedisiplinan staf OB di unit ${activeUser.unit}.`
+              : 'Monitoring diagram pekerjaan harian/mingguan/bulanan, evaluasi kordinator, dan kelola rotasi unit.'}
           </p>
         </div>
 
@@ -1211,17 +1222,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <span>Persetujuan Dinas ({dinasRequests.filter((d) => d.status === 'Pending').length})</span>
         </button>
 
-        <button
-          onClick={() => setAdminTab('manajemen_user')}
-          className={`py-2 px-3.5 rounded-xl transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-            adminTab === 'manajemen_user'
-              ? 'bg-slate-900 text-white shadow-xs font-bold'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-          }`}
-        >
-          <Users className="w-3.5 h-3.5 text-slate-300" />
-          <span>Rotasi Unit & User ({allUsers.length})</span>
-        </button>
+        {!isKepalaUnit && (
+          <button
+            onClick={() => setAdminTab('manajemen_user')}
+            className={`py-2 px-3.5 rounded-xl transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              adminTab === 'manajemen_user'
+                ? 'bg-slate-900 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5 text-slate-300" />
+            <span>Rotasi Unit & User ({allUsers.length})</span>
+          </button>
+        )}
 
         <button
           onClick={() => setAdminTab('master_task')}
@@ -1235,41 +1248,45 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <span>Master Standar Kebersihan ({masterTasks.length})</span>
         </button>
 
-        <button
-          onClick={() => setAdminTab('hari_libur')}
-          className={`py-2 px-3.5 rounded-xl transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-            adminTab === 'hari_libur'
-              ? 'bg-slate-900 text-white shadow-xs font-bold'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-          }`}
-        >
-          <Coffee className="w-3.5 h-3.5 text-amber-400" />
-          <span>Hari Libur & Kalender</span>
-        </button>
+        {!isKepalaUnit && (
+          <>
+            <button
+              onClick={() => setAdminTab('hari_libur')}
+              className={`py-2 px-3.5 rounded-xl transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                adminTab === 'hari_libur'
+                  ? 'bg-slate-900 text-white shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              <Coffee className="w-3.5 h-3.5 text-amber-400" />
+              <span>Hari Libur & Kalender</span>
+            </button>
 
-        <button
-          onClick={() => setAdminTab('google_sync')}
-          className={`py-2 px-3.5 rounded-xl transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-            adminTab === 'google_sync'
-              ? 'bg-slate-900 text-white shadow-xs font-bold'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-          }`}
-        >
-          <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Google Sheet 2-Arah</span>
-        </button>
+            <button
+              onClick={() => setAdminTab('google_sync')}
+              className={`py-2 px-3.5 rounded-xl transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                adminTab === 'google_sync'
+                  ? 'bg-slate-900 text-white shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Google Sheet 2-Arah</span>
+            </button>
 
-        <button
-          onClick={() => setAdminTab('pohon_masjid')}
-          className={`py-2 px-3.5 rounded-xl transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-            adminTab === 'pohon_masjid'
-              ? 'bg-emerald-800 text-white shadow-xs font-bold'
-              : 'text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50'
-          }`}
-        >
-          <TreePine className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Pohon & Rolling Masjid (PLH)</span>
-        </button>
+            <button
+              onClick={() => setAdminTab('pohon_masjid')}
+              className={`py-2 px-3.5 rounded-xl transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                adminTab === 'pohon_masjid'
+                  ? 'bg-emerald-800 text-white shadow-xs font-bold'
+                  : 'text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50'
+              }`}
+            >
+              <TreePine className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Pohon & Rolling Masjid (PLH)</span>
+            </button>
+          </>
+        )}
       </div>
 
       {/* UNIFIED SINGLE GLOBAL FILTER BAR FOR ADMIN */}
@@ -1277,61 +1294,76 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-3 text-xs">
           <div className="flex flex-wrap items-center justify-between gap-3">
             {/* Division Toggle Pills */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setSelectedDivisionFilter('Semua')}
-                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
-                  selectedDivisionFilter === 'Semua'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                }`}
-              >
-                Semua Divisi
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedDivisionFilter('OB')}
-                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
-                  selectedDivisionFilter === 'OB'
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-sky-700 hover:bg-white/60'
-                }`}
-              >
-                <span>🧹</span>
-                <span>Divisi OB</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedDivisionFilter('PLH')}
-                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
-                  selectedDivisionFilter === 'PLH'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-emerald-700 hover:bg-white/60'
-                }`}
-              >
-                <span>🌿</span>
-                <span>Divisi PLH</span>
-              </button>
-            </div>
+            {!isKepalaUnit ? (
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setSelectedDivisionFilter('Semua')}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
+                    selectedDivisionFilter === 'Semua'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                >
+                  Semua Divisi
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDivisionFilter('OB')}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
+                    selectedDivisionFilter === 'OB'
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-sky-700 hover:bg-white/60'
+                  }`}
+                >
+                  <span>🧹</span>
+                  <span>Divisi OB</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDivisionFilter('PLH')}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
+                    selectedDivisionFilter === 'PLH'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-emerald-700 hover:bg-white/60'
+                  }`}
+                >
+                  <span>🌿</span>
+                  <span>Divisi PLH</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-900 shadow-2xs">
+                <span>🏛️</span>
+                <span>Divisi OB - Monitoring Unit: {activeUser.unit}</span>
+              </div>
+            )}
 
             {/* Unit & User Selectors */}
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-1.5">
                 <span className="font-bold text-slate-700">Unit:</span>
-                <select
-                  value={selectedUnitFilter}
-                  onChange={(e) => setSelectedUnitFilter(e.target.value)}
-                  className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium focus:ring-2 focus:ring-sky-500 cursor-pointer"
-                >
-                  <option value="Semua">Semua Unit</option>
-                  <option value="TK">TK</option>
-                  <option value="SD">SD</option>
-                  <option value="SMP">SMP</option>
-                  <option value="Pelangi Direktorat">Pelangi Direktorat</option>
-                  <option value="Ar Razi">Ar Razi</option>
-                  <option value="Khaldun">Khaldun</option>
-                </select>
+                {isKepalaUnit ? (
+                  <span className="px-3 py-1.5 rounded-xl border border-indigo-300 bg-indigo-50 text-indigo-900 font-extrabold text-xs flex items-center gap-1.5 shadow-2xs">
+                    <span>🏛️</span>
+                    <span>{activeUser.unit}</span>
+                    <span className="text-[10px] text-indigo-600 font-normal">(Terkunci Khusus Unit Anda)</span>
+                  </span>
+                ) : (
+                  <select
+                    value={selectedUnitFilter}
+                    onChange={(e) => setSelectedUnitFilter(e.target.value)}
+                    className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium focus:ring-2 focus:ring-sky-500 cursor-pointer"
+                  >
+                    <option value="Semua">Semua Unit</option>
+                    <option value="TK">TK</option>
+                    <option value="SD">SD</option>
+                    <option value="SMP">SMP</option>
+                    <option value="Pelangi Direktorat">Pelangi Direktorat</option>
+                    <option value="Ar Razi">Ar Razi</option>
+                    <option value="Khaldun">Khaldun</option>
+                  </select>
+                )}
               </div>
 
               <div className="flex items-center gap-1.5">
@@ -2866,25 +2898,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 Atur tugas standar kebersihan dan tentukan penugasan khusus per staff OB/OG atau tugas bersama per unit.
               </p>
             </div>
-            <button
-              onClick={() => {
-                setEditingTask(null);
-                setTaskTitle('');
-                setTaskCategory('Harian');
-                setTaskTiming('pre_readiness');
-                setTaskUnit('Semua Unit');
-                setTaskArea('');
-                setTaskAssignee('Semua Petugas');
-                setTaskInstructionsText('');
-                setTaskPhotoRequired(true);
-                setTaskStandardPhotoUrl('');
-                setIsAddingTask(true);
-              }}
-              className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer self-start sm:self-auto"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ Tambah Master Task</span>
-            </button>
+            {!isKepalaUnit && (
+              <button
+                onClick={() => {
+                  setEditingTask(null);
+                  setTaskTitle('');
+                  setTaskCategory('Harian');
+                  setTaskTiming('pre_readiness');
+                  setTaskUnit('Semua Unit');
+                  setTaskArea('');
+                  setTaskAssignee('Semua Petugas');
+                  setTaskInstructionsText('');
+                  setTaskPhotoRequired(true);
+                  setTaskStandardPhotoUrl('');
+                  setIsAddingTask(true);
+                }}
+                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer self-start sm:self-auto"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Tambah Master Task</span>
+              </button>
+            )}
           </div>
 
           {/* Filter Bar for Master Tasks */}
@@ -3081,36 +3115,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {t.area && <p className="text-slate-500">Area: {t.area}</p>}
                       </div>
 
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => {
-                            setEditingTask(t);
-                            setTaskTitle(t.title);
-                            setTaskCategory(t.category as any);
-                            setTaskTiming(t.timingType);
-                            setTaskUnit(t.unit);
-                            setTaskArea(t.area || '');
-                            setTaskAssignee(t.assignee || 'Semua Petugas');
-                            setTaskDivision(t.division || 'OB');
-                            setTaskInstructionsText(t.instructions.join('\n'));
-                            setTaskPhotoRequired(t.photoRequired);
-                            setTaskStandardPhotoUrl(t.standardPhotoUrl || '');
-                            setTaskIsActive(isMasterTaskActive(t));
-                            setIsEditingTaskModal(true);
-                          }}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
-                          title="Edit Task"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => onDeleteMasterTask(t.id)}
-                          className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 cursor-pointer"
-                          title="Hapus Task"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      {!isKepalaUnit && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingTask(t);
+                              setTaskTitle(t.title);
+                              setTaskCategory(t.category as any);
+                              setTaskTiming(t.timingType);
+                              setTaskUnit(t.unit);
+                              setTaskArea(t.area || '');
+                              setTaskAssignee(t.assignee || 'Semua Petugas');
+                              setTaskDivision(t.division || 'OB');
+                              setTaskInstructionsText(t.instructions.join('\n'));
+                              setTaskPhotoRequired(t.photoRequired);
+                              setTaskStandardPhotoUrl(t.standardPhotoUrl || '');
+                              setTaskIsActive(isMasterTaskActive(t));
+                              setIsEditingTaskModal(true);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
+                            title="Edit Task"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => onDeleteMasterTask(t.id)}
+                            className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 cursor-pointer"
+                            title="Hapus Task"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {t.instructions && t.instructions.length > 0 && (

@@ -20,6 +20,7 @@ import {
   normalizePlhArea,
 } from '../types';
 import { isSameDay, getJakartaDateString, normalizeDateString } from '../utils/dateHelper';
+import { isAreaOnMasjidDutyThisWeek } from '../utils/masjidRolling';
 
 const STORAGE_KEYS = {
   USERS: 'lz_fm_users',
@@ -130,6 +131,54 @@ export const SEED_PLH_USERS: User[] = [
 
 export const SEED_OB_USERS: User[] = [];
 
+// Akun Resmi Kepala Unit untuk Monitoring Unit Tertentu (TK, SD, SMP, Pelangi Direktorat)
+export const SEED_KEPALA_UNIT_USERS: User[] = [
+  {
+    id: 'u-ku-tk',
+    username: 'kepala.tk',
+    password: 'password123',
+    name: 'Kepala Unit TK',
+    role: 'kepala_unit',
+    division: 'OB',
+    unit: 'TK',
+    status: 'Aktif',
+    phone: '08123456701',
+  },
+  {
+    id: 'u-ku-sd',
+    username: 'kepala.sd',
+    password: 'password123',
+    name: 'Kepala Unit SD',
+    role: 'kepala_unit',
+    division: 'OB',
+    unit: 'SD',
+    status: 'Aktif',
+    phone: '08123456702',
+  },
+  {
+    id: 'u-ku-smp',
+    username: 'kepala.smp',
+    password: 'password123',
+    name: 'Kepala Unit SMP',
+    role: 'kepala_unit',
+    division: 'OB',
+    unit: 'SMP',
+    status: 'Aktif',
+    phone: '08123456703',
+  },
+  {
+    id: 'u-ku-pelangi',
+    username: 'kepala.pelangi',
+    password: 'password123',
+    name: 'Kepala Unit Pelangi',
+    role: 'kepala_unit',
+    division: 'OB',
+    unit: 'Pelangi Direktorat',
+    status: 'Aktif',
+    phone: '08123456704',
+  },
+];
+
 const SEED_USERS: User[] = [
   {
     id: 'u-adm-01',
@@ -152,6 +201,7 @@ const SEED_USERS: User[] = [
     status: 'Aktif',
     phone: '081298765432',
   },
+  ...SEED_KEPALA_UNIT_USERS,
   ...SEED_PLH_USERS,
 ];
 
@@ -749,522 +799,8 @@ export const DEFAULT_TREE_SOP_INSTRUCTIONS = [
   'Pemeriksaan Perakaran & Kebersihan: Pastikan tanah perakaran stabil tidak gembur/amblas, serta sekeliling pohon bersih dari serasah sampah.',
 ];
 
-// Seed Work Orders Khusus Pohon untuk PLH (5 Wilayah Lengkap)
-export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
-  // 1. Area Kolam Renang (Radilah)
-  {
-    id: 'two-2026-001',
-    date: '2026-09-22',
-    area: 'Area Kolam Renang',
-    treeName: 'Pohon Trembesi Rimbun Dekat Kolam Renang',
-    condition: 'Rimbun',
-    treatmentNeeded: 'Penebangan / Topping Pohon Tinggi (Vendor Luar)',
-    handlerType: 'Vendor Luar',
-    isLargeTreatment: true,
-    vendorName: 'CV Duta Hijau Pertamanan',
-    vendorCost: 2500000,
-    scheduledWeek: 'Minggu ke-4 September 2026',
-    urgency: 'Tinggi / Bahaya',
-    notes: 'Pohon sangat rimbun dengan tinggi ±12 meter. Dahan atas menjuntai ke kabel listrik utama PLN dan atap tribun kolam. Membutuhkan mobil crane dan vendor berpengalaman.',
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=1000&q=80',
-    standardPhotoAngleGuide: 'Foto utuh tampak melebar dari sisi tribun barat jarak 8–10 meter. Pastikan kanopi atas dekat kabel PLN dan batang utama terlihat jelas.',
-    standardInstructions: [
-      'Ambil foto utuh tampak samping tribun barat jarak 8–10 meter.',
-      'Cek kerimbunan kanopi dekat atap tribun & kabel listrik PLN.',
-      'Pastikan tidak ada dahan rapuh menggantung di atas area kolam renang.',
-      'Periksa batang utama dari benalu dan rayap.',
-      'Cek saluran pembuangan air kolam di bawah pohon dari serasah daun.',
-    ],
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=1000&q=80',
-    status: 'Dijadwalkan',
-    reportedBy: 'u-plh-04',
-    reportedByName: 'Radilah (PLH)',
-    assignedStaffId: 'u-plh-04',
-    assignedStaffName: 'Radilah (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:15 WIB',
-    lastCheckedByName: 'Radilah (PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Pengecekan rutin pagi: Dahan atas dekat kabel PLN tetap stabil, vendor dijadwalkan akhir pekan ini.',
-    syncedToSheet: true,
-    createdAt: '2026-09-21T08:00:00.000Z',
-  },
-  {
-    id: 'two-2026-014',
-    date: '2026-09-22',
-    area: 'Area Kolam Renang',
-    treeName: 'Pohon Kelapa Gading Sisi Kolam Renang',
-    condition: 'Normal / Sehat',
-    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
-    handlerType: 'Internal PLH',
-    isLargeTreatment: false,
-    urgency: 'Rendah',
-    notes: 'Pelepah daun tua yang mengering telah dibersihkan agar tidak jatuh ke area kolam.',
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=80',
-    standardPhotoAngleGuide: 'Foto tegak vertikal dari dek pinggir kolam jarak 5 meter. Pastikan mahkota pelepah atas dan buah kelapa terpantau aman.',
-    standardInstructions: [
-      'Foto tegak vertikal dari dek kolam renang jarak 5 meter.',
-      'Periksa pelepah daun tua yang menguning, pangkas sebelum jatuh ke air kolam.',
-      'Pastikan buah kelapa gading tidak ada yang goyang/rawan jatuh.',
-      'Cek pangkal batang dari lumut licin di jalur jalan kaki.',
-    ],
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=80',
-    status: 'Selesai',
-    reportedBy: 'u-plh-04',
-    reportedByName: 'Radilah (PLH)',
-    assignedStaffId: 'u-plh-04',
-    assignedStaffName: 'Radilah (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:30 WIB',
-    lastCheckedByName: 'Radilah (PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Kondisi pelepah aman, buah kelapa tidak ada yang rawan jatuh.',
-    syncedToSheet: true,
-    createdAt: '2026-09-21T09:00:00.000Z',
-  },
-  {
-    id: 'two-2026-015',
-    date: '2026-09-22',
-    area: 'Area Kolam Renang',
-    treeName: 'Pohon Beringin Dolar Taman Kolam',
-    condition: 'Normal / Sehat',
-    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
-    handlerType: 'Internal PLH',
-    isLargeTreatment: false,
-    urgency: 'Rendah',
-    notes: 'Bentuk tajuk rapi, penyiraman rutin terjaga.',
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=1000&q=80',
-    standardPhotoAngleGuide: 'Foto horizontal dari jarak 4–6 meter arah taman kolam. Tampilkan bentuk tajuk bulat rapi dan kebersihan tanah sekeliling.',
-    standardInstructions: [
-      'Foto dari arah depan taman kolam jarak 4–6 meter.',
-      'Periksa bentuk tajuk pangkas bulat estetis.',
-      'Pastikan daun hijau segar bebas dari kutu putih dan ulat.',
-      'Cek kelembaban tanah dan saluran drainase taman kolam.',
-    ],
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=1000&q=80',
-    status: 'Selesai',
-    reportedBy: 'u-plh-04',
-    reportedByName: 'Radilah (PLH)',
-    assignedStaffId: 'u-plh-04',
-    assignedStaffName: 'Radilah (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:45 WIB',
-    lastCheckedByName: 'Radilah (PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Tajuk bulat estetis, bebas hama.',
-    syncedToSheet: true,
-    createdAt: '2026-09-21T09:15:00.000Z',
-  },
-
-  // 2. Area Pos 1 (Rahmat Hidayat)
-  {
-    id: 'two-2026-004',
-    date: '2026-09-22',
-    area: 'Area Pos 1',
-    treeName: 'Pohon Beringin & Mahoni Pintu Masuk Gerbang Pos 1',
-    condition: 'Rimbun',
-    treatmentNeeded: 'Penjarangan Kanopi Rimbun',
-    handlerType: 'Internal PLH',
-    isLargeTreatment: false,
-    scheduledWeek: 'Minggu ke-4 September 2026',
-    urgency: 'Sedang',
-    notes: 'Dahan rimbun condong ke jalur drop-off penjemputan siswa. Perlu penjarangan kanopi agar pandangan pengemudi leluasa dan sirkulasi cahaya taman Pos 1 optimal.',
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=1000&q=80',
-    standardPhotoAngleGuide: 'Foto dari seberang pos satpam gerbang 1 jarak 8 meter. Pastikan dahan yang melintang di jalur mobil drop-off tampak jelas.',
-    standardInstructions: [
-      'Foto dari seberang pos satpam gerbang 1 jarak 8 meter.',
-      'Cek dahan rimbun yang melintang di atas jalur mobil drop-off siswa.',
-      'Pastikan tinggi dahan bebas minimal 4 meter untuk akses kendaraan tinggi.',
-      'Periksa batang pohon dari paku, kawat, atau kabel liar.',
-    ],
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=1000&q=80',
-    status: 'Perlu Penanganan',
-    reportedBy: 'u-kord-plh',
-    reportedByName: 'Rahmat Hidayat (Kord PLH)',
-    assignedStaffId: 'u-kord-plh',
-    assignedStaffName: 'Rahmat Hidayat (Kord PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '07:30 WIB',
-    lastCheckedByName: 'Rahmat Hidayat (Kord PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Pengecekan pagi: Dahan lebat mulai menyentuh tiang lampu gerbang. Rencana pangkas siang ini.',
-    syncedToSheet: true,
-    createdAt: '2026-09-21T07:45:00.000Z',
-  },
-  {
-    id: 'two-2026-006',
-    date: '2026-09-22',
-    area: 'Area Pos 1',
-    treeName: 'Pohon Mangga Arumanis Depan Pos 1',
-    condition: 'Normal / Sehat',
-    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
-    handlerType: 'Internal PLH',
-    isLargeTreatment: false,
-    urgency: 'Rendah',
-    notes: 'Pohon berbuah lebat, dahan bawah cukup tinggi dari pejalan kaki.',
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6eb2251a?auto=format&fit=crop&w=1000&q=80',
-    standardPhotoAngleGuide: 'Foto dari sisi trotoar pos 1 jarak 5 meter. Pastikan tajuk daun dan percabangan tengah terlihat utuh.',
-    standardInstructions: [
-      'Foto dari trotoar depan pos 1 jarak 5 meter.',
-      'Cek dahan dari benalu parasit dan sarang semut rangrang berlebih.',
-      'Periksa kebersihan tanah bawah tajuk dari buah busuk gugur.',
-      'Pastikan daun tidak menutupi plang nama atau CCTV Pos 1.',
-    ],
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6eb2251a?auto=format&fit=crop&w=1000&q=80',
-    status: 'Selesai',
-    reportedBy: 'u-kord-plh',
-    reportedByName: 'Rahmat Hidayat (Kord PLH)',
-    assignedStaffId: 'u-kord-plh',
-    assignedStaffName: 'Rahmat Hidayat (Kord PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '07:45 WIB',
-    lastCheckedByName: 'Rahmat Hidayat (Kord PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Kondisi sehat, daun hijau segar, media tanah lembap seimbang.',
-    syncedToSheet: true,
-    createdAt: '2026-09-21T08:00:00.000Z',
-  },
-  {
-    id: 'two-2026-007',
-    date: '2026-09-22',
-    area: 'Area Pos 1',
-    treeName: 'Pohon Pucuk Merah Pagar Depan Pos 1',
-    condition: 'Normal / Sehat',
-    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
-    handlerType: 'Internal PLH',
-    isLargeTreatment: false,
-    urgency: 'Rendah',
-    notes: 'Pagar pucuk merah tumbuh rapi dan segar, telah dilakukan pemangkasan bentuk kotak.',
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1545147986-a9d6f2ab03b5?auto=format&fit=crop&w=1000&q=80',
-    standardPhotoAngleGuide: 'Foto memanjang sepanjang pagar depan gerbang 1 jarak 4 meter. Tampakkan barisan pucuk merah yang rapi terpangkas.',
-    standardInstructions: [
-      'Foto memanjang sejajar pagar pos 1 jarak 4 meter.',
-      'Cek kerapian pemangkasan pucuk merah setinggi 1.8 meter.',
-      'Pastikan warna daun pucuk merah segar tidak layu atau kering.',
-      'Cek saluran parit depan pagar dari timbunan daun pangkasan.',
-    ],
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1545147986-a9d6f2ab03b5?auto=format&fit=crop&w=1000&q=80',
-    status: 'Selesai',
-    reportedBy: 'u-kord-plh',
-    reportedByName: 'Rahmat Hidayat (Kord PLH)',
-    assignedStaffId: 'u-kord-plh',
-    assignedStaffName: 'Rahmat Hidayat (Kord PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:00 WIB',
-    lastCheckedByName: 'Rahmat Hidayat (Kord PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Pucuk merah berwarna cerah merata, batas pagar rapi.',
-    syncedToSheet: true,
-    createdAt: '2026-09-21T08:10:00.000Z',
-  },
-
-  // 3. Area Pos 2 (Ahmad Syahril)
-  {
-    id: 'two-2026-002',
-    date: '2026-09-22',
-    area: 'Area Pos 2',
-    treeName: 'Pohon Ketapang Kencana Dekat Gerbang Pos 2',
-    condition: 'Rimbun',
-    treatmentNeeded: 'Penjarangan Kanopi Rimbun',
-    handlerType: 'Internal PLH',
-    isLargeTreatment: false,
-    scheduledWeek: 'Minggu ke-4 September 2026',
-    urgency: 'Sedang',
-    notes: 'Kanopi daun lebat menutupi sorot lampu penerangan malam Pos 2 dan CCTV gerbang. Dilakukan pemangkasan dahan selektif oleh tim internal PLH.',
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=1000&q=80',
-    standardPhotoAngleGuide: 'Foto dari depan gerbang pos 2 jarak 7 meter. Perlihatkan kanopi bertingkat, tiang lampu pos, dan kamera CCTV.',
-    standardInstructions: [
-      'Foto dari depan gerbang pos 2 jarak 7 meter.',
-      'Pastikan tajuk daun tidak menutupi sorot lampu penerangan malam & CCTV.',
-      'Cek dahan bertingkat dari ranting patah atau sarang ulat.',
-      'Sapu serasah daun gugur di jalan aspal pos 2.',
-    ],
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=1000&q=80',
-    status: 'Sedang Dikerjakan',
-    reportedBy: 'u-plh-01',
-    reportedByName: 'Ahmad Syahril (PLH)',
-    assignedStaffId: 'u-plh-01',
-    assignedStaffName: 'Ahmad Syahril (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:10 WIB',
-    lastCheckedByName: 'Ahmad Syahril (PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Proses pemangkasan dahan lapis bawah sedang berjalan bersama tim.',
-    syncedToSheet: true,
-    createdAt: '2026-09-21T08:30:00.000Z',
-  },
-  {
-    id: 'two-2026-008',
-    date: '2026-09-22',
-    area: 'Area Pos 2',
-    treeName: 'Pohon Mahoni Samping Pos 2',
-    condition: 'Normal / Sehat',
-    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
-    handlerType: 'Internal PLH',
-    isLargeTreatment: false,
-    urgency: 'Rendah',
-    notes: 'Batang kokoh tegak lurus, tidak ada tanda-tanda pengeroposan.',
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1000&q=80',
-    standardPhotoAngleGuide: 'Foto dari sisi bahu jalan gerbang 2 jarak 8 meter. Tampakkan batang lurus kokoh dan tajuk atas yang rindang.',
-    standardInstructions: [
-      'Foto dari sisi bahu jalan gerbang 2 jarak 8 meter.',
-      'Periksa batang lurus bebas dari lubang rayap dan jamur pangkal.',
-      'Pruning ranting liar bawah hingga ketinggian 3 meter.',
-      'Cek kestabilan akar di tepi selokan air pos 2.',
-    ],
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1000&q=80',
-    status: 'Selesai',
-    reportedBy: 'u-plh-01',
-    reportedByName: 'Ahmad Syahril (PLH)',
-    assignedStaffId: 'u-plh-01',
-    assignedStaffName: 'Ahmad Syahril (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:25 WIB',
-    lastCheckedByName: 'Ahmad Syahril (PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Batang bersih, bebas rayap dan lumut tebal.',
-    syncedToSheet: true,
-    createdAt: '2026-09-21T08:45:00.000Z',
-  },
-  {
-    id: 'two-2026-009',
-    date: '2026-09-22',
-    area: 'Area Pos 2',
-    treeName: 'Pohon Palem Kenari Jalur Gerbang 2',
-    condition: 'Normal / Sehat',
-    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
-    handlerType: 'Internal PLH',
-    isLargeTreatment: false,
-    urgency: 'Rendah',
-    notes: 'Pelepah bawah rutin dipotong, tajuk terawat rapi.',
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=80',
-    standardPhotoAngleGuide: 'Foto tegak vertikal dari jarak 5 meter di samping jalur kendaraan pos 2. Perlihatkan mahkota pelepah palem.',
-    standardInstructions: [
-      'Foto vertikal samping jalur kendaraan pos 2 jarak 5 meter.',
-      'Pangkas pelepah kering yang terkulai kebawah.',
-      'Pastikan pelepah tidak menghalangi spanduk dan rambu arah pos 2.',
-      'Bersihkan rumput liar dan lumut di lingkar pangkal batang.',
-    ],
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=80',
-    status: 'Selesai',
-    reportedBy: 'u-plh-01',
-    reportedByName: 'Ahmad Syahril (PLH)',
-    assignedStaffId: 'u-plh-01',
-    assignedStaffName: 'Ahmad Syahril (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:40 WIB',
-    lastCheckedByName: 'Ahmad Syahril (PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Palem tegak kokoh, tidak mengganggu jalur mobil pengantar.',
-    syncedToSheet: true,
-    createdAt: '2026-09-21T09:00:00.000Z',
-  },
-
-  // 4. Area Khaldun (Andi Komala)
-  {
-    id: 'two-2026-003',
-    date: '2026-09-20',
-    area: 'Area Khaldun',
-    treeName: 'Pohon Flamboyan Area Lanskap Khaldun',
-    condition: 'Dahan Kering / Lapuk',
-    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
-    handlerType: 'Internal PLH',
-    isLargeTreatment: false,
-    urgency: 'Sedang',
-    notes: 'Terdapat 3 dahan kering rawan patah di dekat jalur pedestrian siswa. Telah dipangkas rapi dan dahan dipotong kecil untuk komposter.',
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1000&q=80',
-    standardPhotoAngleGuide: 'Foto lanskap melebar dari jarak 8–10 meter di jalur pedestrian Khaldun. Tampakkan kanopi payung lebar dan dahan bawah.',
-    standardInstructions: [
-      'Foto lanskap dari jalur pedestrian Khaldun jarak 8–10 meter.',
-      'Cek dahan kering rapuh di atas jalur pedestrian siswa Khaldun.',
-      'Periksa sambungan dahan utama dari keretakan atau pelapukan kayu.',
-      'Cek pertumbuhan bunga dan daun, pastikan tidak ada ulat.',
-    ],
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1000&q=80',
-    status: 'Selesai',
-    reportedBy: 'u-plh-02',
-    reportedByName: 'Andi Komala (PLH)',
-    assignedStaffId: 'u-plh-02',
-    assignedStaffName: 'Andi Komala (PLH)',
-    completedAt: '2026-09-20T14:30:00.000Z',
-    completedBy: 'u-plh-02',
-    completedByName: 'Andi Komala (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '07:50 WIB',
-    lastCheckedByName: 'Andi Komala (PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Bekas pangkasan telah mengering bagus, tidak ada dahan rapuh baru.',
-    syncedToSheet: true,
-    createdAt: '2026-09-20T09:00:00.000Z',
-  },
-  {
-    id: 'two-2026-010',
-    date: '2026-09-22',
-    area: 'Area Khaldun',
-    treeName: 'Pohon Angsana Belakang Gedung Khaldun',
-    condition: 'Normal / Sehat',
-    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
-    handlerType: 'Internal PLH',
-    isLargeTreatment: false,
-    urgency: 'Rendah',
-    notes: 'Peneduh halaman belakang gedung Khaldun, daun lebat rindang.',
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=1000&q=80',
-    standardPhotoAngleGuide: 'Foto dari halaman belakang Khaldun jarak 7 meter. Perlihatkan tajuk rindang peneduh dan dinding gedung.',
-    standardInstructions: [
-      'Foto dari halaman belakang Khaldun jarak 7 meter.',
-      'Pastikan jarak tajuk minimal 1.5 meter dari dinding & jendela lantai 2.',
-      'Periksa dahan dari rayap kayu dan benalu.',
-      'Sapu daun angsana yang gugur di selokan belakang gedung.',
-    ],
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=1000&q=80',
-    status: 'Selesai',
-    reportedBy: 'u-plh-02',
-    reportedByName: 'Andi Komala (PLH)',
-    assignedStaffId: 'u-plh-02',
-    assignedStaffName: 'Andi Komala (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:05 WIB',
-    lastCheckedByName: 'Andi Komala (PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Pohon kokoh, serasah daun kering telah disapu bersih.',
-    syncedToSheet: true,
-    createdAt: '2026-09-21T08:30:00.000Z',
-  },
-  {
-    id: 'two-2026-011',
-    date: '2026-09-22',
-    area: 'Area Khaldun',
-    treeName: 'Pohon Tabebuya Kuning Koridor Khaldun',
-    condition: 'Normal / Sehat',
-    treatmentNeeded: 'Penyangga / Penegakan Batang',
-    handlerType: 'Internal PLH',
-    isLargeTreatment: false,
-    urgency: 'Rendah',
-    notes: 'Pohon muda dengan penyangga bambu, mulai berbunga kuning.',
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=1000&q=80',
-    standardPhotoAngleGuide: 'Foto dari koridor pejalan kaki Khaldun jarak 5 meter. Tampakkan keindahan tajuk batang dan bunganya.',
-    standardInstructions: [
-      'Foto dari koridor pejalan kaki Khaldun jarak 5 meter.',
-      'Periksa cabang muda, lakukan pemangkasan tunas liar (wiwil).',
-      'Pastikan perakaran aman tidak merusak conblock jalur pedestrian.',
-      'Siram dan beri nutrisi pupuk organik secara teratur.',
-    ],
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=1000&q=80',
-    status: 'Selesai',
-    reportedBy: 'u-plh-02',
-    reportedByName: 'Andi Komala (PLH)',
-    assignedStaffId: 'u-plh-02',
-    assignedStaffName: 'Andi Komala (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:20 WIB',
-    lastCheckedByName: 'Andi Komala (PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Tali pengikat penyangga bambu kuat dan tidak melukai kulit batang.',
-    syncedToSheet: true,
-    createdAt: '2026-09-21T09:00:00.000Z',
-  },
-
-  // 5. Area Ex Minifarm (Dedi Junaedi)
-  {
-    id: 'two-2026-005',
-    date: '2026-09-22',
-    area: 'Area Ex Minifarm',
-    treeName: 'Pohon Mangga & Sengon Samping Bedengan Pembibitan',
-    condition: 'Terserang Hama / Benalu',
-    treatmentNeeded: 'Pemberian Nutrisi / Obat Hama Batang',
-    handlerType: 'Internal PLH',
-    isLargeTreatment: false,
-    urgency: 'Sedang',
-    notes: 'Ditemukan sarang benalu pada dahan utama pohon mangga dan rayap pada pangkal batang sengon. Dilakukan pembersihan benalu manual dan penyemprotan insektisida organik.',
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=1000&q=80',
-    standardPhotoAngleGuide: 'Foto dari samping bedengan pembibitan sayur jarak 6 meter. Tampakkan batang utama mangga dan sengon yang berdampingan.',
-    standardInstructions: [
-      'Foto dari samping bedengan pembibitan sayur jarak 6 meter.',
-      'Periksa dahan dari benalu parasit, segera bersihkan hingga tuntas.',
-      'Periksa pangkal batang sengon dari serangan rayap tanah.',
-      'Pastikan tajuk tidak menutupi sinar matahari penuh ke bedengan sayur.',
-    ],
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=1000&q=80',
-    status: 'Sedang Dikerjakan',
-    reportedBy: 'u-plh-03',
-    reportedByName: 'Dedi Junaedi (PLH)',
-    assignedStaffId: 'u-plh-03',
-    assignedStaffName: 'Dedi Junaedi (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:00 WIB',
-    lastCheckedByName: 'Dedi Junaedi (PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Benalu sudah dicabut 80%, penyemprotan anti-rayap organik diulang sore.',
-    syncedToSheet: true,
-    createdAt: '2026-09-21T08:15:00.000Z',
-  },
-  {
-    id: 'two-2026-012',
-    date: '2026-09-22',
-    area: 'Area Ex Minifarm',
-    treeName: 'Pohon Jambu Air Citra Minifarm',
-    condition: 'Normal / Sehat',
-    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
-    handlerType: 'Internal PLH',
-    isLargeTreatment: false,
-    urgency: 'Rendah',
-    notes: 'Pohon jambu berbuah, dahan teratur rapi.',
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6eb2251a?auto=format&fit=crop&w=1000&q=80',
-    standardPhotoAngleGuide: 'Foto dari sisi bak komposter minifarm jarak 4 meter. Tampakkan tajuk rimbun pendek dan buah jambu yang dipelihara.',
-    standardInstructions: [
-      'Foto dari sisi bak komposter minifarm jarak 4 meter.',
-      'Bungkus pentil buah jambu agar terhindar dari lalat buah.',
-      'Pangkas cabang air (tunas air) yang tidak produktif.',
-      'Gemburkan tanah lingkar piringan pohon dan beri kompos matang.',
-    ],
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6eb2251a?auto=format&fit=crop&w=1000&q=80',
-    status: 'Selesai',
-    reportedBy: 'u-plh-03',
-    reportedByName: 'Dedi Junaedi (PLH)',
-    assignedStaffId: 'u-plh-03',
-    assignedStaffName: 'Dedi Junaedi (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:20 WIB',
-    lastCheckedByName: 'Dedi Junaedi (PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Buah jambu dibungkus plastik pelindung lalat buah, daun segar.',
-    syncedToSheet: true,
-    createdAt: '2026-09-21T08:45:00.000Z',
-  },
-  {
-    id: 'two-2026-013',
-    date: '2026-09-22',
-    area: 'Area Ex Minifarm',
-    treeName: 'Pohon Nangka Mini Area Ex Minifarm',
-    condition: 'Normal / Sehat',
-    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
-    handlerType: 'Internal PLH',
-    isLargeTreatment: false,
-    urgency: 'Rendah',
-    notes: 'Tumbuh subur dekat batas pagar samping minifarm.',
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1545147986-a9d6f2ab03b5?auto=format&fit=crop&w=1000&q=80',
-    standardPhotoAngleGuide: 'Foto dari jalan setapak minifarm jarak 4 meter. Tampakkan batang kokoh pendek dan buah nangka yang terlindungi.',
-    standardInstructions: [
-      'Foto dari jalan setapak minifarm jarak 4 meter.',
-      'Periksa buah nangka, bungkus dengan karung jaring pelindung.',
-      'Cek batang utama dari getah berlebih atau penggerek batang.',
-      'Jaga sanitasi tanah piringan pohon bebas gulma.',
-    ],
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1545147986-a9d6f2ab03b5?auto=format&fit=crop&w=1000&q=80',
-    status: 'Selesai',
-    reportedBy: 'u-plh-03',
-    reportedByName: 'Dedi Junaedi (PLH)',
-    assignedStaffId: 'u-plh-03',
-    assignedStaffName: 'Dedi Junaedi (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:35 WIB',
-    lastCheckedByName: 'Dedi Junaedi (PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Batang bersih, daun rimbun sehat terkendali.',
-    syncedToSheet: true,
-    createdAt: '2026-09-21T09:10:00.000Z',
-  },
-];
+// Work Orders Khusus Pohon murni bersumber dari Database Google Sheet (Tanpa Data Dummy)
+export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [];
 
 // Combine all MasterTasks (OB + PLH)
 export const ALL_INITIAL_MASTER_TASKS: MasterTask[] = [
@@ -1606,23 +1142,14 @@ export const StorageService = {
       return updated;
     });
 
-    // Ensure PLH tasks are present
-    for (const plhTask of SEED_PLH_MASTER_TASKS) {
-      if (!normalizedTasks.some((t) => t.id === plhTask.id)) {
-        normalizedTasks.push(plhTask);
-        hasUpdated = true;
-      }
-    }
-
+    // DO NOT re-inject SEED_PLH_MASTER_TASKS so user tasks edited in Google Sheet are preserved
     if (hasUpdated) {
       setStoredItem(STORAGE_KEYS.MASTER_TASKS, normalizedTasks);
     }
     return normalizedTasks;
   },
   saveMasterTasks: (tasks: MasterTask[]): void => {
-    if (tasks && tasks.length > 0) {
-      setStoredItem(STORAGE_KEYS.MASTER_TASKS, tasks);
-    }
+    setStoredItem(STORAGE_KEYS.MASTER_TASKS, tasks || []);
   },
   addMasterTask: (task: MasterTask): void => {
     const tasks = StorageService.getMasterTasks();
@@ -2055,12 +1582,23 @@ export const StorageService = {
     return { isOff: false, reason: '' };
   },
 
-  // Tree Work Orders (Penanganan Khusus Pohon untuk PLH & Vendor Luar)
+  // Tree Work Orders (Murni bersumber dari database Google Sheet / input user tanpa dummy)
   getTreeWorkOrders: (): TreeWorkOrder[] => {
-    const list = getStoredItem<TreeWorkOrder[]>(STORAGE_KEYS.TREE_WORK_ORDERS, SEED_TREE_WORK_ORDERS);
-    if (!list || list.length === 0) {
-      setStoredItem(STORAGE_KEYS.TREE_WORK_ORDERS, SEED_TREE_WORK_ORDERS);
-      return SEED_TREE_WORK_ORDERS;
+    const rawList = getStoredItem<TreeWorkOrder[]>(STORAGE_KEYS.TREE_WORK_ORDERS, []);
+    if (!rawList || rawList.length === 0) {
+      return [];
+    }
+
+    // Bersihkan data dummy lama (CV Duta Hijau / ID seed) agar murni hanya dari database
+    const dummyIds = new Set([
+      'two-2026-001', 'two-2026-002', 'two-2026-003', 'two-2026-004', 'two-2026-005',
+      'two-2026-006', 'two-2026-007', 'two-2026-008', 'two-2026-009', 'two-2026-010',
+      'two-2026-011', 'two-2026-012', 'two-2026-013', 'two-2026-014'
+    ]);
+    const list = rawList.filter((ord) => !dummyIds.has(ord.id) && ord.vendorName !== 'CV Duta Hijau Pertamanan');
+    if (list.length === 0) {
+      if (rawList.length > 0) setStoredItem(STORAGE_KEYS.TREE_WORK_ORDERS, []);
+      return [];
     }
     let modified = false;
     let enriched = list.map((order) => {
@@ -2215,13 +1753,6 @@ export const StorageService = {
       if (changed) modified = true;
       return ord;
     });
-
-    for (const seedOrder of SEED_TREE_WORK_ORDERS) {
-      if (!enriched.some((o) => o.id === seedOrder.id || (o.area === seedOrder.area && o.treeName === seedOrder.treeName))) {
-        enriched.push(seedOrder);
-        modified = true;
-      }
-    }
 
     if (modified) {
       setStoredItem(STORAGE_KEYS.TREE_WORK_ORDERS, enriched);
@@ -2559,6 +2090,20 @@ export const isTaskAssignedToUser = (task: MasterTask, user: User): boolean => {
 
   // 1b. PLH Area Enforcement: Staf lapangan PLH hanya menerima tugas di area tanggung jawab wilayahnya masing-masing
   if (userDivision === 'PLH' && user.role !== 'kordinator') {
+    // Tugas Piket Rolling Masjid: Hanya untuk staf yang sedang giliran piket masjid minggu ini!
+    const isMasjidRollingTask =
+      task.id === 'mt-plh-wk-05' ||
+      task.title.toLowerCase().includes('aula masjid') ||
+      task.title.toLowerCase().includes('rolling mingguan plh') ||
+      task.title.toLowerCase().includes('piket rolling masjid');
+
+    if (isMasjidRollingTask) {
+      const userArea = user.assignedArea || user.unit || '';
+      if (!isAreaOnMasjidDutyThisWeek(userArea)) {
+        return false;
+      }
+    }
+
     const userArea = (user.assignedArea || user.unit || '').trim().toLowerCase();
     const taskArea = (task.area || '').trim().toLowerCase();
     if (userArea && taskArea && taskArea !== 'semua unit' && taskArea !== 'semua area' && !taskArea.includes('rolling')) {

@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'kordinator' | 'user';
+export type UserRole = 'admin' | 'kordinator' | 'user' | 'kepala_unit';
 export type DivisionType = 'OB' | 'PLH';
 
 export type UnitType =
