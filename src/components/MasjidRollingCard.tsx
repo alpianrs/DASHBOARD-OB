@@ -50,11 +50,6 @@ export const MasjidRollingCard: React.FC<MasjidRollingCardProps> = ({
   const userUnitOrArea = activeUser?.assignedArea || activeUser?.unit || '';
   const isMyAreaTurn = isAreaOnMasjidDutyThisWeek(userUnitOrArea);
 
-  // Jika staf PLH lapangan (bukan admin/kordinator) dan BUKAN gilirannya minggu ini, sembunyikan kartu sepenuhnya
-  if (activeUser && activeUser.role !== 'admin' && activeUser.role !== 'kordinator' && !isMyAreaTurn) {
-    return null;
-  }
-
   return (
     <div
       id="masjid-rolling-card"

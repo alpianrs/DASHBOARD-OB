@@ -250,17 +250,8 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
 
   // Strict user task filtering: A user ONLY sees tasks assigned to them (or specifically for them)
   const userMasterTasks = useMemo(() => {
-    return unitMasterTasks.filter((t) => {
-      const isMasjidTask =
-        t.id === 'mt-plh-wk-05' ||
-        t.title.toLowerCase().includes('aula masjid') ||
-        t.title.toLowerCase().includes('rolling mingguan plh');
-      if (isMasjidTask && !isMyMasjidDutyWeek && activeUser.role !== 'admin' && activeUser.role !== 'kordinator') {
-        return false;
-      }
-      return isTaskAssignedToUser(t, activeUser);
-    });
-  }, [unitMasterTasks, activeUser, isMyMasjidDutyWeek]);
+    return unitMasterTasks.filter((t) => isTaskAssignedToUser(t, activeUser));
+  }, [unitMasterTasks, activeUser]);
 
   // Today's logs for this active user (strictly matching by userId/userName AND today's date with format tolerance)
   const userTodayLogs = useMemo(() => {
@@ -983,8 +974,8 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
         </div>
       </div>
 
-      {/* PLH Specific: Masjid Rolling Schedule Card - Hanya ditampilkan jika giliran piket masjid minggu ini (atau admin/kordinator) */}
-      {isPLH && (activeUser.role === 'admin' || activeUser.role === 'kordinator' || isMyMasjidDutyWeek) && (
+      {/* PLH Specific: Masjid Rolling Schedule Card - Eksklusif PLH & Kordinator PLH */}
+      {isPLH && (
         <MasjidRollingCard activeUser={activeUser} />
       )}
 
