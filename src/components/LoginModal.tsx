@@ -267,14 +267,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   <Building2 className="w-3.5 h-3.5 text-indigo-600" />
                   <span>Akun Monitoring Kepala Unit (OB):</span>
                 </span>
-                <span className="text-[10px] text-slate-500 font-mono">Sandi: password123</span>
+                <span className="text-[10px] text-slate-500 font-mono">Sandi bawaan: password123</span>
               </div>
+              <p className="text-[10px] text-slate-500 leading-relaxed">
+                Database user tersimpan di Google Sheet (Sheet <strong>Users</strong>). Sandi dapat diubah langsung di spreadsheet kolom Password (C).
+              </p>
               <div className="grid grid-cols-2 gap-1.5">
                 {[
                   { name: 'TK', user: 'kepala.tk', pass: 'password123', label: 'Kepala Unit TK' },
                   { name: 'SD', user: 'kepala.sd', pass: 'password123', label: 'Kepala Unit SD' },
                   { name: 'SMP', user: 'kepala.smp', pass: 'password123', label: 'Kepala Unit SMP' },
                   { name: 'Pelangi', user: 'kepala.pelangi', pass: 'password123', label: 'Kepala Unit Pelangi' },
+                  { name: 'Ar Razi', user: 'kepala.arazi', pass: 'password123', label: 'Kepala Unit Ar Razi' },
+                  { name: 'Khaldun', user: 'kepala.khaldun', pass: 'password123', label: 'Kepala Unit Khaldun' },
                 ].map((item) => (
                   <button
                     key={item.user}

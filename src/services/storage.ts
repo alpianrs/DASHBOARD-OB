@@ -131,7 +131,7 @@ export const SEED_PLH_USERS: User[] = [
 
 export const SEED_OB_USERS: User[] = [];
 
-// Akun Resmi Kepala Unit untuk Monitoring Unit Tertentu (TK, SD, SMP, Pelangi Direktorat)
+// Akun Resmi Kepala Unit untuk Monitoring Unit Tertentu (TK, SD, SMP, Pelangi Direktorat, Ar Razi, Khaldun)
 export const SEED_KEPALA_UNIT_USERS: User[] = [
   {
     id: 'u-ku-tk',
@@ -176,6 +176,28 @@ export const SEED_KEPALA_UNIT_USERS: User[] = [
     unit: 'Pelangi Direktorat',
     status: 'Aktif',
     phone: '08123456704',
+  },
+  {
+    id: 'u-ku-arazi',
+    username: 'kepala.arazi',
+    password: 'password123',
+    name: 'Kepala Unit Ar Razi',
+    role: 'kepala_unit',
+    division: 'OB',
+    unit: 'Ar Razi',
+    status: 'Aktif',
+    phone: '08123456705',
+  },
+  {
+    id: 'u-ku-khaldun',
+    username: 'kepala.khaldun',
+    password: 'password123',
+    name: 'Kepala Unit Khaldun',
+    role: 'kepala_unit',
+    division: 'OB',
+    unit: 'Khaldun',
+    status: 'Aktif',
+    phone: '08123456706',
   },
 ];
 
@@ -446,22 +468,21 @@ const SEED_MASTER_TASKS: MasterTask[] = [
   },
 ];
 
-// Seed Master Tasks for PLH (Pekerja Lingkungan Hidup)
+// Seed Master Tasks for PLH (Sesuai Resmi Database Google Sheet MasterTask_PLH)
 // Khusus 5 Area Luar: Area Pos 1, Area Pos 2, Area Khaldun, Area Ex Minifarm, Area Kolam Renang
 export const SEED_PLH_MASTER_TASKS: MasterTask[] = [
-  // PRE-READINESS PLH (00:00 - 09:00)
   {
-    id: 'mt-plh-pr-01',
+    id: 'mt-plh-01',
     title: 'Pre-Readiness: Penyiraman Taman & Perapihan Area Pos 1',
     unit: 'Semua Unit',
     category: 'Harian',
     timingType: 'pre_readiness',
     division: 'PLH',
-    assignee: 'Semua Petugas',
+    assignee: 'Rahmat Hidayat (Kord PLH)',
     instructions: [
-      'Siram seluruh tanaman hias, pohon kecil, dan rumput di sekitar gerbang dan Area Pos 1 sebelum terik pagi.',
-      'Sapu bersih daun gugur dan ranting di paving dan trotoar akses utama.',
-      'Pastikan selang air dirapikan kembali dan tidak melintang di jalan.',
+      'Siram tanaman hias & rumput gerbang utama sebelum terik.',
+      'Sapu daun gugur paving drop-off dan trotoar akses utama.',
+      'Rapikan selang air pada tempatnya dan pastikan kran tertutup rapat.',
     ],
     photoRequired: true,
     standardPhotoUrl: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80',
@@ -470,16 +491,16 @@ export const SEED_PLH_MASTER_TASKS: MasterTask[] = [
     isActive: true,
   },
   {
-    id: 'mt-plh-pr-02',
+    id: 'mt-plh-02',
     title: 'Pre-Readiness: Kebersihan Taman & Drainase Area Pos 2',
     unit: 'Semua Unit',
     category: 'Harian',
     timingType: 'pre_readiness',
     division: 'PLH',
-    assignee: 'Semua Petugas',
+    assignee: 'Ahmad Syahril (PLH)',
     instructions: [
-      'Sapu bersih daun kering dan sampah luar di sekeliling Area Pos 2.',
-      'Periksa grill penutup selokan drainase air hujan dari sumbatan daun/plastik.',
+      'Sapu serasah daun kering sekeliling Pos 2.',
+      'Periksa grill penutup saluran drainase air hujan dari sumbatan dedaunan.',
       'Siram tanaman pot dan tanaman pagar di sekitar Pos 2.',
     ],
     photoRequired: true,
@@ -489,37 +510,36 @@ export const SEED_PLH_MASTER_TASKS: MasterTask[] = [
     isActive: true,
   },
   {
-    id: 'mt-plh-pr-03',
-    title: 'Pre-Readiness: Perawatan Lanskap & Taman Terbuka Area Khaldun',
-    unit: 'Semua Unit',
-    category: 'Harian',
-    timingType: 'pre_readiness',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Siram tanaman lanskap terbuka dan rumput di Area Khaldun.',
-      'Kumpulkan daun kering ke keranjang untuk bahan komposter.',
-      'Pastikan area pedestrian Khaldun bersih dari lumut dan genangan air.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 25,
-    area: 'Area Khaldun',
-    isActive: true,
-  },
-
-  // ANYTIME / OPERASIONAL HARIAN PLH
-  {
-    id: 'mt-plh-at-01',
-    title: 'Pemeliharaan Tanaman, Bedengan & Kompos Area Ex Minifarm',
+    id: 'mt-plh-03',
+    title: 'Perawatan Lanskap Terbuka, Taman & Jalur Pedestrian Khaldun',
     unit: 'Semua Unit',
     category: 'Harian',
     timingType: 'anytime',
     division: 'PLH',
-    assignee: 'Semua Petugas',
+    assignee: 'Andi Komala (PLH)',
     instructions: [
-      'Pangkas gulma / rumput liar (weeding) di sekitar bedengan dan tanaman produktif Ex Minifarm.',
-      'Kelola bak komposter organik daun dan semprotkan cairan pengurai jika perlu.',
-      'Rapikan tumpukan daun dan pastikan area pembibitan bersih dan tertata.',
+      'Siram tanaman lanskap terbuka dan rumput di Area Khaldun.',
+      'Bersihkan jalur pedestrian dari lumut atau daun gugur.',
+      'Cek kesehatan pohon dan tanaman peneduh di sekeliling Khaldun.',
+    ],
+    photoRequired: true,
+    standardPhotoUrl: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=800&q=80',
+    estimatedMinutes: 30,
+    area: 'Area Khaldun',
+    isActive: true,
+  },
+  {
+    id: 'mt-plh-04',
+    title: 'Pemeliharaan Bedengan Pembibitan, Kompos & Gulma Ex Minifarm',
+    unit: 'Semua Unit',
+    category: 'Harian',
+    timingType: 'anytime',
+    division: 'PLH',
+    assignee: 'Dedi Junaedi (PLH)',
+    instructions: [
+      'Kelola bak komposter organik daun dan semprotkan cairan pengurai bila perlu.',
+      'Rapikan bedengan tanaman produktif dan pembibitan.',
+      'Cabut rumput liar (weeding) di sekitar area tanam Ex Minifarm.',
     ],
     photoRequired: true,
     standardPhotoUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6eb2251a?auto=format&fit=crop&w=800&q=80',
@@ -528,17 +548,17 @@ export const SEED_PLH_MASTER_TASKS: MasterTask[] = [
     isActive: true,
   },
   {
-    id: 'mt-plh-at-02',
+    id: 'mt-plh-05',
     title: 'Pembersihan Daun, Bibir Kolam & Saluran Area Kolam Renang',
     unit: 'Semua Unit',
     category: 'Harian',
     timingType: 'anytime',
     division: 'PLH',
-    assignee: 'Semua Petugas',
+    assignee: 'Radilah (PLH)',
     instructions: [
-      'Jaring daun-daun dan ranting yang jatuh ke permukaan kolam renang.',
-      'Sapu dan sikat deck pinggir kolam dari lumut dan kotoran tanah.',
-      'Pangkas dahan pohon yang menjuntai terlalu dekat ke air kolam.',
+      'Jaring serasah dedaunan di permukaan kolam renang.',
+      'Sikat deck pinggir kolam renang dari kotoran dan lumut.',
+      'Cek sirkulasi pompa filter air dan pastikan saluran overflow lancar.',
     ],
     photoRequired: true,
     estimatedMinutes: 40,
@@ -546,245 +566,20 @@ export const SEED_PLH_MASTER_TASKS: MasterTask[] = [
     isActive: true,
   },
   {
-    id: 'mt-plh-at-03',
-    title: 'Pemangkasan Dahan Rendah & Pengecekan Pohon Rawan Tumbang',
-    unit: 'Semua Unit',
-    category: 'Harian',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Inspeksi keliling 5 area luar untuk mengecek pohon yang condong atau ranting lapuk.',
-      'Potong dahan yang berpotensi patah atau menghalangi jalur lintasan.',
-      'Laporkan ke kordinator bila ada pohon besar yang membutuhkan penanganan insidental.',
-    ],
-    photoRequired: false,
-    estimatedMinutes: 35,
-    area: 'Area Khaldun',
-    isActive: true,
-  },
-
-  // CLOCK OUT PLH (09:00 - 23:59)
-  {
-    id: 'mt-plh-co-01',
-    title: 'Clock Out: Penyiraman Sore & Cek Sirkulasi Area Kolam Renang',
+    id: 'mt-plh-06',
+    title: 'Clock Out: Perapihan Selang Air, Mesin Rumput & Kerapihan Area',
     unit: 'Semua Unit',
     category: 'Harian',
     timingType: 'clock_out',
     division: 'PLH',
     assignee: 'Semua Petugas',
     instructions: [
-      'Siram kembali tanaman lanskap di sekitar Kolam Renang dan Area Pos 1.',
-      'Pastikan saluran overflow kolam bersih dari dedaunan.',
-      'Matikan kran air utama luar setelah penyiraman sore selesai.',
-    ],
-    photoRequired: true,
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80',
-    estimatedMinutes: 30,
-    area: 'Area Kolam Renang',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-co-02',
-    title: 'Clock Out: Perapihan Peralatan, Mesin Rumput & Gudang PLH',
-    unit: 'Semua Unit',
-    category: 'Harian',
-    timingType: 'clock_out',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Bersihkan dan keringkan gunting tanaman, sabit, cangkul, dan mesin potong rumput.',
-      'Gulung rapi seluruh selang air pada tempatnya di Area Ex Minifarm / Pos.',
-      'Kunci gudang penyimpanan alat kerja PLH dengan aman.',
+      'Bersihkan & keringkan gunting dahan, cangkul, dan mesin potong rumput.',
+      'Gulung rapi seluruh selang air pada tempatnya.',
+      'Kunci gudang penyimpanan peralatan kerja PLH dengan aman.',
     ],
     photoRequired: true,
     estimatedMinutes: 20,
-    area: 'Area Ex Minifarm',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-co-03',
-    title: 'Clock Out: Pengangkutan Sampah Dedaunan 5 Area Luar ke TPS',
-    unit: 'Semua Unit',
-    category: 'Harian',
-    timingType: 'clock_out',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Angkut seluruh hasil sapuan daun kering dari Pos 1, Pos 2, Khaldun, Ex Minifarm, dan Kolam Renang ke TPS.',
-      'Pastikan tidak ada tumpukan daun berserakan di trotoar atau pinggir lapangan.',
-      'Tutup rapat bak sampah luar agar tidak diacak hewan.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 30,
-    area: 'Area Pos 1',
-    isActive: true,
-  },
-
-  // MINGGUAN PLH (Reset Setiap Hari Senin)
-  {
-    id: 'mt-plh-wk-01',
-    title: 'Mingguan: Pemangkasan Pagar Tanaman, Semak & Topiary 5 Area Luar',
-    unit: 'Semua Unit',
-    category: 'Mingguan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Gunakan gunting dahan dan mesin pemotong semak untuk meratakan tinggi pagar tanaman.',
-      'Bentuk rapi tanaman hias di sepanjang trotoar Pos 1, Pos 2, Khaldun, dan Minifarm.',
-      'Sapu bersih serpihan daun hasil pangkasan dan kumpulkan ke polybag kompos.',
-    ],
-    photoRequired: true,
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6eb2251a?auto=format&fit=crop&w=800&q=80',
-    estimatedMinutes: 60,
-    area: 'Area Pos 1',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-wk-02',
-    title: 'Mingguan: Pemupukan Organik, Penggemburan Tanah & Penanganan Hama Kutu Daun',
-    unit: 'Semua Unit',
-    category: 'Mingguan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Gemburkan tanah di sekeliling perakaran tanaman pot dan bedengan Ex Minifarm.',
-      'Berikan pupuk kompos organik matang secukupnya pada media tanam.',
-      'Cek tanda kutu putih atau jamur pada batang/daun dan semprotkan cairan pestisida nabati jika perlu.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 50,
-    area: 'Area Ex Minifarm',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-wk-03',
-    title: 'Mingguan: Pembersihan Sedimen Lumpur & Sampah Saluran Drainase Terbuka Luar',
-    unit: 'Semua Unit',
-    category: 'Mingguan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Buka penutup grill besi selokan di sepanjang lintasan luar dan Area Pos 2.',
-      'Keruk endapan lumpur, pasir, dan daun busuk yang menumpuk di dasar saluran air hujan.',
-      'Siram saluran dengan air hingga aliran lancar menuju pembuangan kota.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 55,
-    area: 'Area Pos 2',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-wk-04',
-    title: 'Mingguan: Deep Cleaning Kolam Renang (Vacuum Dasar Keramik & Sikat Dinding)',
-    unit: 'Semua Unit',
-    category: 'Mingguan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Pasang selang vacuum head dan jalankan penyedotan endapan kotoran dasar kolam.',
-      'Sikat lumut pada sambungan keramik dinding kolam renang.',
-      'Lakukan backwash dan rinse pada tabung filter pompa sirkulasi kolam.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 75,
-    area: 'Area Kolam Renang',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-wk-05',
-    title: 'Mingguan: Piket Kebersihan & Kesiapan Aula Masjid (Rolling Mingguan PLH)',
-    unit: 'Semua Unit',
-    category: 'Mingguan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Tugas ini bergilir otomatis setiap minggu (reset Senin).',
-      'Vacuum seluruh karpet sajadah Aula Masjid dari debu dan kotoran.',
-      'Lap mimbar, rak Al-Quran, jendela kaca, dan wudhu luar masjid.',
-      'Pastikan pendingin/kipas angin dan wewangian karpet terpasang rapi untuk ibadah.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 45,
-    area: 'Aula Masjid (Rolling PLH)',
-    isActive: true,
-  },
-
-  // BULANAN PLH (Reset Setiap Tanggal 1)
-  {
-    id: 'mt-plh-mo-01',
-    title: 'Bulanan: Inspeksi & Treatment Kanopi Pohon Rimbun Seluruh Sekolah',
-    unit: 'Semua Unit',
-    category: 'Bulanan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Inspeksi keliling seluruh pohon besar di 5 area luar sekolah Lazuardi.',
-      'Identifikasi pohon rimbun yang membahayakan genteng atau kabel listrik (Work Order Pohon).',
-      'Lakukan penanganan internal untuk dahan rendah, dan jadwalkan Vendor Luar untuk treatment pohon besar/tinggi.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 90,
-    area: 'Area Pos 1',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-mo-02',
-    title: 'Bulanan: Pemanenan & Pengayakan Kompos Matang Ex Minifarm',
-    unit: 'Semua Unit',
-    category: 'Bulanan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Bongkar bak komposter daun organik yang sudah terurai sempurna di Minifarm.',
-      'Ayak kompos halus dan masukkan ke karung penyimpanan.',
-      'Distribusikan kompos matang ke area taman TK, SD, SMP, dan pot koridor.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 80,
-    area: 'Area Ex Minifarm',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-mo-03',
-    title: 'Bulanan: Overhaul & Servis Rutin Mesin Potong Rumput & Alat Kerja PLH',
-    unit: 'Semua Unit',
-    category: 'Bulanan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Ganti oli mesin potong rumput dan bersihkan busi serta filter udara.',
-      'Asah mata pisau pemotong rumput dan gunting dahan agar tajam maksimal.',
-      'Periksa selang air, sambungan kran luar, dan inventaris alat di gudang PLH.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 60,
-    area: 'Area Ex Minifarm',
-    isActive: true,
-  },
-  {
-    id: 'mt-plh-mo-04',
-    title: 'Bulanan: Pengecatan Ulang & Perbaikan Fisik Batas Taman / Pagar Luar',
-    unit: 'Semua Unit',
-    category: 'Bulanan',
-    timingType: 'anytime',
-    division: 'PLH',
-    assignee: 'Semua Petugas',
-    instructions: [
-      'Cat ulang pembatas taman / kansteen yang kusam atau berlumut di sekitar Pos 1 & Khaldun.',
-      'Perbaiki tiang bambu penyangga pohon muda yang patah atau miring.',
-      'Pastikan papan penunjuk tanaman dan marka taman terbaca jelas.',
-    ],
-    photoRequired: true,
-    estimatedMinutes: 90,
     area: 'Area Pos 1',
     isActive: true,
   },
@@ -799,8 +594,373 @@ export const DEFAULT_TREE_SOP_INSTRUCTIONS = [
   'Pemeriksaan Perakaran & Kebersihan: Pastikan tanah perakaran stabil tidak gembur/amblas, serta sekeliling pohon bersih dari serasah sampah.',
 ];
 
-// Work Orders Khusus Pohon murni bersumber dari Database Google Sheet (Tanpa Data Dummy)
-export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [];
+// Work Orders Khusus Pohon murni bersumber dari Database Resmi Google Sheet (15 Pohon per 5 Area Tanggung Jawab)
+export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
+  // 1. Area Kolam Renang (Radilah)
+  {
+    id: 'two-2026-001',
+    date: '2026-09-22',
+    area: 'Area Kolam Renang',
+    treeName: 'Pohon Trembesi Rimbun Dekat Kolam Renang',
+    condition: 'Rimbun',
+    treatmentNeeded: 'Penebangan / Topping Pohon Tinggi (Vendor Luar)',
+    handlerType: 'Vendor Luar',
+    vendorName: 'CV Duta Hijau Pertamanan',
+    vendorCost: 2500000,
+    scheduledWeek: 'Minggu ke-4 September 2026',
+    urgency: 'Tinggi / Bahaya',
+    status: 'Dijadwalkan',
+    treatmentStatus: 'Belum Ditangani',
+    notes: 'Dahan atas menjuntai ke kabel PLN dan atap tribun.',
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=800&q=80',
+    reportedBy: 'u-plh-04',
+    reportedByName: 'Radilah (PLH)',
+    assignedStaffId: 'u-plh-04',
+    assignedStaffName: 'Radilah (PLH)',
+    lastCheckedDate: '2026-09-22',
+    lastCheckedTime: '08:15 WIB',
+    lastCheckedByName: 'Radilah (PLH)',
+    checkStatusToday: 'Sudah Dicek',
+    inspectionNotes: 'Pengecekan: dahan tetap stabil.',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'two-2026-014',
+    date: '2026-09-22',
+    area: 'Area Kolam Renang',
+    treeName: 'Pohon Kelapa Gading Sisi Kolam Renang',
+    condition: 'Normal / Sehat',
+    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
+    handlerType: 'Internal PLH',
+    urgency: 'Rendah',
+    status: 'Selesai',
+    treatmentStatus: 'Sudah Ditangani',
+    notes: 'Pelepah daun tua dibersihkan.',
+    reportedBy: 'u-plh-04',
+    reportedByName: 'Radilah (PLH)',
+    assignedStaffId: 'u-plh-04',
+    assignedStaffName: 'Radilah (PLH)',
+    lastCheckedDate: '2026-09-22',
+    lastCheckedTime: '08:30 WIB',
+    lastCheckedByName: 'Radilah (PLH)',
+    checkStatusToday: 'Sudah Dicek Aman',
+    inspectionNotes: 'Kondisi pelepah aman, bebas hama.',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'two-2026-015',
+    date: '2026-09-22',
+    area: 'Area Kolam Renang',
+    treeName: 'Pohon Beringin Dolar Taman Kolam',
+    condition: 'Normal / Sehat',
+    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
+    handlerType: 'Internal PLH',
+    urgency: 'Rendah',
+    status: 'Selesai',
+    treatmentStatus: 'Sudah Ditangani',
+    notes: 'Tajuk rapi dan terawat.',
+    reportedBy: 'u-plh-04',
+    reportedByName: 'Radilah (PLH)',
+    assignedStaffId: 'u-plh-04',
+    assignedStaffName: 'Radilah (PLH)',
+    lastCheckedDate: '2026-09-22',
+    lastCheckedTime: '08:45 WIB',
+    lastCheckedByName: 'Radilah (PLH)',
+    checkStatusToday: 'Sudah Dicek Aman',
+    inspectionNotes: 'Tajuk bulat estetis, bebas hama.',
+    createdAt: new Date().toISOString(),
+  },
+
+  // 2. Area Pos 1 (Rahmat Hidayat)
+  {
+    id: 'two-2026-004',
+    date: '2026-09-22',
+    area: 'Area Pos 1',
+    treeName: 'Pohon Beringin & Mahoni Pintu Masuk Gerbang Pos 1',
+    condition: 'Rimbun',
+    treatmentNeeded: 'Penjarangan Kanopi Rimbun',
+    handlerType: 'Internal PLH',
+    scheduledWeek: 'Minggu ke-4 September 2026',
+    urgency: 'Sedang',
+    status: 'Perlu Penanganan',
+    treatmentStatus: 'Belum Ditangani',
+    notes: 'Dahan rimbun condong ke jalur drop-off.',
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80',
+    reportedBy: 'u-kord-plh',
+    reportedByName: 'Rahmat Hidayat (Kord PLH)',
+    assignedStaffId: 'u-kord-plh',
+    assignedStaffName: 'Rahmat Hidayat (Kord PLH)',
+    lastCheckedDate: '2026-09-22',
+    lastCheckedTime: '07:30 WIB',
+    lastCheckedByName: 'Rahmat Hidayat (Kord PLH)',
+    checkStatusToday: 'Sudah Dicek',
+    inspectionNotes: 'Pengecekan: dahan lebat mulai sentuh tiang lampu.',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'two-2026-006',
+    date: '2026-09-22',
+    area: 'Area Pos 1',
+    treeName: 'Pohon Mangga Arumanis Depan Pos 1',
+    condition: 'Normal / Sehat',
+    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
+    handlerType: 'Internal PLH',
+    urgency: 'Rendah',
+    status: 'Selesai',
+    treatmentStatus: 'Sudah Ditangani',
+    notes: 'Pohon berbuah lebat, dahan bawah tinggi.',
+    reportedBy: 'u-kord-plh',
+    reportedByName: 'Rahmat Hidayat (Kord PLH)',
+    assignedStaffId: 'u-kord-plh',
+    assignedStaffName: 'Rahmat Hidayat (Kord PLH)',
+    lastCheckedDate: '2026-09-22',
+    lastCheckedTime: '07:45 WIB',
+    lastCheckedByName: 'Rahmat Hidayat (Kord PLH)',
+    checkStatusToday: 'Sudah Dicek Aman',
+    inspectionNotes: 'Kondisi sehat, daun hijau segar.',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'two-2026-007',
+    date: '2026-09-22',
+    area: 'Area Pos 1',
+    treeName: 'Pohon Pucuk Merah Pagar Depan Pos 1',
+    condition: 'Normal / Sehat',
+    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
+    handlerType: 'Internal PLH',
+    urgency: 'Rendah',
+    status: 'Selesai',
+    treatmentStatus: 'Sudah Ditangani',
+    notes: 'Pagar pucuk merah tumbuh rapi dan segar.',
+    reportedBy: 'u-kord-plh',
+    reportedByName: 'Rahmat Hidayat (Kord PLH)',
+    assignedStaffId: 'u-kord-plh',
+    assignedStaffName: 'Rahmat Hidayat (Kord PLH)',
+    lastCheckedDate: '2026-09-22',
+    lastCheckedTime: '08:00 WIB',
+    lastCheckedByName: 'Rahmat Hidayat (Kord PLH)',
+    checkStatusToday: 'Sudah Dicek Aman',
+    inspectionNotes: 'Pucuk merah berwarna cerah merata.',
+    createdAt: new Date().toISOString(),
+  },
+
+  // 3. Area Pos 2 (Ahmad Syahril)
+  {
+    id: 'two-2026-002',
+    date: '2026-09-22',
+    area: 'Area Pos 2',
+    treeName: 'Pohon Ketapang Kencana Dekat Gerbang Pos 2',
+    condition: 'Rimbun',
+    treatmentNeeded: 'Penjarangan Kanopi Rimbun',
+    handlerType: 'Internal PLH',
+    scheduledWeek: 'Minggu ke-4 September 2026',
+    urgency: 'Sedang',
+    status: 'Sedang Dikerjakan',
+    treatmentStatus: 'Sedang Ditangani',
+    notes: 'Kanopi daun lebat tutupi lampu malam Pos 2.',
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=800&q=80',
+    reportedBy: 'u-plh-01',
+    reportedByName: 'Ahmad Syahril (PLH)',
+    assignedStaffId: 'u-plh-01',
+    assignedStaffName: 'Ahmad Syahril (PLH)',
+    lastCheckedDate: '2026-09-22',
+    lastCheckedTime: '08:10 WIB',
+    lastCheckedByName: 'Ahmad Syahril (PLH)',
+    checkStatusToday: 'Sudah Dicek',
+    inspectionNotes: 'Proses pemangkasan berjalan.',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'two-2026-008',
+    date: '2026-09-22',
+    area: 'Area Pos 2',
+    treeName: 'Pohon Mahoni Samping Pos 2',
+    condition: 'Normal / Sehat',
+    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
+    handlerType: 'Internal PLH',
+    urgency: 'Rendah',
+    status: 'Selesai',
+    treatmentStatus: 'Sudah Ditangani',
+    notes: 'Batang kokoh tegak lurus, bebas rayap.',
+    reportedBy: 'u-plh-01',
+    reportedByName: 'Ahmad Syahril (PLH)',
+    assignedStaffId: 'u-plh-01',
+    assignedStaffName: 'Ahmad Syahril (PLH)',
+    lastCheckedDate: '2026-09-22',
+    lastCheckedTime: '08:25 WIB',
+    lastCheckedByName: 'Ahmad Syahril (PLH)',
+    checkStatusToday: 'Sudah Dicek Aman',
+    inspectionNotes: 'Batang bersih, bebas rayap dan lumut.',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'two-2026-009',
+    date: '2026-09-22',
+    area: 'Area Pos 2',
+    treeName: 'Pohon Palem Kenari Jalur Gerbang 2',
+    condition: 'Normal / Sehat',
+    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
+    handlerType: 'Internal PLH',
+    urgency: 'Rendah',
+    status: 'Selesai',
+    treatmentStatus: 'Sudah Ditangani',
+    notes: 'Pelepah rapi tidak menghalangi spanduk.',
+    reportedBy: 'u-plh-01',
+    reportedByName: 'Ahmad Syahril (PLH)',
+    assignedStaffId: 'u-plh-01',
+    assignedStaffName: 'Ahmad Syahril (PLH)',
+    lastCheckedDate: '2026-09-22',
+    lastCheckedTime: '08:40 WIB',
+    lastCheckedByName: 'Ahmad Syahril (PLH)',
+    checkStatusToday: 'Sudah Dicek Aman',
+    inspectionNotes: 'Pelepah kering sudah dipangkas tuntas.',
+    createdAt: new Date().toISOString(),
+  },
+
+  // 4. Area Khaldun (Andi Komala)
+  {
+    id: 'two-2026-003',
+    date: '2026-09-20',
+    area: 'Area Khaldun',
+    treeName: 'Pohon Flamboyan Area Lanskap Khaldun',
+    condition: 'Dahan Kering / Lapuk',
+    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
+    handlerType: 'Internal PLH',
+    urgency: 'Sedang',
+    status: 'Selesai',
+    treatmentStatus: 'Sudah Ditangani',
+    notes: '3 dahan kering dipangkas rapi.',
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=800&q=80',
+    reportedBy: 'u-plh-02',
+    reportedByName: 'Andi Komala (PLH)',
+    assignedStaffId: 'u-plh-02',
+    assignedStaffName: 'Andi Komala (PLH)',
+    lastCheckedDate: '2026-09-22',
+    lastCheckedTime: '07:50 WIB',
+    lastCheckedByName: 'Andi Komala (PLH)',
+    checkStatusToday: 'Sudah Dicek Aman',
+    inspectionNotes: 'Bekas pangkasan mengering bagus.',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'two-2026-010',
+    date: '2026-09-22',
+    area: 'Area Khaldun',
+    treeName: 'Pohon Angsana Belakang Gedung Khaldun',
+    condition: 'Normal / Sehat',
+    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
+    handlerType: 'Internal PLH',
+    urgency: 'Rendah',
+    status: 'Selesai',
+    treatmentStatus: 'Sudah Ditangani',
+    notes: 'Tajuk rindang peneduh taman.',
+    reportedBy: 'u-plh-02',
+    reportedByName: 'Andi Komala (PLH)',
+    assignedStaffId: 'u-plh-02',
+    assignedStaffName: 'Andi Komala (PLH)',
+    lastCheckedDate: '2026-09-22',
+    lastCheckedTime: '08:05 WIB',
+    lastCheckedByName: 'Andi Komala (PLH)',
+    checkStatusToday: 'Sudah Dicek Aman',
+    inspectionNotes: 'Daun rimbun hijau merata, aman.',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'two-2026-011',
+    date: '2026-09-22',
+    area: 'Area Khaldun',
+    treeName: 'Pohon Tabebuya Kuning Koridor Khaldun',
+    condition: 'Normal / Sehat',
+    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
+    handlerType: 'Internal PLH',
+    urgency: 'Rendah',
+    status: 'Selesai',
+    treatmentStatus: 'Sudah Ditangani',
+    notes: 'Pertumbuhan bunga stabil, perakaran aman.',
+    reportedBy: 'u-plh-02',
+    reportedByName: 'Andi Komala (PLH)',
+    assignedStaffId: 'u-plh-02',
+    assignedStaffName: 'Andi Komala (PLH)',
+    lastCheckedDate: '2026-09-22',
+    lastCheckedTime: '08:20 WIB',
+    lastCheckedByName: 'Andi Komala (PLH)',
+    checkStatusToday: 'Sudah Dicek Aman',
+    inspectionNotes: 'Batang bersih, bebas parasit.',
+    createdAt: new Date().toISOString(),
+  },
+
+  // 5. Area Ex Minifarm (Dedi Junaedi)
+  {
+    id: 'two-2026-005',
+    date: '2026-09-22',
+    area: 'Area Ex Minifarm',
+    treeName: 'Pohon Mangga & Sengon Samping Bedengan Pembibitan',
+    condition: 'Terserang Hama / Benalu',
+    treatmentNeeded: 'Pemberian Nutrisi / Obat Hama Batang',
+    handlerType: 'Internal PLH',
+    urgency: 'Sedang',
+    status: 'Sedang Dikerjakan',
+    treatmentStatus: 'Sedang Ditangani',
+    notes: 'Benalu dahan utama dan rayap sengon.',
+    photoBeforeUrl: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=800&q=80',
+    reportedBy: 'u-plh-03',
+    reportedByName: 'Dedi Junaedi (PLH)',
+    assignedStaffId: 'u-plh-03',
+    assignedStaffName: 'Dedi Junaedi (PLH)',
+    lastCheckedDate: '2026-09-22',
+    lastCheckedTime: '08:00 WIB',
+    lastCheckedByName: 'Dedi Junaedi (PLH)',
+    checkStatusToday: 'Sudah Dicek',
+    inspectionNotes: 'Benalu dicabut 80%, semprot organik sore.',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'two-2026-012',
+    date: '2026-09-22',
+    area: 'Area Ex Minifarm',
+    treeName: 'Pohon Jambu Air Citra Minifarm',
+    condition: 'Normal / Sehat',
+    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
+    handlerType: 'Internal PLH',
+    urgency: 'Rendah',
+    status: 'Selesai',
+    treatmentStatus: 'Sudah Ditangani',
+    notes: 'Tajuk rapi di sekeliling bedengan.',
+    reportedBy: 'u-plh-03',
+    reportedByName: 'Dedi Junaedi (PLH)',
+    assignedStaffId: 'u-plh-03',
+    assignedStaffName: 'Dedi Junaedi (PLH)',
+    lastCheckedDate: '2026-09-22',
+    lastCheckedTime: '08:15 WIB',
+    lastCheckedByName: 'Dedi Junaedi (PLH)',
+    checkStatusToday: 'Sudah Dicek Aman',
+    inspectionNotes: 'Buah mulai pentil, bebas lalat buah.',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'two-2026-013',
+    date: '2026-09-22',
+    area: 'Area Ex Minifarm',
+    treeName: 'Pohon Nangka Mini Area Ex Minifarm',
+    condition: 'Normal / Sehat',
+    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
+    handlerType: 'Internal PLH',
+    urgency: 'Rendah',
+    status: 'Selesai',
+    treatmentStatus: 'Sudah Ditangani',
+    notes: 'Batang pendek produktif, tanah gembur.',
+    reportedBy: 'u-plh-03',
+    reportedByName: 'Dedi Junaedi (PLH)',
+    assignedStaffId: 'u-plh-03',
+    assignedStaffName: 'Dedi Junaedi (PLH)',
+    lastCheckedDate: '2026-09-22',
+    lastCheckedTime: '08:30 WIB',
+    lastCheckedByName: 'Dedi Junaedi (PLH)',
+    checkStatusToday: 'Sudah Dicek Aman',
+    inspectionNotes: 'Batang kokoh, buah aman terbungkus.',
+    createdAt: new Date().toISOString(),
+  },
+];
 
 // Combine all MasterTasks (OB + PLH)
 export const ALL_INITIAL_MASTER_TASKS: MasterTask[] = [
@@ -1109,13 +1269,31 @@ export const StorageService = {
   },
 
   getMasterTasks: (): MasterTask[] => {
-    const tasks = getStoredItem<MasterTask[]>(STORAGE_KEYS.MASTER_TASKS, ALL_INITIAL_MASTER_TASKS);
-    if (!tasks || tasks.length === 0) {
+    const rawTasks = getStoredItem<MasterTask[]>(STORAGE_KEYS.MASTER_TASKS, ALL_INITIAL_MASTER_TASKS);
+    if (!rawTasks || rawTasks.length === 0) {
       setStoredItem(STORAGE_KEYS.MASTER_TASKS, ALL_INITIAL_MASTER_TASKS);
       return ALL_INITIAL_MASTER_TASKS;
     }
+
+    // Bersihkan task dummy PLH lama (mt-plh-pr-*, mt-plh-at-*, mt-plh-co-*, mt-plh-wk-*, mt-plh-mo-*)
+    // Terutama: "Pre-Readiness: Perawatan Lanskap & Taman Terbuka Area Khaldun"
+    const dummyPlhIds = new Set([
+      'mt-plh-pr-01', 'mt-plh-pr-02', 'mt-plh-pr-03',
+      'mt-plh-at-01', 'mt-plh-at-02', 'mt-plh-at-03',
+      'mt-plh-co-01', 'mt-plh-co-02', 'mt-plh-co-03',
+      'mt-plh-wk-01', 'mt-plh-wk-02', 'mt-plh-wk-03', 'mt-plh-wk-04', 'mt-plh-wk-05',
+      'mt-plh-mo-01', 'mt-plh-mo-02', 'mt-plh-mo-03', 'mt-plh-mo-04'
+    ]);
+    const cleanedTasks = rawTasks.filter((t) => {
+      if (dummyPlhIds.has(t.id)) return false;
+      if (t.title.includes('Perawatan Lanskap & Taman Terbuka Area Khaldun')) return false;
+      return true;
+    });
+
+    const tasks = cleanedTasks.length > 0 ? cleanedTasks : ALL_INITIAL_MASTER_TASKS;
+    let hasUpdated = cleanedTasks.length !== rawTasks.length;
+
     // Ensure every task has division, assignee, and standardPhotoUrl
-    let hasUpdated = false;
     let normalizedTasks = tasks.map((t) => {
       let modified = false;
       const updated = { ...t };
@@ -1142,7 +1320,6 @@ export const StorageService = {
       return updated;
     });
 
-    // DO NOT re-inject SEED_PLH_MASTER_TASKS so user tasks edited in Google Sheet are preserved
     if (hasUpdated) {
       setStoredItem(STORAGE_KEYS.MASTER_TASKS, normalizedTasks);
     }
@@ -1480,6 +1657,50 @@ export const StorageService = {
   saveWeeklyScores: (scores: WeeklyScore[]): void => {
     setStoredItem(STORAGE_KEYS.WEEKLY_SCORES, scores);
   },
+  mergeWeeklyScores: (remoteScores: WeeklyScore[]): WeeklyScore[] => {
+    const local = StorageService.getWeeklyScores();
+    const map = new Map<string, WeeklyScore>();
+
+    remoteScores.forEach((r) => {
+      if (r && r.id) {
+        map.set(r.id, { ...r });
+      }
+    });
+
+    local.forEach((l) => {
+      if (!map.has(l.id)) {
+        map.set(l.id, l);
+      } else {
+        const r = map.get(l.id)!;
+        const kordScore = r.kordinatorScore ?? l.kordinatorScore ?? (r.evaluatorRole === 'kordinator' ? r.score : l.score);
+        const kuScore = r.kepalaUnitScore ?? l.kepalaUnitScore;
+        let accScore = r.accumulatedScore ?? l.accumulatedScore;
+        if (kordScore !== undefined && kuScore !== undefined) {
+          accScore = Number(((kordScore + kuScore) / 2).toFixed(2));
+        } else if (kordScore !== undefined) {
+          accScore = kordScore;
+        } else if (kuScore !== undefined) {
+          accScore = kuScore;
+        }
+
+        map.set(l.id, {
+          ...r,
+          kordinatorScore: kordScore,
+          kordinatorName: r.kordinatorName || l.kordinatorName,
+          kepalaUnitScore: kuScore,
+          kepalaUnitName: r.kepalaUnitName || l.kepalaUnitName,
+          kepalaUnitNotes: r.kepalaUnitNotes || l.kepalaUnitNotes,
+          accumulatedScore: accScore,
+          score: accScore ?? r.score,
+          evaluatorRole: (kordScore !== undefined && kuScore !== undefined) ? 'gabungan' : (r.evaluatorRole || l.evaluatorRole),
+        });
+      }
+    });
+
+    const result = Array.from(map.values()).sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+    StorageService.saveWeeklyScores(result);
+    return result;
+  },
   addWeeklyScore: (score: WeeklyScore): void => {
     const list = StorageService.getWeeklyScores();
     const existingIndex = list.findIndex(
@@ -1489,10 +1710,70 @@ export const StorageService = {
           ((w.saturdayDate && w.saturdayDate === score.saturdayDate) ||
             (w.dateRange && w.dateRange === score.dateRange)))
     );
+
     if (existingIndex !== -1) {
-      list[existingIndex] = score;
+      const existing = list[existingIndex];
+      let merged: WeeklyScore = { ...existing };
+
+      if (score.evaluatorRole === 'kepala_unit') {
+        const kuScore = score.kepalaUnitScore ?? score.score;
+        merged.kepalaUnitScore = kuScore;
+        merged.kepalaUnitName = score.kepalaUnitName || score.kordinatorName;
+        merged.kepalaUnitNotes = score.kepalaUnitNotes || score.notes;
+        merged.kepalaUnitCategoryScores = score.kepalaUnitCategoryScores || score.categoryScores;
+        merged.timestamp = new Date().toISOString();
+
+        // Akumulasi dengan nilai Kordinator jika sudah ada
+        if (existing.kordinatorScore !== undefined && existing.kordinatorScore > 0) {
+          merged.accumulatedScore = Number(((existing.kordinatorScore + kuScore) / 2).toFixed(2));
+          merged.score = merged.accumulatedScore;
+          merged.evaluatorRole = 'gabungan';
+        } else if (existing.score > 0 && existing.evaluatorRole !== 'kepala_unit') {
+          merged.kordinatorScore = existing.score;
+          merged.accumulatedScore = Number(((existing.score + kuScore) / 2).toFixed(2));
+          merged.score = merged.accumulatedScore;
+          merged.evaluatorRole = 'gabungan';
+        } else {
+          merged.accumulatedScore = kuScore;
+          merged.score = kuScore;
+          merged.evaluatorRole = 'kepala_unit';
+        }
+      } else {
+        // Penilaian dari Kordinator
+        const kordScore = score.kordinatorScore ?? score.score;
+        merged.kordinatorScore = kordScore;
+        merged.kordinatorName = score.kordinatorName;
+        merged.kordinatorNotes = score.kordinatorNotes || score.notes;
+        merged.kordinatorCategoryScores = score.categoryScores;
+        merged.categoryScores = score.categoryScores;
+        merged.notes = score.notes;
+        merged.timestamp = new Date().toISOString();
+
+        // Akumulasi dengan nilai Kepala Unit jika sudah ada
+        if (existing.kepalaUnitScore !== undefined && existing.kepalaUnitScore > 0) {
+          merged.accumulatedScore = Number(((kordScore + existing.kepalaUnitScore) / 2).toFixed(2));
+          merged.score = merged.accumulatedScore;
+          merged.evaluatorRole = 'gabungan';
+        } else {
+          merged.accumulatedScore = kordScore;
+          merged.score = kordScore;
+          merged.evaluatorRole = 'kordinator';
+        }
+      }
+
+      list[existingIndex] = merged;
     } else {
-      list.unshift(score);
+      // Data baru
+      const newScore: WeeklyScore = { ...score };
+      if (newScore.evaluatorRole === 'kepala_unit') {
+        newScore.kepalaUnitScore = newScore.kepalaUnitScore ?? newScore.score;
+        newScore.accumulatedScore = newScore.kepalaUnitScore;
+      } else {
+        newScore.kordinatorScore = newScore.kordinatorScore ?? newScore.score;
+        newScore.accumulatedScore = newScore.kordinatorScore;
+        newScore.evaluatorRole = 'kordinator';
+      }
+      list.unshift(newScore);
     }
     StorageService.saveWeeklyScores(list);
   },
@@ -1582,22 +1863,11 @@ export const StorageService = {
     return { isOff: false, reason: '' };
   },
 
-  // Tree Work Orders (Murni bersumber dari database Google Sheet / input user tanpa dummy)
+  // Tree Work Orders (Murni bersumber dari database Google Sheet WorkOrder_Pohon)
   getTreeWorkOrders: (): TreeWorkOrder[] => {
-    const rawList = getStoredItem<TreeWorkOrder[]>(STORAGE_KEYS.TREE_WORK_ORDERS, []);
-    if (!rawList || rawList.length === 0) {
-      return [];
-    }
-
-    // Bersihkan data dummy lama (CV Duta Hijau / ID seed) agar murni hanya dari database
-    const dummyIds = new Set([
-      'two-2026-001', 'two-2026-002', 'two-2026-003', 'two-2026-004', 'two-2026-005',
-      'two-2026-006', 'two-2026-007', 'two-2026-008', 'two-2026-009', 'two-2026-010',
-      'two-2026-011', 'two-2026-012', 'two-2026-013', 'two-2026-014'
-    ]);
-    const list = rawList.filter((ord) => !dummyIds.has(ord.id) && ord.vendorName !== 'CV Duta Hijau Pertamanan');
-    if (list.length === 0) {
-      if (rawList.length > 0) setStoredItem(STORAGE_KEYS.TREE_WORK_ORDERS, []);
+    const rawList = getStoredItem<TreeWorkOrder[]>(STORAGE_KEYS.TREE_WORK_ORDERS, SEED_TREE_WORK_ORDERS);
+    const list = rawList && rawList.length > 0 ? rawList : SEED_TREE_WORK_ORDERS;
+    if (!list || list.length === 0) {
       return [];
     }
     let modified = false;
@@ -1761,6 +2031,55 @@ export const StorageService = {
   },
   saveTreeWorkOrders: (orders: TreeWorkOrder[]): void => {
     setStoredItem(STORAGE_KEYS.TREE_WORK_ORDERS, orders || []);
+  },
+  mergeTreeWorkOrders: (remoteOrders: TreeWorkOrder[]): TreeWorkOrder[] => {
+    const local = StorageService.getTreeWorkOrders();
+    const map = new Map<string, TreeWorkOrder>();
+
+    // Index remote trees first
+    remoteOrders.forEach((r) => {
+      if (r && r.id) {
+        map.set(r.id, { ...r });
+      }
+    });
+
+    // Merge with local trees so local checks / inspections / photos are not lost
+    local.forEach((l) => {
+      if (!map.has(l.id)) {
+        map.set(l.id, l);
+      } else {
+        const r = map.get(l.id)!;
+        // Merge inspection histories
+        const historyMap = new Map<string, any>();
+        (r.inspectionHistory || []).forEach((h) => historyMap.set(h.id, h));
+        (l.inspectionHistory || []).forEach((h) => {
+          if (!historyMap.has(h.id)) historyMap.set(h.id, h);
+        });
+        const mergedHistory = Array.from(historyMap.values()).sort(
+          (a, b) => new Date(b.timestamp || b.date).getTime() - new Date(a.timestamp || a.date).getTime()
+        );
+
+        map.set(l.id, {
+          ...r,
+          checkStatusToday: l.checkStatusToday || r.checkStatusToday,
+          lastCheckedDate: l.lastCheckedDate || r.lastCheckedDate,
+          lastCheckedTime: l.lastCheckedTime || r.lastCheckedTime,
+          lastCheckedByName: l.lastCheckedByName || r.lastCheckedByName,
+          photoBeforeUrl: l.photoBeforeUrl || r.photoBeforeUrl,
+          photoAfterUrl: l.photoAfterUrl || r.photoAfterUrl,
+          drivePhotoBeforeUrl: l.drivePhotoBeforeUrl || r.drivePhotoBeforeUrl,
+          drivePhotoAfterUrl: l.drivePhotoAfterUrl || r.drivePhotoAfterUrl,
+          inspectionHistory: mergedHistory.length > 0 ? mergedHistory : undefined,
+          treatmentStatus: l.treatmentStatus || r.treatmentStatus,
+          status: l.status || r.status,
+          notes: l.notes || r.notes,
+        });
+      }
+    });
+
+    const result = Array.from(map.values());
+    StorageService.saveTreeWorkOrders(result);
+    return result;
   },
   addTreeWorkOrder: (order: TreeWorkOrder): void => {
     const list = StorageService.getTreeWorkOrders();
@@ -2093,9 +2412,12 @@ export const isTaskAssignedToUser = (task: MasterTask, user: User): boolean => {
     // Tugas Piket Rolling Masjid: Hanya untuk staf yang sedang giliran piket masjid minggu ini!
     const isMasjidRollingTask =
       task.id === 'mt-plh-wk-05' ||
+      task.id.toLowerCase().includes('rolling') ||
       task.title.toLowerCase().includes('aula masjid') ||
-      task.title.toLowerCase().includes('rolling mingguan plh') ||
-      task.title.toLowerCase().includes('piket rolling masjid');
+      task.title.toLowerCase().includes('rolling') ||
+      task.title.toLowerCase().includes('piket rolling') ||
+      (task.area || '').toLowerCase().includes('rolling') ||
+      (task.area || '').toLowerCase().includes('aula masjid');
 
     if (isMasjidRollingTask) {
       const userArea = user.assignedArea || user.unit || '';

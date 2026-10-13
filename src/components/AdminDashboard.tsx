@@ -45,6 +45,8 @@ import {
   Printer,
   FileText,
   MapPin,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -122,6 +124,7 @@ interface AdminDashboardProps {
   onUpdateTaskLog?: (taskLog: TaskLog) => void;
   onDeleteTaskLog?: (logId: string) => void;
   onTriggerSync: () => void;
+  onSubmitWeeklyScore?: (score: WeeklyScore) => void;
 }
 
 const COLORS = ['#10B981', '#F59E0B', '#3B82F6', '#EC4899', '#8B5CF6', '#06B6D4'];
@@ -146,12 +149,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onUpdateTaskLog,
   onDeleteTaskLog,
   onTriggerSync,
+  onSubmitWeeklyScore,
 }) => {
   const isKepalaUnit = activeUser.role === 'kepala_unit';
   const kepalaUnitLockedUnit = isKepalaUnit ? (activeUser.unit || 'TK') : null;
 
   const [adminTab, setAdminTab] = useState<
-    'analytics' | 'rekap_tugas' | 'job_bareng' | 'dinas_luar' | 'manajemen_user' | 'master_task' | 'hari_libur' | 'google_sync' | 'pohon_masjid'
+    'analytics' | 'rekap_tugas' | 'job_bareng' | 'dinas_luar' | 'evaluasi_unit' | 'manajemen_user' | 'master_task' | 'hari_libur' | 'google_sync' | 'pohon_masjid'
   >('analytics');
 
   // Date filtering state using Jakarta (WIB) timezone
@@ -343,6 +347,106 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         GoogleSheetsService.pushAllToSheets().catch(console.warn);
       }
     }
+  };
+
+  // State Khusus Evaluasi Petugas OB oleh Kepala Unit (Akumulasi Nilai Kordinator & Kepala Unit)
+  const saturdayOptionsList = getSaturdayOptionsList(12, 1);
+  const initialSaturdayDate = saturdayOptionsList[0]?.isoDate || getJakartaDateString();
+  const [evalStaffId, setEvalStaffId] = useState<string>('');
+  const [evalSaturdayDate, setEvalSaturdayDate] = useState<string>(initialSaturdayDate);
+  const [evalCategoryScores, setEvalCategoryScores] = useState<Record<string, number>>(() => {
+    const init: Record<string, number> = {};
+    EVALUATION_CATEGORIES.forEach((cat) => {
+      init[cat] = 4;
+    });
+    return init;
+  });
+  const [evalNotes, setEvalNotes] = useState<string>('');
+  const [evalSuccessMsg, setEvalSuccessMsg] = useState<string | null>(null);
+  const [evalExpandedScoreId, setEvalExpandedScoreId] = useState<string | null>(null);
+
+  // Filter staf OB khusus unit Kepala Unit (atau seluruh OB untuk Admin FM)
+  const unitOBStaffList = allUsers.filter((u) => {
+    if (u.status !== 'Aktif') return false;
+    if (u.role !== 'user') return false;
+    if ((u.division || 'OB') !== 'OB') return false;
+    if (isKepalaUnit) {
+      const myUnit = (activeUser.unit || '').trim().toLowerCase();
+      const uUnit = (u.unit || '').trim().toLowerCase();
+      return uUnit === myUnit || uUnit.includes(myUnit) || myUnit.includes(uUnit);
+    }
+    return true;
+  });
+
+  // Nilai rata-rata dari form 15 kategori saat ini
+  const evalScoreValues: number[] = Object.values(evalCategoryScores);
+  const currentLiveEvalAvg =
+    evalScoreValues.length > 0
+      ? Number((evalScoreValues.reduce((a: number, b: number) => a + b, 0) / evalScoreValues.length).toFixed(2))
+      : 4;
+
+  const handleSetAllEvalCategories = (val: number) => {
+    const updated: Record<string, number> = {};
+    EVALUATION_CATEGORIES.forEach((cat) => {
+      updated[cat] = val;
+    });
+    setEvalCategoryScores(updated);
+  };
+
+  const handleSaveKepalaUnitEvaluation = (e: React.FormEvent) => {
+    e.preventDefault();
+    const effectiveStaffId = evalStaffId || (unitOBStaffList[0]?.id || '');
+    if (!effectiveStaffId) return;
+    const targetStaff = allUsers.find((u) => u.id === effectiveStaffId);
+    if (!targetStaff) return;
+
+    const matchedOption = saturdayOptionsList.find((o) => o.isoDate === evalSaturdayDate);
+    const dateFormatted = matchedOption?.formattedFull || formatSaturdayDate(evalSaturdayDate);
+    const targetDate = new Date(evalSaturdayDate);
+    const evalYear = isNaN(targetDate.getFullYear()) ? new Date().getFullYear() : targetDate.getFullYear();
+
+    const matchedExistingScore = weeklyScores.find(
+      (w) =>
+        w.userId === effectiveStaffId &&
+        ((w.saturdayDate && w.saturdayDate === evalSaturdayDate) ||
+          (w.dateRange && w.dateRange.includes(evalSaturdayDate)))
+    );
+
+    const newScore: WeeklyScore = {
+      id: matchedExistingScore?.id || `ws-ku-${Date.now()}`,
+      saturdayDate: evalSaturdayDate,
+      dateRange: dateFormatted,
+      weekNumber: Math.ceil(targetDate.getDate() / 7) || 1,
+      year: evalYear,
+      userId: targetStaff.id,
+      userName: targetStaff.name,
+      unit: targetStaff.unit,
+      division: 'OB',
+      evaluatorRole: 'kepala_unit',
+      kordinatorId: matchedExistingScore?.kordinatorId,
+      kordinatorName: matchedExistingScore?.kordinatorName,
+      kordinatorScore: matchedExistingScore?.kordinatorScore,
+      kordinatorNotes: matchedExistingScore?.kordinatorNotes,
+      kepalaUnitScore: currentLiveEvalAvg,
+      kepalaUnitName: `${activeUser.name} (Kepala Unit ${activeUser.unit || targetStaff.unit})`,
+      kepalaUnitNotes: evalNotes.trim() || `Penilaian kebersihan OB oleh Kepala Unit ${activeUser.unit || targetStaff.unit} (${dateFormatted})`,
+      kepalaUnitCategoryScores: { ...evalCategoryScores },
+      categoryScores: { ...evalCategoryScores },
+      notes: evalNotes.trim() || `Penilaian kebersihan OB oleh Kepala Unit ${activeUser.unit || targetStaff.unit} (${dateFormatted})`,
+      score: currentLiveEvalAvg,
+      timestamp: new Date().toISOString(),
+    };
+
+    if (onSubmitWeeklyScore) {
+      onSubmitWeeklyScore(newScore);
+    } else {
+      StorageService.addWeeklyScore(newScore);
+    }
+
+    setEvalSuccessMsg(
+      `Berhasil menyimpan penilaian OB untuk ${targetStaff.name} pada ${dateFormatted}! Nilai otomatis diakumulasikan dengan Kordinator.`
+    );
+    setTimeout(() => setEvalSuccessMsg(null), 4000);
   };
 
   // Helper to check if a date string/ISO falls within the currently active global date filter
@@ -1220,6 +1324,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         >
           <Plane className="w-3.5 h-3.5 text-sky-400" />
           <span>Persetujuan Dinas ({dinasRequests.filter((d) => d.status === 'Pending').length})</span>
+        </button>
+
+        <button
+          onClick={() => setAdminTab('evaluasi_unit')}
+          className={`py-2 px-3.5 rounded-xl transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+            adminTab === 'evaluasi_unit'
+              ? 'bg-indigo-700 text-white shadow-xs font-bold'
+              : 'text-indigo-900 hover:text-indigo-950 hover:bg-indigo-50 font-semibold'
+          }`}
+        >
+          <Award className="w-3.5 h-3.5 text-amber-300" />
+          <span>
+            {isKepalaUnit ? `Penilaian OB Unit (${activeUser.unit})` : 'Penilaian OB Unit & Akumulasi'}
+          </span>
         </button>
 
         {!isKepalaUnit && (
@@ -2620,7 +2738,474 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       )}
 
-      {/* TAB 5: MANAJEMEN USER (ROTASI UNIT & STATUS) */}
+      {/* TAB: EVALUASI PETUGAS OB OLEH KEPALA UNIT (AKUMULASI DENGAN KORDINATOR) */}
+      {adminTab === 'evaluasi_unit' && (
+        <div className="space-y-5 animate-in fade-in duration-150">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-indigo-950 text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-indigo-700/40 relative overflow-hidden">
+            <div className="absolute -top-12 -right-12 w-48 h-48 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="flex items-start justify-between gap-4 flex-wrap relative z-10">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2.5 py-1 rounded-xl bg-amber-400 text-slate-950 font-black text-[11px] shadow-xs">
+                    ⭐ KHUSUS KEPALA UNIT OB
+                  </span>
+                  <span className="px-2.5 py-1 rounded-xl bg-indigo-800 text-indigo-100 font-bold text-[11px] border border-indigo-600/50">
+                    🏛️ Unit: {isKepalaUnit ? activeUser.unit : 'Semua Unit (Admin FM)'}
+                  </span>
+                  <span className="px-2.5 py-1 rounded-xl bg-emerald-700 text-emerald-100 font-bold text-[11px]">
+                    🔄 Akumulasi Otomatis dengan Kordinator
+                  </span>
+                </div>
+                <h3 className="font-extrabold text-lg sm:text-xl text-white tracking-tight">
+                  Penilaian & Monitoring Kinerja OB oleh Kepala Unit
+                </h3>
+                <p className="text-xs sm:text-sm text-indigo-200/90 max-w-3xl leading-relaxed">
+                  Kepala Unit berhak memberikan penilaian kebersihan untuk seluruh staf OB di unit masing-masing. Penilaian Kepala Unit akan otomatis digabungkan dengan penilaian Kordinator OB menjadi <strong>Nilai Akumulasi (Rata-rata Gabungan)</strong> dan tercatat rapi di Google Sheet.
+                </p>
+              </div>
+
+              <div className="bg-white/10 backdrop-blur-md border border-white/20 p-3.5 rounded-2xl text-center shrink-0 min-w-[140px]">
+                <span className="text-[10px] text-indigo-200 font-bold uppercase tracking-wider block">
+                  Staf OB di Unit:
+                </span>
+                <span className="text-2xl font-black text-amber-300">
+                  {unitOBStaffList.length} Petugas
+                </span>
+                <span className="text-[10px] text-indigo-300 block mt-0.5 font-medium">
+                  {isKepalaUnit ? `Unit ${activeUser.unit}` : 'Terdaftar di Sistem'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Alert Success Feedback */}
+          {evalSuccessMsg && (
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 flex items-start gap-3 shadow-xs animate-in fade-in">
+              <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-extrabold text-xs sm:text-sm">Penilaian Berhasil Disimpan!</h4>
+                <p className="text-xs text-emerald-700 mt-0.5 leading-relaxed">{evalSuccessMsg}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Form Penilaian Mingguan Kepala Unit */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xs space-y-5 text-xs">
+            <div className="border-b border-slate-100 pb-4 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <h4 className="font-extrabold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                  <ClipboardCheck className="w-4 h-4 text-indigo-600" />
+                  <span>Formulir Penilaian 15 Standar Kebersihan (Skala 1.0 - 4.0)</span>
+                </h4>
+                <p className="text-slate-500 text-xs mt-0.5">
+                  Pilih petugas OB dan hari evaluasi Sabtu untuk memasukkan atau memperbarui nilai.
+                </p>
+              </div>
+
+              {/* Quick Set All Scores */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-bold text-slate-500 mr-1">Isi Cepat Semua:</span>
+                <button
+                  type="button"
+                  onClick={() => handleSetAllEvalCategories(4)}
+                  className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl font-bold text-[11px] cursor-pointer transition"
+                >
+                  Semua 4 ⭐
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetAllEvalCategories(3)}
+                  className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-xl font-bold text-[11px] cursor-pointer transition"
+                >
+                  Semua 3 ⭐
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetAllEvalCategories(2)}
+                  className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl font-bold text-[11px] cursor-pointer transition"
+                >
+                  Semua 2 ⭐
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveKepalaUnitEvaluation} className="space-y-5">
+              {/* Selector Row: Petugas & Tanggal Evaluasi */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Pilih Petugas OB yang Dinilai:</span>
+                  </label>
+                  {unitOBStaffList.length > 0 ? (
+                    <select
+                      value={evalStaffId || unitOBStaffList[0]?.id || ''}
+                      onChange={(e) => setEvalStaffId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-300 font-bold text-slate-900 text-xs focus:ring-2 focus:ring-indigo-500 bg-slate-50/60 focus:bg-white"
+                    >
+                      {unitOBStaffList.map((st) => (
+                        <option key={st.id} value={st.id}>
+                          {st.name} — Unit {st.unit} ({st.username})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+                      Belum ada staf OB yang terdaftar pada unit ini ({activeUser.unit}). Pastikan data akun terdaftar di sheet <strong>Users</strong>.
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Pekan Evaluasi Hari Sabtu:</span>
+                  </label>
+                  <select
+                    value={evalSaturdayDate}
+                    onChange={(e) => setEvalSaturdayDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-300 font-bold text-slate-900 text-xs focus:ring-2 focus:ring-indigo-500 bg-slate-50/60 focus:bg-white"
+                  >
+                    {saturdayOptionsList.map((sat) => (
+                      <option key={sat.isoDate} value={sat.isoDate}>
+                        {sat.formattedFull}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Status Akumulasi & Perbandingan dengan Kordinator */}
+              {(() => {
+                const currentStaff = allUsers.find((u) => u.id === (evalStaffId || unitOBStaffList[0]?.id));
+                const matchedExisting = weeklyScores.find(
+                  (w) =>
+                    w.userId === currentStaff?.id &&
+                    ((w.saturdayDate && w.saturdayDate === evalSaturdayDate) ||
+                      (w.dateRange && w.dateRange.includes(evalSaturdayDate)))
+                );
+                const hasKordScore = matchedExisting?.kordinatorScore !== undefined;
+                const kordScoreVal = matchedExisting?.kordinatorScore ?? (matchedExisting?.evaluatorRole === 'kordinator' ? matchedExisting.score : undefined);
+                const hasKuScore = matchedExisting?.kepalaUnitScore !== undefined;
+                const kuScoreVal = matchedExisting?.kepalaUnitScore;
+                const accumulatedFinal = matchedExisting?.accumulatedScore ?? (kordScoreVal !== undefined && kuScoreVal !== undefined ? Number(((kordScoreVal + kuScoreVal) / 2).toFixed(2)) : undefined);
+
+                return (
+                  <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">⚖️</span>
+                        <h5 className="font-extrabold text-indigo-950 text-xs sm:text-sm">
+                          Status Evaluasi & Akumulasi untuk {currentStaff?.name || 'Petugas'}:
+                        </h5>
+                      </div>
+                      <span className="text-[11px] font-semibold text-indigo-700">
+                        {saturdayOptionsList.find((o) => o.isoDate === evalSaturdayDate)?.formattedFull || formatSaturdayDate(evalSaturdayDate)}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-center">
+                      {/* Nilai Kepala Unit */}
+                      <div className="p-3 bg-white rounded-xl border border-indigo-200 shadow-2xs">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase block">
+                          Nilai Kepala Unit (Input Ini):
+                        </span>
+                        <div className="flex items-center justify-center gap-1.5 mt-1">
+                          <span className="text-2xl font-black text-indigo-700">
+                            {currentLiveEvalAvg.toFixed(2)}
+                          </span>
+                          <span className="text-xs text-slate-400 font-bold">/ 4.0</span>
+                        </div>
+                        <span className="text-[10px] text-indigo-600 block mt-0.5 font-medium">
+                          {hasKuScore ? `Tersimpan: ${kuScoreVal?.toFixed(2)}` : 'Belum tersimpan'}
+                        </span>
+                      </div>
+
+                      {/* Nilai Kordinator OB */}
+                      <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase block">
+                          Nilai Kordinator OB:
+                        </span>
+                        <div className="flex items-center justify-center gap-1.5 mt-1">
+                          <span className={`text-2xl font-black ${hasKordScore ? 'text-sky-700' : 'text-slate-400'}`}>
+                            {hasKordScore ? kordScoreVal?.toFixed(2) : '—'}
+                          </span>
+                          <span className="text-xs text-slate-400 font-bold">/ 4.0</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 block mt-0.5 truncate font-medium">
+                          {hasKordScore ? `Oleh: ${matchedExisting?.kordinatorName || 'Kord OB'}` : 'Menunggu input Kordinator'}
+                        </span>
+                      </div>
+
+                      {/* Akumulasi Gabungan */}
+                      <div className="p-3 bg-gradient-to-br from-amber-50 to-amber-100/60 rounded-xl border border-amber-300 shadow-2xs">
+                        <span className="text-[10px] text-amber-900 font-extrabold uppercase block">
+                          🌟 Hasil Akumulasi Gabungan:
+                        </span>
+                        <div className="flex items-center justify-center gap-1.5 mt-1">
+                          <span className="text-2xl font-black text-amber-600">
+                            {hasKordScore
+                              ? Number(((kordScoreVal! + currentLiveEvalAvg) / 2).toFixed(2))
+                              : currentLiveEvalAvg.toFixed(2)}
+                          </span>
+                          <span className="text-xs text-amber-700 font-bold">/ 4.0</span>
+                        </div>
+                        <span className="text-[10px] text-amber-800 font-bold block mt-0.5">
+                          {hasKordScore
+                            ? '50% Kepala Unit + 50% Kordinator'
+                            : 'Nilai sementara Kepala Unit'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {hasKordScore && matchedExisting?.notes && (
+                      <div className="p-2.5 bg-white/90 rounded-xl border border-sky-200 text-sky-900 text-[11px] flex items-start gap-2">
+                        <span className="font-bold shrink-0">📝 Arahan Kordinator:</span>
+                        <span className="italic">"{matchedExisting.notes}"</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* 15 Kategori Penilaian Bersih OB */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-800">
+                    Beri Nilai Per Kategori Kebersihan (1 = Kurang, 2 = Cukup, 3 = Bersih Standar, 4 = Sangat Bersih):
+                  </label>
+                  <span className="text-[11px] text-indigo-700 font-bold">
+                    Rata-rata: {currentLiveEvalAvg.toFixed(2)} / 4.00
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {EVALUATION_CATEGORIES.map((cat, idx) => {
+                    const currentVal = evalCategoryScores[cat] || 4;
+                    return (
+                      <div
+                        key={cat}
+                        className="p-3 bg-slate-50 hover:bg-slate-100/80 rounded-2xl border border-slate-200/90 transition flex flex-col justify-between gap-2"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-bold text-slate-900 text-xs">
+                            <span className="text-slate-400 font-mono text-[10px] mr-1">#{idx + 1}</span>
+                            {cat}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-lg text-xs font-black shrink-0 ${
+                              currentVal === 4
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : currentVal === 3
+                                ? 'bg-sky-100 text-sky-800 border border-sky-300'
+                                : currentVal === 2
+                                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                : 'bg-rose-100 text-rose-800 border border-rose-300'
+                            }`}
+                          >
+                            ⭐ {currentVal}
+                          </span>
+                        </div>
+
+                        {/* Button 1 - 4 Selection */}
+                        <div className="grid grid-cols-4 gap-1 pt-1 border-t border-slate-200/60">
+                          {[1, 2, 3, 4].map((num) => (
+                            <button
+                              key={num}
+                              type="button"
+                              onClick={() => {
+                                setEvalCategoryScores((prev) => ({
+                                  ...prev,
+                                  [cat]: num,
+                                }));
+                              }}
+                              className={`py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                                currentVal === num
+                                  ? num === 4
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : num === 3
+                                    ? 'bg-sky-600 text-white shadow-xs'
+                                    : num === 2
+                                    ? 'bg-amber-500 text-white shadow-xs'
+                                    : 'bg-rose-600 text-white shadow-xs'
+                                  : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200'
+                              }`}
+                            >
+                              {num}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Catatan & Arahan Kepala Unit */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                  Catatan & Evaluasi Khusus Kepala Unit untuk Petugas:
+                </label>
+                <textarea
+                  rows={3}
+                  value={evalNotes}
+                  onChange={(e) => setEvalNotes(e.target.value)}
+                  placeholder="Contoh: Kebersihan ruang kelas dan toilet lantai 1 sangat baik. Harap perhatikan kerapihan nat lantai dekat wastafel dan pastikan pengharum ruangan selalu diisi..."
+                  className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-300 text-slate-800 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50/50 focus:bg-white leading-relaxed"
+                />
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={unitOBStaffList.length === 0}
+                className="w-full py-3.5 px-4 rounded-2xl bg-indigo-700 hover:bg-indigo-800 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md transition cursor-pointer active:scale-98 disabled:opacity-50"
+              >
+                <Award className="w-4 h-4 text-amber-300" />
+                <span>
+                  Simpan Penilaian Kepala Unit (Rata-rata: {currentLiveEvalAvg.toFixed(2)}/4.00) & Akumulasikan Otomatis
+                </span>
+              </button>
+            </form>
+          </div>
+
+          {/* Tabel / Kartu Rekap Riwayat Penilaian Unit & Akumulasi */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4 text-xs">
+            <div className="flex items-center justify-between gap-2 flex-wrap border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="font-extrabold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  <span>Rekap Riwayat Penilaian & Akumulasi ({isKepalaUnit ? `Unit ${activeUser.unit}` : 'Semua Unit'})</span>
+                </h4>
+                <p className="text-slate-500 text-xs mt-0.5">
+                  Daftar nilai gabungan Kepala Unit dan Kordinator OB yang tersimpan di sistem & database Google Sheet.
+                </p>
+              </div>
+              <span className="px-3 py-1 bg-indigo-50 text-indigo-900 border border-indigo-200 font-bold rounded-xl text-xs">
+                {weeklyScores.filter((w) => {
+                  const u = allUsers.find((usr) => usr.id === w.userId);
+                  if (isKepalaUnit) return u?.unit === activeUser.unit || w.unit === activeUser.unit;
+                  return u?.division !== 'PLH';
+                }).length} Data Tercatat
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {weeklyScores
+                .filter((w) => {
+                  const u = allUsers.find((usr) => usr.id === w.userId);
+                  if (isKepalaUnit) return u?.unit === activeUser.unit || w.unit === activeUser.unit;
+                  return u?.division !== 'PLH';
+                })
+                .map((ws) => {
+                  const isExpanded = evalExpandedScoreId === ws.id;
+                  const formattedDate = ws.saturdayDate ? formatSaturdayDate(ws.saturdayDate) : (ws.dateRange || 'Pekan Evaluasi');
+                  const kuScoreVal = ws.kepalaUnitScore;
+                  const kordScoreVal = ws.kordinatorScore ?? (ws.evaluatorRole === 'kordinator' ? ws.score : undefined);
+                  const accumulatedVal = ws.accumulatedScore ?? ws.score;
+
+                  return (
+                    <div
+                      key={ws.id}
+                      className="p-4 bg-slate-50/90 hover:bg-slate-50 rounded-2xl border border-slate-200 space-y-3 transition"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-extrabold text-slate-900 text-sm">{ws.userName}</span>
+                            <span className="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 font-bold text-[10px]">
+                              Unit {ws.unit}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-bold text-[10px] flex items-center gap-1">
+                              <Calendar className="w-3 h-3 text-amber-700" />
+                              {formattedDate}
+                            </span>
+                            {ws.evaluatorRole === 'gabungan' ? (
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                                ✨ Gabungan Terakumulasi
+                              </span>
+                            ) : ws.evaluatorRole === 'kepala_unit' ? (
+                              <span className="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 font-bold text-[10px]">
+                                🏛️ Baru Kepala Unit
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-md bg-sky-100 text-sky-800 font-bold text-[10px]">
+                                🧹 Baru Kordinator
+                              </span>
+                            )}
+                          </div>
+                          {(ws.kepalaUnitNotes || ws.notes) && (
+                            <p className="text-slate-600 text-xs italic">
+                              "{ws.kepalaUnitNotes || ws.notes}"
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Scores Badge Cluster */}
+                        <div className="flex items-center gap-2 flex-wrap shrink-0">
+                          {/* Kepala Unit Score */}
+                          {kuScoreVal !== undefined && (
+                            <div className="px-2.5 py-1 rounded-xl bg-indigo-50 border border-indigo-200 text-center">
+                              <span className="text-[9px] text-indigo-700 font-bold block uppercase">Kepala Unit:</span>
+                              <span className="text-xs font-black text-indigo-900">⭐ {kuScoreVal.toFixed(2)}</span>
+                            </div>
+                          )}
+
+                          {/* Kordinator Score */}
+                          {kordScoreVal !== undefined && (
+                            <div className="px-2.5 py-1 rounded-xl bg-sky-50 border border-sky-200 text-center">
+                              <span className="text-[9px] text-sky-700 font-bold block uppercase">Kordinator:</span>
+                              <span className="text-xs font-black text-sky-900">⭐ {kordScoreVal.toFixed(2)}</span>
+                            </div>
+                          )}
+
+                          {/* Akumulasi */}
+                          <div className="px-3 py-1.5 rounded-xl bg-gradient-to-br from-amber-100 to-amber-200 border border-amber-300 text-center shadow-2xs">
+                            <span className="text-[9px] text-amber-900 font-black block uppercase">Akumulasi:</span>
+                            <span className="text-sm font-black text-amber-950">⭐ {accumulatedVal.toFixed(2)} / 4.0</span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setEvalExpandedScoreId(isExpanded ? null : ws.id)}
+                            className="p-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 cursor-pointer"
+                          >
+                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Expandable Breakdown */}
+                      {isExpanded && ws.categoryScores && (
+                        <div className="pt-3 border-t border-slate-200 space-y-2 animate-in fade-in">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                            Rincian 15 Kategori Kebersihan:
+                          </span>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
+                            {Object.entries(ws.categoryScores).map(([cat, val]) => (
+                              <div
+                                key={cat}
+                                className="p-2 bg-white rounded-xl border border-slate-200 flex items-center justify-between text-[11px]"
+                              >
+                                <span className="text-slate-700 truncate pr-1 font-medium">{cat}</span>
+                                <span className="font-black text-indigo-700 shrink-0">⭐ {Number(val) || 4}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1">
+                            <span>Penilai Kepala Unit: {ws.kepalaUnitName || '—'}</span>
+                            <span>Penilai Kordinator: {ws.kordinatorName || '—'}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      )}
       {adminTab === 'manajemen_user' && (
         <div className="space-y-4 animate-in fade-in duration-150">
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between gap-3">

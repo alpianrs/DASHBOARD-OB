@@ -223,6 +223,13 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
     setCategoryScores(updated);
   };
 
+  const matchedExistingScore = divisionWeeklyScores.find(
+    (w) =>
+      w.userId === selectedStaffId &&
+      ((w.saturdayDate && w.saturdayDate === selectedSaturdayDate) ||
+        (w.dateRange && w.dateRange.includes(selectedSaturdayDate)))
+  );
+
   const handleScoreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const targetStaff = allUsers.find((u) => u.id === selectedStaffId);
@@ -234,7 +241,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
     const evalYear = isNaN(targetDate.getFullYear()) ? new Date().getFullYear() : targetDate.getFullYear();
 
     const newWeeklyScore: WeeklyScore = {
-      id: `ws-${Date.now()}`,
+      id: matchedExistingScore?.id || `ws-${Date.now()}`,
       saturdayDate: selectedSaturdayDate,
       dateRange: dateFormatted,
       weekNumber: Math.ceil(targetDate.getDate() / 7) || 1,
@@ -244,8 +251,11 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
       unit: targetStaff.unit,
       division: kordDivision,
       evaluationType: kordDivision === 'PLH' ? 'PLH_4' : 'OB_15',
+      evaluatorRole: 'kordinator',
       kordinatorId: activeUser.id,
       kordinatorName: activeUser.name,
+      kordinatorScore: currentAverageScore,
+      kordinatorNotes: scoreNotes.trim(),
       score: currentAverageScore,
       categoryScores: { ...categoryScores },
       categoryNotes: { ...categoryNotes },
@@ -1342,6 +1352,31 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
               </div>
             </div>
 
+            {/* Kepala Unit Score Notice & Live Accumulation Projection */}
+            {matchedExistingScore?.kepalaUnitScore !== undefined && (
+              <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-2xl flex items-start justify-between gap-3 text-xs">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-extrabold text-indigo-950 flex items-center gap-1.5">
+                      <span>🏛️</span>
+                      <span>Nilai Kepala Unit ({matchedExistingScore.kepalaUnitName || 'Kepala Unit'}):</span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded-lg bg-indigo-200 text-indigo-900 font-black">
+                      ⭐ {matchedExistingScore.kepalaUnitScore.toFixed(2)} / 4.0
+                    </span>
+                  </div>
+                  {matchedExistingScore.kepalaUnitNotes && (
+                    <p className="text-indigo-800 italic text-[11px]">
+                      "{matchedExistingScore.kepalaUnitNotes}"
+                    </p>
+                  )}
+                  <p className="text-[10px] text-indigo-600 font-bold mt-0.5">
+                    🌟 Hasil Akumulasi Gabungan: <strong>{((matchedExistingScore.kepalaUnitScore + currentAverageScore) / 2).toFixed(2)} / 4.00</strong> (50% Kordinator + 50% Kepala Unit)
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Average Result Summary Banner */}
             <div className="p-4 bg-slate-900 text-white rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-md border border-slate-800">
               <div>
@@ -1430,19 +1465,35 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
                           }`}>
                             {ws.evaluationType === 'PLH_4' || ws.division === 'PLH' ? '🌿 4 Kriteria PLH' : '🧹 15 Kategori OB'}
                           </span>
+                          {ws.evaluatorRole === 'gabungan' && (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                              ✨ Gabungan Terakumulasi
+                            </span>
+                          )}
                         </div>
                         <p className="text-slate-600 text-[11px] mt-0.5 italic">
                           "{ws.notes}"
                         </p>
+                        {ws.kepalaUnitNotes && ws.kepalaUnitNotes !== ws.notes && (
+                          <p className="text-indigo-700 text-[11px] mt-0.5 italic">
+                            KU ({ws.kepalaUnitName || 'Kepala Unit'}): "{ws.kepalaUnitNotes}"
+                          </p>
+                        )}
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {ws.kepalaUnitScore !== undefined && (
+                          <div className="px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px]">
+                            <span className="text-indigo-700 font-bold">KU: </span>
+                            <span className="font-black text-indigo-900">{ws.kepalaUnitScore.toFixed(2)}</span>
+                          </div>
+                        )}
                         <span
                           className={`text-xs sm:text-sm font-black px-2.5 py-1 rounded-lg border ${getScoreBadgeColor(
-                            ws.score
+                            ws.accumulatedScore ?? ws.score
                           )}`}
                         >
-                          ⭐ {ws.score.toFixed(1)} / 4.0
+                          ⭐ {(ws.accumulatedScore ?? ws.score).toFixed(2)} / 4.0
                         </span>
 
                         <button

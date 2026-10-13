@@ -41,14 +41,19 @@ export const MasjidRollingCard: React.FC<MasjidRollingCardProps> = ({
     return null;
   }
 
+  // Cek apakah user saat ini bertugas di area yang sedang piket masjid minggu ini
+  const userUnitOrArea = activeUser?.assignedArea || activeUser?.unit || '';
+  const isMyAreaTurn = isAreaOnMasjidDutyThisWeek(userUnitOrArea);
+
+  // Jika staf biasa (role: user) dan BUKAN giliran piket aula masjid minggu ini, sembunyikan card
+  if (activeUser && activeUser.role === 'user' && !isMyAreaTurn) {
+    return null;
+  }
+
   const [showProjection, setShowProjection] = useState(false);
 
   const schedule = getMasjidRollingSchedule();
   const projection = getMasjidRollingProjection(4);
-
-  // Cek apakah user saat ini bertugas di area yang sedang piket masjid minggu ini
-  const userUnitOrArea = activeUser?.assignedArea || activeUser?.unit || '';
-  const isMyAreaTurn = isAreaOnMasjidDutyThisWeek(userUnitOrArea);
 
   return (
     <div

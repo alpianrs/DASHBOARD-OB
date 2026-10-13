@@ -145,12 +145,24 @@ function saveBase64ImageToDrive(base64Str, filename) {
 function setupDatabase() {
   var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
   
-  // 1. Setup Sheet: Users (dengan kolom Division & AssignedArea)
+  // 1. Setup Sheet: Users (dengan kolom Division & AssignedArea serta Password untuk manajemen langsung)
   var usersHeader = ["ID", "Username", "Password", "Name", "Role", "Unit", "Status", "Phone", "Division", "AssignedArea"];
   var initialUsers = [
     ["u-admin-1", "admin", "admin", "Alpian (Admin FM)", "admin", "Pusat", "Aktif", "08123456789", "OB", "Semua Unit"],
     ["u-kord-01", "lili", "lili123", "Lili Ariyanto (Kord OB)", "kordinator", "Ar Razi", "Aktif", "081298765432", "OB", "Semua Unit OB"],
-    ["u-kord-plh", "rahmat", "rahmat123", "Rahmat Hidayat (Kord PLH)", "kordinator", "Semua Unit", "Aktif", "08129999001", "PLH", "Area Pos 1"]
+    ["u-kord-plh", "rahmat", "rahmat123", "Rahmat Hidayat (Kord PLH)", "kordinator", "Semua Unit", "Aktif", "08129999001", "PLH", "Area Pos 1"],
+    // Akun Resmi Kepala Unit OB (Monitoring & Penilaian Khusus Per-Unit)
+    ["u-ku-tk", "kepala.tk", "password123", "Kepala Unit TK", "kepala_unit", "TK", "Aktif", "08123456701", "OB", "TK"],
+    ["u-ku-sd", "kepala.sd", "password123", "Kepala Unit SD", "kepala_unit", "SD", "Aktif", "08123456702", "OB", "SD"],
+    ["u-ku-smp", "kepala.smp", "password123", "Kepala Unit SMP", "kepala_unit", "SMP", "Aktif", "08123456703", "OB", "SMP"],
+    ["u-ku-pelangi", "kepala.pelangi", "password123", "Kepala Unit Pelangi", "kepala_unit", "Pelangi Direktorat", "Aktif", "08123456704", "OB", "Pelangi Direktorat"],
+    ["u-ku-arazi", "kepala.arazi", "password123", "Kepala Unit Ar Razi", "kepala_unit", "Ar Razi", "Aktif", "08123456705", "OB", "Ar Razi"],
+    ["u-ku-khaldun", "kepala.khaldun", "password123", "Kepala Unit Khaldun", "kepala_unit", "Khaldun", "Aktif", "08123456706", "OB", "Khaldun"],
+    // Staf Lapangan Divisi PLH Resmi
+    ["u-plh-01", "syahril", "password123", "Ahmad Syahril (PLH)", "user", "Pos 2", "Aktif", "081234560001", "PLH", "Area Pos 2"],
+    ["u-plh-02", "andi", "password123", "Andi Komala (PLH)", "user", "Area Khaldun", "Aktif", "081234560002", "PLH", "Area Khaldun"],
+    ["u-plh-03", "dedi", "password123", "Dedi Junaedi (PLH)", "user", "Area Ex Minifarm", "Aktif", "081234560003", "PLH", "Area Ex Minifarm"],
+    ["u-plh-04", "radilah", "password123", "Radilah (PLH)", "user", "Area Kolam Renang", "Aktif", "081234560004", "PLH", "Area Kolam Renang"]
   ];
   createOrSetupSheet(ss, "Users", usersHeader, initialUsers, "#0f172a");
 
@@ -208,8 +220,12 @@ function setupDatabase() {
   ];
   createOrSetupSheet(ss, "JobBareng_PLH", jobBarengHeader, initialPLHJobBareng, "#15803d");
 
-  // 8. Setup Sheet: WeeklyScores (Nilai Mingguan OB)
-  var weeklyHeader = ["ID", "UserID", "UserName", "Unit", "SaturdayDate", "Year", "DateRange", "Score", "KordinatorName", "CategoryScoresJSON", "Notes", "Timestamp"];
+  // 8. Setup Sheet: WeeklyScores (Nilai Mingguan OB - Mendukung Akumulasi Nilai Kordinator & Kepala Unit)
+  var weeklyHeader = [
+    "ID", "UserID", "UserName", "Unit", "SaturdayDate", "Year", "DateRange", 
+    "Score", "KordinatorName", "CategoryScoresJSON", "Notes", "Timestamp",
+    "EvaluatorRole", "KordinatorScore", "KepalaUnitScore", "KepalaUnitName", "KepalaUnitNotes", "AccumulatedScore"
+  ];
   createOrSetupSheet(ss, "WeeklyScores", weeklyHeader, [], "#334155");
 
   // 9. Setup Sheet: WeeklyScores_PLH (Nilai Mingguan Staf PLH per Area)
@@ -1809,7 +1825,7 @@ export const GoogleSheetsService = {
     const obJobRows = [jobHeader, ...obJobs.map(mapJobRow)];
     const plhJobRows = [jobHeader, ...plhJobs.map(mapJobRow)];
 
-    // 5. Prepare Weekly Scores values (Split OB and PLH into separate sheets)
+    // 5. Prepare Weekly Scores values (Split OB and PLH into separate sheets, include Kepala Unit & Akumulasi)
     const allWeeklyScores = StorageService.getWeeklyScores();
     const mapWeeklyRow = (w: WeeklyScore) => [
       w.id,
@@ -1824,9 +1840,19 @@ export const GoogleSheetsService = {
       JSON.stringify(w.categoryScores || {}),
       w.notes || '',
       w.timestamp,
+      w.evaluatorRole || 'kordinator',
+      w.kordinatorScore !== undefined ? w.kordinatorScore : w.score,
+      w.kepalaUnitScore !== undefined ? w.kepalaUnitScore : '',
+      w.kepalaUnitName || '',
+      w.kepalaUnitNotes || '',
+      w.accumulatedScore !== undefined ? w.accumulatedScore : w.score,
     ];
 
-    const weeklyHeader = ['ID', 'UserID', 'UserName', 'Unit', 'SaturdayDate', 'Year', 'DateRange', 'Score', 'KordinatorName', 'CategoryScoresJSON', 'Notes', 'Timestamp'];
+    const weeklyHeader = [
+      'ID', 'UserID', 'UserName', 'Unit', 'SaturdayDate', 'Year', 'DateRange',
+      'Score', 'KordinatorName', 'CategoryScoresJSON', 'Notes', 'Timestamp',
+      'EvaluatorRole', 'KordinatorScore', 'KepalaUnitScore', 'KepalaUnitName', 'KepalaUnitNotes', 'AccumulatedScore'
+    ];
     const obScores = allWeeklyScores.filter((w) => {
       const u = users.find((usr) => usr.id === w.userId);
       return u?.division !== 'PLH';
@@ -2517,6 +2543,17 @@ export const GoogleSheetsService = {
                 const hasCategoryJson = Object.keys(categoryScores).length > 0;
                 const notes = hasCategoryJson ? (row[10] || '') : (row[9] || '');
                 const timestamp = hasCategoryJson ? (row[11] || now) : (row[10] || now);
+                const scoreVal = Number(row[7]) || 4;
+                const evaluatorRole = row[12] || 'kordinator';
+                const kordinatorScore = row[13] ? Number(row[13]) : undefined;
+                const kepalaUnitScore = row[14] ? Number(row[14]) : undefined;
+                const kepalaUnitName = row[15] || undefined;
+                const kepalaUnitNotes = row[16] || undefined;
+                const accumulatedScore = row[17]
+                  ? Number(row[17])
+                  : kordinatorScore && kepalaUnitScore
+                  ? Number(((kordinatorScore + kepalaUnitScore) / 2).toFixed(2))
+                  : undefined;
 
                 return {
                   id: row[0] || `ws-${i}`,
@@ -2528,50 +2565,76 @@ export const GoogleSheetsService = {
                   weekNumber: isNaN(Number(row[4])) ? 1 : Number(row[4]),
                   year: isNaN(Number(row[5])) ? new Date().getFullYear() : Number(row[5]),
                   dateRange: row[6] || row[4] || '',
-                  score: Number(row[7]) || 4,
+                  score: accumulatedScore ?? scoreVal,
                   kordinatorName: row[8] || '',
                   categoryScores,
                   notes,
                   timestamp,
+                  evaluatorRole: evaluatorRole as any,
+                  kordinatorScore,
+                  kepalaUnitScore,
+                  kepalaUnitName,
+                  kepalaUnitNotes,
+                  accumulatedScore,
                 };
               });
-            StorageService.saveWeeklyScores(parsedWeekly);
+            StorageService.mergeWeeklyScores(parsedWeekly);
           }
 
           if (rWorkOrders && rWorkOrders.length > 0) {
             const parsedWorkOrders: TreeWorkOrder[] = rWorkOrders
               .filter((row: any[]) => row && row.length > 0 && row[0] && row[0] !== 'ID')
-              .map((row: any[], i: number) => ({
-                id: row[0] || `two-${i}`,
-                date: normalizeDateString(row[1]) || getJakartaDateString(),
-                area: row[2] || 'Area Pos 1',
-                treeName: row[3] || 'Pohon Trembesi',
-                condition: (row[4] || 'Ringan') as any,
-                treatmentNeeded: row[5] || 'Pemangkasan Cabang Kering',
-                handlerType: (row[6] || 'internal') as any,
-                vendorName: row[7] || undefined,
-                vendorCost: Number(row[8]) || undefined,
-                scheduledWeek: row[9] || undefined,
-                urgency: (row[10] || 'Sedang') as any,
-                status: (row[11] || 'Tercatat') as any,
-                notes: row[12] || undefined,
-                photoBeforeUrl: row[13] || undefined,
-                photoAfterUrl: row[14] || undefined,
-                reportedBy: row[15] || undefined,
-                reportedByName: row[16] || undefined,
-                lastCheckedDate: row[17] || undefined,
-                lastCheckedTime: row[18] || undefined,
-                lastCheckedByName: row[19] || undefined,
-                checkStatusToday: (row[20] || 'Belum Dicek') as any,
-                inspectionNotes: row[21] || undefined,
-                completedAt: row[22] || undefined,
-                completedByName: row[23] || undefined,
-                createdAt: row[24] || now,
-                standardPhotoUrl: row[32] || undefined,
-                standardPhotoAngleGuide: row[33] || undefined,
-                standardInstructions: row[34] ? String(row[34]).split(' | ').filter(Boolean) : undefined,
-              }));
-            StorageService.saveTreeWorkOrders(parsedWorkOrders);
+              .map((row: any[], i: number) => {
+                let history: any[] = [];
+                try {
+                  if (row[31] && typeof row[31] === 'string' && row[31].trim().startsWith('[')) {
+                    history = JSON.parse(row[31]);
+                  }
+                } catch (e) {
+                  history = [];
+                }
+                const beforePhoto = row[29] || row[13] || undefined;
+                const afterPhoto = row[30] || row[14] || undefined;
+
+                return {
+                  id: row[0] || `two-${i}`,
+                  date: normalizeDateString(row[1]) || getJakartaDateString(),
+                  area: row[2] || 'Area Pos 1',
+                  treeName: row[3] || 'Pohon Trembesi',
+                  condition: (row[4] || 'Normal / Sehat') as any,
+                  treatmentNeeded: row[5] || 'Penjarangan Kanopi Rimbun',
+                  handlerType: (row[6] || 'Internal PLH') as any,
+                  vendorName: row[7] || undefined,
+                  vendorCost: Number(row[8]) || undefined,
+                  scheduledWeek: row[9] || undefined,
+                  urgency: (row[10] || 'Sedang') as any,
+                  status: (row[11] || 'Selesai') as any,
+                  notes: row[12] || undefined,
+                  photoBeforeUrl: beforePhoto,
+                  photoAfterUrl: afterPhoto,
+                  reportedBy: row[15] || undefined,
+                  reportedByName: row[16] || undefined,
+                  lastCheckedDate: row[17] || undefined,
+                  lastCheckedTime: row[18] || undefined,
+                  lastCheckedByName: row[19] || undefined,
+                  checkStatusToday: (row[20] || 'Sudah Dicek Aman') as any,
+                  inspectionNotes: row[21] || undefined,
+                  completedAt: row[22] || undefined,
+                  completedByName: row[23] || undefined,
+                  createdAt: row[24] || now,
+                  treatmentStatus: (row[25] || (row[11] === 'Selesai' ? 'Sudah Ditangani' : row[11] === 'Perlu Penanganan' ? 'Belum Ditangani' : 'Tidak Perlu Penanganan')) as any,
+                  handledByName: row[26] || undefined,
+                  handledAt: row[27] || undefined,
+                  treatmentReport: row[28] || undefined,
+                  drivePhotoBeforeUrl: row[29] || (beforePhoto && beforePhoto.startsWith('http') ? beforePhoto : undefined),
+                  drivePhotoAfterUrl: row[30] || (afterPhoto && afterPhoto.startsWith('http') ? afterPhoto : undefined),
+                  inspectionHistory: history.length > 0 ? history : undefined,
+                  standardPhotoUrl: row[32] || undefined,
+                  standardPhotoAngleGuide: row[33] || undefined,
+                  standardInstructions: row[34] ? String(row[34]).split(' | ').filter(Boolean) : undefined,
+                };
+              });
+            StorageService.mergeTreeWorkOrders(parsedWorkOrders);
           }
 
           syncConfig.lastSyncTime = now;
@@ -3056,6 +3119,18 @@ export const GoogleSheetsService = {
             } catch (e) {
               categoryScores = {};
             }
+            const scoreVal = Number(row[7]) || 4.0;
+            const evaluatorRole = row[12] || 'kordinator';
+            const kordinatorScore = row[13] ? Number(row[13]) : undefined;
+            const kepalaUnitScore = row[14] ? Number(row[14]) : undefined;
+            const kepalaUnitName = row[15] || undefined;
+            const kepalaUnitNotes = row[16] || undefined;
+            const accumulatedScore = row[17]
+              ? Number(row[17])
+              : kordinatorScore && kepalaUnitScore
+              ? Number(((kordinatorScore + kepalaUnitScore) / 2).toFixed(2))
+              : undefined;
+
             return {
               id: row[0] || `ws-${i}`,
               userId: row[1] || '',
@@ -3066,14 +3141,20 @@ export const GoogleSheetsService = {
               year: Number(row[5]) || new Date().getFullYear(),
               dateRange: row[6] || '',
               saturdayDate: row[4] || '',
-              score: Number(row[7]) || 4.0,
+              score: accumulatedScore ?? scoreVal,
               kordinatorName: row[8] || '',
               categoryScores,
               notes: row[10] || '',
               timestamp: row[11] || now,
+              evaluatorRole: evaluatorRole as any,
+              kordinatorScore,
+              kepalaUnitScore,
+              kepalaUnitName,
+              kepalaUnitNotes,
+              accumulatedScore,
             };
           });
-        StorageService.saveWeeklyScores(parsedScores);
+        StorageService.mergeWeeklyScores(parsedScores);
       }
 
       // 7. Parse TaskLogs_Pohon if present (Log Riwayat Pengecekan Pohon Terpisah)
@@ -3186,7 +3267,7 @@ export const GoogleSheetsService = {
               standardInstructions: row[34] ? String(row[34]).split(' | ').filter(Boolean) : undefined,
             };
           });
-        StorageService.saveTreeWorkOrders(parsedWorkOrders);
+        StorageService.mergeTreeWorkOrders(parsedWorkOrders);
       }
 
       syncConfig.lastSyncTime = now;

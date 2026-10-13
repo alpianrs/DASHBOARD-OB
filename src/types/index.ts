@@ -236,14 +236,24 @@ export interface WeeklyScore {
   userName: string;
   division?: DivisionType; // 'OB' or 'PLH' (Default 'OB')
   unit: UnitType;
-  kordinatorId: string;
-  kordinatorName: string;
-  score: number; // 1.0 - 4.0 (Rata-rata penilaian 1-4)
+  kordinatorId?: string;
+  kordinatorName?: string;
+  score: number; // 1.0 - 4.0 (Nilai akhir / rata-rata akumulasi)
   categoryScores: Record<string, number>; // Record of categories (15 for OB, 4 for PLH) mapped to score 1-4
   categoryNotes?: Record<string, string>;
   evaluationType?: 'OB_15' | 'PLH_4';
   notes: string;
   timestamp: string;
+  // Multi-evaluator & Akumulasi Penilaian (Kordinator & Kepala Unit)
+  evaluatorRole?: 'kordinator' | 'kepala_unit' | 'admin' | 'gabungan';
+  kordinatorScore?: number; // Nilai dari Kordinator (1 - 4)
+  kordinatorNotes?: string;
+  kordinatorCategoryScores?: Record<string, number>;
+  kepalaUnitScore?: number; // Nilai dari Kepala Unit (1 - 4)
+  kepalaUnitName?: string; // Nama Kepala Unit penilai
+  kepalaUnitNotes?: string;
+  kepalaUnitCategoryScores?: Record<string, number>;
+  accumulatedScore?: number; // Nilai akumulasi gabungan (Kordinator + Kepala Unit) / 2
   // Legacy / optional fields for backward compatibility
   cleanlinessScore?: number;
   speedScore?: number;

@@ -974,8 +974,8 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
         </div>
       </div>
 
-      {/* PLH Specific: Masjid Rolling Schedule Card - Eksklusif PLH & Kordinator PLH */}
-      {isPLH && (
+      {/* PLH Specific: Masjid Rolling Schedule Card - Hanya masuk jika giliran piket aula saja (atau Kordinator/Admin) */}
+      {isPLH && (isMyMasjidDutyWeek || activeUser.role === 'admin' || activeUser.role === 'kordinator') && (
         <MasjidRollingCard activeUser={activeUser} />
       )}
 
