@@ -209,15 +209,11 @@ function setupDatabase() {
 
   // 6. Setup Sheet: JobBareng (Tugas Bersama / Insidental OB)
   var jobBarengHeader = ["ID", "Title", "Description", "Date", "TargetUnit", "TargetArea", "Status", "Participants", "CompletedUsers", "CreatedAt", "AssignmentType", "AssignedUsers", "Division"];
-  var initialOBJobBareng = [
-    ["jb-001", "Kerja Bakti Lapangan & Area Parkir Utama", "Pembersihan massal menyambut acara sekolah bersama seluruh staf OB.", Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd"), "Semua Unit", "Lapangan Utama", "Aktif", "u-ob-1, u-ob-2, u-ob-3", "", new Date().toISOString(), "all", "Semua Petugas OB", "OB"]
-  ];
+  var initialOBJobBareng = [];
   createOrSetupSheet(ss, "JobBareng", jobBarengHeader, initialOBJobBareng, "#3730a3");
 
   // 7. Setup Sheet: JobBareng_PLH (Kerja Bakti & Tanggap Insidental PLH: Pohon / Taman)
-  var initialPLHJobBareng = [
-    ["jb-plh-001", "Kerja Bakti Penanganan Dahan Rimbun & Serasah Daun Pasca Hujan Lebat", "Pembersihan ranting gugur dan pemangkasan dahan rimbun di sepanjang jalur gerbang utama.", Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd"), "Semua Unit", "Area Jalur Gerbang 1 & 2", "Aktif", "u-plh-01, u-plh-02, u-plh-03, u-plh-04, u-plh-05", "", new Date().toISOString(), "all", "Semua Petugas PLH", "PLH"]
-  ];
+  var initialPLHJobBareng = [];
   createOrSetupSheet(ss, "JobBareng_PLH", jobBarengHeader, initialPLHJobBareng, "#15803d");
 
   // 8. Setup Sheet: WeeklyScores (Nilai Mingguan OB - Mendukung Akumulasi Nilai Kordinator & Kepala Unit)
@@ -306,7 +302,14 @@ function createOrSetupSheet(ss, sheetName, headers, seedRows, headerColor) {
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(headers);
     if (seedRows && seedRows.length > 0) {
-      sheet.getRange(2, 1, seedRows.length, seedRows[0].length).setValues(seedRows);
+      var safeRows = seedRows.map(function(r) {
+        var rowCopy = r.slice(0);
+        while (rowCopy.length < headers.length) {
+          rowCopy.push("");
+        }
+        return rowCopy;
+      });
+      sheet.getRange(2, 1, safeRows.length, headers.length).setValues(safeRows);
     }
   }
 
@@ -682,6 +685,29 @@ function writeSheet(ss, sheetName, rows) {
           var inspector = (row[3] || "inspector").toString().replace(/\s+/g, "_");
           row[11] = saveBase64ImageToDrive(row[11], "inspeksi_" + inspector + "_" + r + "_" + (new Date().getTime()) + ".jpg");
         }
+      }
+    } else if (sheetName === "WorkOrder_Pohon") {
+      // Concurrency protection: Merge with existing trees by Tree ID (col 0) so past days' data is never lost
+      var existingTreeData = sheet.getDataRange().getValues();
+      if (existingTreeData.length > 1) {
+        var existingTreeMap = {};
+        for (var ext = 1; ext < existingTreeData.length; ext++) {
+          var extRow = existingTreeData[ext];
+          var extId = String(extRow[0] || "");
+          if (extId && extId !== "ID") existingTreeMap[extId] = extRow;
+        }
+        for (var inT = 1; inT < rows.length; inT++) {
+          var inTreeRow = rows[inT];
+          var inTreeId = String(inTreeRow[0] || "");
+          if (inTreeId && inTreeId !== "ID") {
+            existingTreeMap[inTreeId] = inTreeRow;
+          }
+        }
+        var mergedTreeRows = [rows[0]];
+        for (var tKey in existingTreeMap) {
+          mergedTreeRows.push(existingTreeMap[tKey]);
+        }
+        rows = mergedTreeRows;
       }
     }
 
@@ -1509,6 +1535,10 @@ export const GoogleSheetsService = {
     const token = getCachedAccessToken();
     const now = new Date().toISOString();
     const treeOrders = treeOrdersInput || StorageService.getTreeWorkOrders();
+    if (!treeOrders || treeOrders.length === 0) {
+      console.warn('Safety guard: Aborting saveTreeWorkOrdersToSheets because tree list is empty to prevent wiping Google Sheet!');
+      return { success: true, message: 'Daftar pohon kosong, dibatalkan demi keamanan data.', timestamp: now };
+    }
     const treeHeader = [
       'ID', 'Date', 'Area', 'TreeName', 'Condition', 'TreatmentNeeded',
       'HandlerType', 'VendorName', 'VendorCost', 'ScheduledWeek', 'Urgency',
@@ -2635,6 +2665,12 @@ export const GoogleSheetsService = {
                 };
               });
             StorageService.mergeTreeWorkOrders(parsedWorkOrders);
+          } else {
+            // Jika Google Sheet belum ada data pohon atau koneksi kosong, amankan pohon lokal dan kirim balik ke Google Sheet
+            const localTrees = StorageService.getTreeWorkOrders();
+            if (localTrees && localTrees.length > 0) {
+              GoogleSheetsService.saveTreeWorkOrdersToSheets(localTrees).catch(console.warn);
+            }
           }
 
           syncConfig.lastSyncTime = now;
@@ -3010,43 +3046,41 @@ export const GoogleSheetsService = {
         ...(valueRanges[5]?.values || []),
         ...(valueRanges[6]?.values || []),
       ];
-      if (combinedJobRows.length > 0) {
-        const parsedJobs: JobBareng[] = combinedJobRows
-          .filter((row: any[]) => row && row.length > 0 && row[0])
-          .map((row: any[], i: number) => {
-            const participantsRaw = row[7] ? String(row[7]).split(',').map((s) => s.trim()).filter(Boolean) : [];
-            const completedRaw = row[8] ? String(row[8]).split(',').map((s) => s.trim()).filter(Boolean) : [];
-            const assignmentType = (row[10] && String(row[10]).toLowerCase() === 'specific') ? 'specific' : 'all';
-            const assignedRaw = row[11] ? String(row[11]).split(',').map((s) => s.trim()).filter(Boolean) : undefined;
-            const rawDivision = row[12] ? String(row[12]).trim().toUpperCase() : '';
-            const jobDivision: 'OB' | 'PLH' = (rawDivision === 'PLH' || rawDivision === 'OB')
-              ? rawDivision
-              : (String(row[1] || '').toUpperCase().includes('PLH') ? 'PLH' : 'OB');
+      const parsedJobs: JobBareng[] = combinedJobRows
+        .filter((row: any[]) => row && row.length > 0 && row[0] && row[0] !== 'ID')
+        .map((row: any[], i: number) => {
+          const participantsRaw = row[7] ? String(row[7]).split(',').map((s) => s.trim()).filter(Boolean) : [];
+          const completedRaw = row[8] ? String(row[8]).split(',').map((s) => s.trim()).filter(Boolean) : [];
+          const assignmentType = (row[10] && String(row[10]).toLowerCase() === 'specific') ? 'specific' : 'all';
+          const assignedRaw = row[11] ? String(row[11]).split(',').map((s) => s.trim()).filter(Boolean) : undefined;
+          const rawDivision = row[12] ? String(row[12]).trim().toUpperCase() : '';
+          const jobDivision: 'OB' | 'PLH' = (rawDivision === 'PLH' || rawDivision === 'OB')
+            ? rawDivision
+            : (String(row[1] || '').toUpperCase().includes('PLH') ? 'PLH' : 'OB');
 
-            return {
-              id: row[0] || `jb-${i}`,
-              title: row[1] || 'Job Bareng',
-              description: row[2] || '',
-              date: normalizeDateString(row[3]) || getJakartaDateString(),
-              targetUnit: row[4] || 'Semua Unit',
-              targetArea: row[5] || 'Area Terkait',
-              status: (row[6] || 'Aktif') as any,
-              assignmentType,
-              assignedUserIds: assignedRaw,
-              assignedUserNames: assignedRaw,
-              participantIds: participantsRaw,
-              participantNames: participantsRaw,
-              completedUserIds: completedRaw,
-              completedUserNames: completedRaw,
-              createdBy: row[9] || 'system',
-              createdByName: 'Kordinator',
-              createdAt: row[9] || now,
-              division: jobDivision,
-            };
-          });
+          return {
+            id: row[0] || `jb-${i}`,
+            title: row[1] || 'Job Bareng',
+            description: row[2] || '',
+            date: normalizeDateString(row[3]) || getJakartaDateString(),
+            targetUnit: row[4] || 'Semua Unit',
+            targetArea: row[5] || 'Area Terkait',
+            status: (row[6] || 'Aktif') as any,
+            assignmentType,
+            assignedUserIds: assignedRaw,
+            assignedUserNames: assignedRaw,
+            participantIds: participantsRaw,
+            participantNames: participantsRaw,
+            completedUserIds: completedRaw,
+            completedUserNames: completedRaw,
+            createdBy: row[9] || 'system',
+            createdByName: 'Kordinator',
+            createdAt: row[9] || now,
+            division: jobDivision,
+          };
+        });
 
-        StorageService.mergeJobBareng(parsedJobs);
-      }
+      StorageService.mergeJobBareng(parsedJobs);
 
       // 4. Parse DinasRequests if present
       if (valueRanges[7]?.values?.length > 0) {
@@ -3268,6 +3302,12 @@ export const GoogleSheetsService = {
             };
           });
         StorageService.mergeTreeWorkOrders(parsedWorkOrders);
+      } else {
+        // Jika Google Sheet belum ada data pohon atau koneksi kosong, amankan pohon lokal dan kirim balik ke Google Sheet
+        const localTrees = StorageService.getTreeWorkOrders();
+        if (localTrees && localTrees.length > 0) {
+          GoogleSheetsService.saveTreeWorkOrdersToSheets(localTrees).catch(console.warn);
+        }
       }
 
       syncConfig.lastSyncTime = now;

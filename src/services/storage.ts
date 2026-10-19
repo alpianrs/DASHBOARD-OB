@@ -1513,23 +1513,41 @@ export const StorageService = {
 
   getJobBareng: (): JobBareng[] => {
     const jobs = getStoredItem<JobBareng[]>(STORAGE_KEYS.JOB_BARENG, []);
-    const cleanJobs = (jobs || []).filter((j) => j.id !== 'jb-001');
+    const dummyIds = new Set(['jb-001', 'jb-plh-001', 'jb-dummy', 'jb-test']);
+    const cleanJobs = (jobs || []).filter((j) => {
+      if (!j || !j.id) return false;
+      if (dummyIds.has(j.id)) return false;
+      const t = (j.title || '').toLowerCase();
+      if (t.includes('pasca hujan lebat') || t.includes('kerja bakti lapangan & area parkir')) return false;
+      return true;
+    });
     if (cleanJobs.length !== (jobs || []).length) {
       setStoredItem(STORAGE_KEYS.JOB_BARENG, cleanJobs);
     }
     return cleanJobs;
   },
   saveJobBareng: (jobs: JobBareng[]): void => {
-    setStoredItem(STORAGE_KEYS.JOB_BARENG, jobs);
+    setStoredItem(STORAGE_KEYS.JOB_BARENG, jobs || []);
   },
   mergeJobBareng: (remoteJobs: JobBareng[]): JobBareng[] => {
+    const dummyIds = new Set(['jb-001', 'jb-plh-001', 'jb-dummy', 'jb-test']);
+    const cleanRemote = (remoteJobs || []).filter((j) => {
+      if (!j || !j.id || dummyIds.has(j.id)) return false;
+      const t = (j.title || '').toLowerCase();
+      if (t.includes('pasca hujan lebat') || t.includes('kerja bakti lapangan & area parkir')) return false;
+      return true;
+    });
+
+    const pendingQueue = StorageService.getPendingQueue();
+    const pendingJobIds = new Set(
+      pendingQueue.filter((p) => p.type === 'jobBareng').map((p) => p.payload?.id).filter(Boolean)
+    );
+
     const localJobs = StorageService.getJobBareng();
     const jobMap = new Map<string, JobBareng>();
 
-    remoteJobs.forEach((rJob) => {
-      if (rJob && rJob.id) {
-        jobMap.set(rJob.id, { ...rJob });
-      }
+    cleanRemote.forEach((rJob) => {
+      jobMap.set(rJob.id, { ...rJob });
     });
 
     localJobs.forEach((lJob) => {
@@ -1555,7 +1573,7 @@ export const StorageService = {
           completedUserNames: mergedCompletedNames,
           status: lJob.status === 'Dibatalkan' || rJob.status === 'Dibatalkan' ? 'Dibatalkan' : (lJob.status || rJob.status || 'Aktif'),
         });
-      } else {
+      } else if (pendingJobIds.has(lJob.id)) {
         jobMap.set(lJob.id, lJob);
       }
     });
@@ -1980,16 +1998,7 @@ export const StorageService = {
       }
 
       if (!ord.checkStatusToday) {
-        const seedMatch = SEED_TREE_WORK_ORDERS.find((s) => s.id === ord.id || (s.area === ord.area && s.treeName === ord.treeName));
-        if (seedMatch?.checkStatusToday) {
-          ord.lastCheckedDate = seedMatch.lastCheckedDate;
-          ord.lastCheckedTime = seedMatch.lastCheckedTime;
-          ord.lastCheckedByName = seedMatch.lastCheckedByName;
-          ord.checkStatusToday = seedMatch.checkStatusToday;
-          ord.inspectionNotes = seedMatch.inspectionNotes;
-        } else {
-          ord.checkStatusToday = ord.status === 'Perlu Penanganan' ? 'Perlu Penanganan' : 'Sudah Dicek Aman';
-        }
+        ord.checkStatusToday = ord.status === 'Perlu Penanganan' ? 'Perlu Penanganan' : 'Belum Dicek';
         changed = true;
       }
 
@@ -2059,20 +2068,26 @@ export const StorageService = {
           (a, b) => new Date(b.timestamp || b.date).getTime() - new Date(a.timestamp || a.date).getTime()
         );
 
+        // Check which one has newer inspection
+        const lTime = l.lastCheckedDate ? new Date(`${l.lastCheckedDate} ${l.lastCheckedTime || '00:00'}`).getTime() : 0;
+        const rTime = r.lastCheckedDate ? new Date(`${r.lastCheckedDate} ${r.lastCheckedTime || '00:00'}`).getTime() : 0;
+        const isLocalNewerOrEqual = lTime >= rTime;
+
         map.set(l.id, {
-          ...r,
-          checkStatusToday: l.checkStatusToday || r.checkStatusToday,
-          lastCheckedDate: l.lastCheckedDate || r.lastCheckedDate,
-          lastCheckedTime: l.lastCheckedTime || r.lastCheckedTime,
-          lastCheckedByName: l.lastCheckedByName || r.lastCheckedByName,
+          ...(isLocalNewerOrEqual ? r : l),
+          ...(isLocalNewerOrEqual ? l : r),
+          inspectionHistory: mergedHistory.length > 0 ? mergedHistory : undefined,
+          checkStatusToday: isLocalNewerOrEqual ? (l.checkStatusToday || r.checkStatusToday) : (r.checkStatusToday || l.checkStatusToday),
+          lastCheckedDate: isLocalNewerOrEqual ? (l.lastCheckedDate || r.lastCheckedDate) : (r.lastCheckedDate || l.lastCheckedDate),
+          lastCheckedTime: isLocalNewerOrEqual ? (l.lastCheckedTime || r.lastCheckedTime) : (r.lastCheckedTime || l.lastCheckedTime),
+          lastCheckedByName: isLocalNewerOrEqual ? (l.lastCheckedByName || r.lastCheckedByName) : (r.lastCheckedByName || l.lastCheckedByName),
           photoBeforeUrl: l.photoBeforeUrl || r.photoBeforeUrl,
           photoAfterUrl: l.photoAfterUrl || r.photoAfterUrl,
           drivePhotoBeforeUrl: l.drivePhotoBeforeUrl || r.drivePhotoBeforeUrl,
           drivePhotoAfterUrl: l.drivePhotoAfterUrl || r.drivePhotoAfterUrl,
-          inspectionHistory: mergedHistory.length > 0 ? mergedHistory : undefined,
-          treatmentStatus: l.treatmentStatus || r.treatmentStatus,
-          status: l.status || r.status,
-          notes: l.notes || r.notes,
+          standardPhotoUrl: l.standardPhotoUrl || r.standardPhotoUrl,
+          standardPhotoAngleGuide: l.standardPhotoAngleGuide || r.standardPhotoAngleGuide,
+          standardInstructions: l.standardInstructions || r.standardInstructions,
         });
       }
     });
@@ -2355,8 +2370,8 @@ export const canInspectPeer = (
     return false;
   }
 
-  if (inspectorRole === 'admin') {
-    return true; // Admin can inspect ALL units
+  if (inspectorRole === 'admin' || inspectorRole === 'kordinator') {
+    return true; // Admin dan Kordinator dapat menginspeksi seluruh anggota/unit di divisinya
   }
   
   const normInsp = String(inspectorUnit || '').trim().toLowerCase();
@@ -2407,8 +2422,8 @@ export const isTaskAssignedToUser = (task: MasterTask, user: User): boolean => {
 
   if (!matchesUnit) return false;
 
-  // 1b. PLH Area Enforcement: Staf lapangan PLH hanya menerima tugas di area tanggung jawab wilayahnya masing-masing
-  if (userDivision === 'PLH' && user.role !== 'kordinator') {
+  // 1b. PLH Area & User Enforcement: Staf & Kordinator PLH hanya melihat tugas hariannya masing-masing
+  if (userDivision === 'PLH') {
     // Tugas Piket Rolling Masjid: Hanya untuk staf yang sedang giliran piket masjid minggu ini!
     const isMasjidRollingTask =
       task.id === 'mt-plh-wk-05' ||
@@ -2426,26 +2441,74 @@ export const isTaskAssignedToUser = (task: MasterTask, user: User): boolean => {
       }
     }
 
+    const assignee = (task.assignee || '').trim().toLowerCase();
+    const uUsername = (user.username || '').toLowerCase();
+    const uId = (user.id || '').toLowerCase();
+    const uName = (user.name || '').toLowerCase();
+    const uCleanName = user.name.replace(/\(.*\)/, '').trim().toLowerCase();
     const userArea = (user.assignedArea || user.unit || '').trim().toLowerCase();
     const taskArea = (task.area || '').trim().toLowerCase();
-    if (userArea && taskArea && taskArea !== 'semua unit' && taskArea !== 'semua area' && !taskArea.includes('rolling')) {
+
+    // 1. Cek apakah tugas secara spesifik ditugaskan ke user ini
+    const isAssignedToThisUser = Boolean(
+      (assignee && (
+        assignee.includes(uUsername) ||
+        assignee.includes(uId) ||
+        assignee.includes(uName) ||
+        assignee.includes(uCleanName) ||
+        uName.includes(assignee) ||
+        uCleanName.includes(assignee)
+      )) ||
+      (task.assigneeId && (task.assigneeId === user.id || task.assigneeId === user.username)) ||
+      (task.assigneeName && (
+        task.assigneeName.toLowerCase().includes(uCleanName) ||
+        uName.includes(task.assigneeName.toLowerCase())
+      ))
+    );
+
+    // 2. Daftar nama staf PLH lainnya untuk proteksi agar tugas staf lain (seperti Dedi) tidak masuk ke Rahmat Hidayat
+    const knownPlhStaffTokens = ['rahmat', 'syahril', 'komala', 'andi', 'junaedi', 'dedi', 'radilah'];
+    const otherStaffMentioned = knownPlhStaffTokens.filter(
+      (token) => !uName.includes(token) && !uCleanName.includes(token) && assignee.includes(token)
+    );
+
+    if (otherStaffMentioned.length > 0 && !isAssignedToThisUser) {
+      // Tugas ini milik staf lain secara spesifik -> jangan tampilkan!
+      return false;
+    }
+
+    if (isAssignedToThisUser) {
+      return true;
+    }
+
+    // 3. Jika tugas memiliki area spesifik PLH (Area Pos 1, Area Pos 2, Area Khaldun, Area Ex Minifarm, Area Kolam Renang)
+    if (taskArea && userArea && taskArea !== 'semua unit' && taskArea !== 'semua area' && !taskArea.includes('rolling')) {
       const isAreaMatch = taskArea === userArea || taskArea.includes(userArea) || userArea.includes(taskArea);
-      if (!isAreaMatch) {
-        const assignee = (task.assignee || '').trim().toLowerCase();
-        const uUsername = (user.username || '').toLowerCase();
-        const uId = (user.id || '').toLowerCase();
-        const uName = (user.name || '').toLowerCase();
-        const isExplicitAssignee = !!(assignee && (
-          assignee.includes(uUsername) || assignee.includes(uId) || assignee.includes(uName)
-        ));
-        if (!isExplicitAssignee) {
-          return false;
-        }
+      if (isAreaMatch) {
+        return true;
+      } else {
+        // Area berbeda (misal Rahmat di Area Pos 1 sedangkan tugas di Area Ex Minifarm milik Dedi)
+        return false;
       }
     }
+
+    // 4. Tugas umum bersama seluruh PLH (misal: mt-plh-06 Clock Out / perapihan gudang alat)
+    const isForAllPlh =
+      !assignee ||
+      assignee === 'semua' ||
+      assignee === 'semua petugas' ||
+      assignee === 'semua petugas (plh)' ||
+      assignee === 'semua staff' ||
+      assignee === 'semua plh';
+
+    if (isForAllPlh) {
+      return true;
+    }
+
+    return false;
   }
 
-  // 2. Kordinator manages all tasks in their assigned division and unit/building
+  // 2. Kordinator manages all tasks in their assigned division and unit/building (Untuk OB)
   if (user.role === 'kordinator') {
     return true;
   }

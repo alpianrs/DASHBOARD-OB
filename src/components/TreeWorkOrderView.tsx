@@ -85,14 +85,17 @@ export function getTreeWeeklyCheckStatus(order: TreeWorkOrder): {
   badgeClass: string;
   isThisWeek: boolean;
 } {
-  const lastDate = order.lastCheckedDate || order.date;
+  const currentMonday = getMondayOfWeek();
+  // Strictly rely on lastCheckedDate from real inspections (NOT falling back to registration date order.date)
+  const lastDate = order.lastCheckedDate;
+
   if (!lastDate) {
     return {
       isCheckedThisWeek: false,
       isCheckedThisMonth: false,
       daysSinceLastCheck: 999,
-      statusText: 'Belum Pernah Dicek (Wajib)',
-      badgeClass: 'bg-rose-100 text-rose-800 border-rose-300',
+      statusText: 'Belum Dicek Minggu Ini',
+      badgeClass: 'bg-amber-100 text-amber-800 border-amber-300',
       isThisWeek: false,
     };
   }
@@ -103,18 +106,13 @@ export function getTreeWeeklyCheckStatus(order: TreeWorkOrder): {
   const nowTime = new Date(todayParts[0], todayParts[1] - 1, todayParts[2]).getTime();
   const diffDays = Math.max(0, Math.floor((nowTime - checkTime) / (1000 * 60 * 60 * 24)));
 
-  const currentMonday = getMondayOfWeek();
   const isThisWeek = lastDate >= currentMonday;
 
-  const isAman =
-    order.checkStatusToday === 'Sudah Dicek Aman' ||
-    order.checkStatusToday === 'Sudah Dicek' ||
-    order.treatmentStatus === 'Sudah Ditangani' ||
-    order.treatmentStatus === 'Tidak Perlu Penanganan' ||
-    order.condition === 'Normal / Sehat' ||
-    order.status === 'Selesai';
-
-  if (order.checkStatusToday === 'Perlu Penanganan' || (order.treatmentStatus === 'Belum Ditangani' && order.status === 'Perlu Penanganan')) {
+  // If inspection specifically flagged "Perlu Penanganan"
+  if (
+    order.checkStatusToday === 'Perlu Penanganan' ||
+    (order.treatmentStatus === 'Belum Ditangani' && order.status === 'Perlu Penanganan')
+  ) {
     return {
       isCheckedThisWeek: false,
       isCheckedThisMonth: false,
@@ -125,12 +123,19 @@ export function getTreeWeeklyCheckStatus(order: TreeWorkOrder): {
     };
   }
 
-  if (isThisWeek && isAman) {
+  // To be marked as "Sudah Ceklis Aman", it MUST have been checked on or after Monday of the current week
+  // AND have explicit safe status ('Sudah Dicek Aman' or 'Sudah Dicek' or 'Sudah Ditangani')
+  const isExplicitlySafe =
+    order.checkStatusToday === 'Sudah Dicek Aman' ||
+    order.checkStatusToday === 'Sudah Dicek' ||
+    order.treatmentStatus === 'Sudah Ditangani';
+
+  if (isThisWeek && isExplicitlySafe) {
     return {
       isCheckedThisWeek: true,
       isCheckedThisMonth: true,
       daysSinceLastCheck: diffDays,
-      statusText: diffDays === 0 ? 'Sudah Ceklis Aman (Hari ini)' : `Sudah Ceklis Aman (Minggu Ini)`,
+      statusText: diffDays === 0 ? 'Sudah Ceklis Aman (Hari Ini)' : `Sudah Ceklis Aman (${formatJakartaDisplayDate(lastDate)})`,
       badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300',
       isThisWeek: true,
     };
@@ -140,7 +145,7 @@ export function getTreeWeeklyCheckStatus(order: TreeWorkOrder): {
     isCheckedThisWeek: false,
     isCheckedThisMonth: false,
     daysSinceLastCheck: diffDays,
-    statusText: diffDays > 0 ? `Wajib Dicek (Reset Tiap Senin)` : 'Belum Dicek Minggu Ini',
+    statusText: diffDays > 0 ? `Wajib Dicek (Terakhir: ${diffDays} hari lalu)` : 'Belum Dicek Minggu Ini',
     badgeClass: 'bg-amber-100 text-amber-800 border-amber-300',
     isThisWeek: false,
   };
@@ -680,6 +685,9 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
       await googleSheetsService.saveTreeWorkOrdersToSheets();
 
       setInspectingOrder(null);
+      if (activeTab === 'need_action' && !isPerluPenanganan) {
+        setActiveTab('all');
+      }
       setFeedbackNotification({
         show: true,
         type: 'success',
@@ -914,7 +922,7 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     setTimeout(() => setCopiedSample(null), 2500);
   };
 
-  // Image Upload with Auto Google Drive Upload Helper
+  // Image Upload with Auto Fast Client-Side Compression (<120KB) & Google Drive Upload Helper
   const handlePhotoUploadGeneric = (
     e: React.ChangeEvent<HTMLInputElement>,
     prefix: string,
@@ -926,28 +934,77 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
 
     setLoading(true);
     const reader = new FileReader();
-    reader.onload = async (uploadEvent) => {
-      const base64 = uploadEvent.target?.result as string;
-      if (!base64) {
+    reader.onload = (uploadEvent) => {
+      const rawBase64 = uploadEvent.target?.result as string;
+      if (!rawBase64) {
         setLoading(false);
         return;
       }
-      // Instant local preview
-      onSuccess(base64, '');
 
-      // Upload to Google Drive in background
-      try {
-        const cleanPrefix = prefix.replace(/\s+/g, '_').toLowerCase();
-        const filename = `${cleanPrefix}_${Date.now()}.jpg`;
-        const driveRes = await googleSheetsService.uploadPhotoToDrive(base64, filename);
-        if (driveRes.driveUrl) {
-          onSuccess(driveRes.driveUrl, driveRes.driveUrl);
+      // Fast Image Compressor: Resize to max 960px with JPEG quality 0.65 (<120KB) to prevent lag & memory crashes
+      const img = new Image();
+      img.onload = async () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const MAX_DIM = 960;
+          let width = img.width || 640;
+          let height = img.height || 480;
+
+          if (width > height) {
+            if (width > MAX_DIM) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
+            }
+          } else {
+            if (height > MAX_DIM) {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Watermark overlay for documentation integrity
+            const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+            const dateStr = getJakartaDateString();
+            const bannerH = 26;
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+            ctx.fillRect(0, height - bannerH, width, bannerH);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.fillText(`PLH: ${prefix.replace(/_/g, ' ')} • ${dateStr} ${timeStr} • ${activeUser.name}`, 10, height - 8);
+
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.65);
+
+            // Instant lightweight local preview
+            onSuccess(compressedBase64, '');
+
+            // Upload lightweight image to Google Drive in background (<1s)
+            const cleanPrefix = prefix.replace(/\s+/g, '_').toLowerCase();
+            const filename = `${cleanPrefix}_${Date.now()}.jpg`;
+            const driveRes = await googleSheetsService.uploadPhotoToDrive(compressedBase64, filename);
+            if (driveRes.driveUrl) {
+              onSuccess(driveRes.driveUrl, driveRes.driveUrl);
+            }
+          } else {
+            onSuccess(rawBase64, '');
+          }
+        } catch (compErr) {
+          console.warn('Compression error fallback:', compErr);
+          onSuccess(rawBase64, '');
+        } finally {
+          setLoading(false);
         }
-      } catch (err) {
-        console.warn('Drive upload error:', err);
-      } finally {
+      };
+      img.onerror = () => {
+        onSuccess(rawBase64, '');
         setLoading(false);
-      }
+      };
+      img.src = rawBase64;
     };
     reader.readAsDataURL(file);
   };

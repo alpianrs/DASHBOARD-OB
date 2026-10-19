@@ -62,7 +62,13 @@ export const PeerInspectionModal: React.FC<PeerInspectionModalProps> = ({
     (u) =>
       u.id !== activeUser.id &&
       u.status === 'Aktif' &&
-      canInspectPeer(activeUser.role, activeUser.unit, u.unit)
+      canInspectPeer(
+        activeUser.role,
+        activeUser.unit,
+        u.unit,
+        activeUser.division || 'OB',
+        u.division || 'OB'
+      )
   );
 
   const [targetUserId, setTargetUserId] = useState<string>(
