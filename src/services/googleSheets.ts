@@ -11,6 +11,7 @@ import {
   PeerInspection,
   WeeklyScore,
   TreeWorkOrder,
+  AdhocDailyTask,
   normalizePlhArea,
 } from '../types';
 import { parseInstructionSteps } from '../utils/instructionHelper';
@@ -282,10 +283,7 @@ function setupDatabase() {
     "TreatmentReport", "Notes", "PhotoBeforeURL", "PhotoAfterURL",
     "DrivePhotoBeforeURL", "DrivePhotoAfterURL", "Timestamp"
   ];
-  var initialTreeLogs = [
-    ["tir-init-two-2026-001", "two-2026-001", "Pohon Trembesi Rimbun Dekat Kolam Renang", "Area Kolam Renang", "2026-09-22", "08:15 WIB", "u-plh-04", "Radilah (PLH)", "Rimbun", "Perlu Penanganan", "Belum Ditangani", "Penebangan / Topping Pohon Tinggi (Vendor Luar)", "", "", "", "Pengecekan: dahan tetap stabil.", "https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=800&q=80", "", "", "", new Date().toISOString()],
-    ["tir-init-two-2026-004", "two-2026-004", "Pohon Beringin & Mahoni Pintu Masuk Gerbang Pos 1", "Area Pos 1", "2026-09-22", "07:30 WIB", "u-kord-plh", "Rahmat Hidayat (Kord PLH)", "Rimbun", "Perlu Penanganan", "Belum Ditangani", "Penjarangan Kanopi Rimbun", "", "", "", "Pengecekan: dahan lebat mulai sentuh tiang lampu.", "https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80", "", "", "", new Date().toISOString()]
-  ];
+  var initialTreeLogs = [];
   createOrSetupSheet(ss, "TaskLogs_Pohon", treeLogsHeader, initialTreeLogs, "#15803d");
 
   return { success: true, message: "Database Lazuardi FM (Sheet Khusus OB & PLH Terpisah + WorkOrder_Pohon & TaskLogs_Pohon) berhasil disetup otomatis!" };
@@ -1529,6 +1527,53 @@ export const GoogleSheetsService = {
     return { success: true, message: 'Penilaian mingguan tersimpan secara lokal.', timestamp: now };
   },
 
+  // Lightweight Targeted Sync: Save AdhocDailyTasks (Tugas Tambahan / Inisiatif PLH)
+  saveAdhocDailyTasksToSheets: async (tasksInput?: AdhocDailyTask[]): Promise<SyncResult> => {
+    const syncConfig = StorageService.getSyncConfig();
+    const now = new Date().toISOString();
+    const tasks = tasksInput || StorageService.getAdhocDailyTasks();
+    if (!tasks || tasks.length === 0) {
+      return { success: true, message: 'Belum ada data tugas tambahan.', timestamp: now };
+    }
+
+    if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
+      try {
+        const rows = [
+          ['ID', 'Date', 'UserID', 'UserName', 'Division', 'Area', 'Title', 'Notes', 'EstimatedMinutes', 'PhotoURL', 'Status', 'CompletedAt', 'CreatedAt'],
+          ...tasks.map((t) => [
+            t.id,
+            t.date,
+            t.userId,
+            t.userName,
+            t.division || 'PLH',
+            t.area || '',
+            t.title,
+            t.notes || '',
+            t.estimatedMinutes || 30,
+            t.drivePhotoUrl || t.photoUrl || '',
+            t.status,
+            t.completedAt || '',
+            t.createdAt || now,
+          ]),
+        ];
+        const res = await fetch(syncConfig.webAppUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'saveAdhocTasks',
+            adhocTasks: rows,
+          }),
+        });
+        if (res.ok) {
+          return { success: true, message: 'Tugas tambahan inisiatif tersimpan di sheet!', timestamp: now };
+        }
+      } catch (e) {
+        console.warn('Adhoc tasks sync failed:', e);
+      }
+    }
+    return { success: true, message: 'Tugas tambahan tersimpan secara lokal.', timestamp: now };
+  },
+
   // Lightweight Targeted Sync: Save TreeWorkOrders only
   saveTreeWorkOrdersToSheets: async (treeOrdersInput?: TreeWorkOrder[]): Promise<SyncResult> => {
     const syncConfig = StorageService.getSyncConfig();
@@ -2647,7 +2692,7 @@ export const GoogleSheetsService = {
                   lastCheckedDate: row[17] || undefined,
                   lastCheckedTime: row[18] || undefined,
                   lastCheckedByName: row[19] || undefined,
-                  checkStatusToday: (row[20] || 'Sudah Dicek Aman') as any,
+                  checkStatusToday: (row[20] || 'Belum Dicek') as any,
                   inspectionNotes: row[21] || undefined,
                   completedAt: row[22] || undefined,
                   completedByName: row[23] || undefined,
@@ -3284,7 +3329,7 @@ export const GoogleSheetsService = {
               lastCheckedDate: latestLog ? latestLog.date : row[17] || undefined,
               lastCheckedTime: latestLog ? latestLog.time : row[18] || undefined,
               lastCheckedByName: latestLog ? latestLog.inspectorName : row[19] || undefined,
-              checkStatusToday: (latestLog ? latestLog.checkStatus : row[20] || 'Sudah Dicek Aman') as any,
+              checkStatusToday: (latestLog ? latestLog.checkStatus : (row[20] || 'Belum Dicek')) as any,
               inspectionNotes: latestLog ? latestLog.notes : row[21] || undefined,
               completedAt: row[22] || undefined,
               completedByName: row[23] || undefined,

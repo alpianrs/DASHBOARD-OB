@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BarChart as BarChartIcon,
   PieChart as PieChartIcon,
@@ -82,6 +82,7 @@ import { StorageService, isTaskAssignedToUser } from '../services/storage';
 import { GOOGLE_APPS_SCRIPT_CODE, GoogleSheetsService } from '../services/googleSheets';
 import { MasjidRollingCard } from './MasjidRollingCard';
 import { TreeWorkOrderView } from './TreeWorkOrderView';
+import { InitiativeDiagramSection } from './InitiativeDiagramSection';
 import { generateJobBarengPdf, generateWorkOrderSummaryPdf, printHtmlAsPdf } from '../utils/pdfGenerator';
 import {
   formatGoogleDriveImageUrl,
@@ -155,8 +156,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const kepalaUnitLockedUnit = isKepalaUnit ? (activeUser.unit || 'TK') : null;
 
   const [adminTab, setAdminTab] = useState<
-    'analytics' | 'rekap_tugas' | 'job_bareng' | 'dinas_luar' | 'evaluasi_unit' | 'manajemen_user' | 'master_task' | 'hari_libur' | 'google_sync' | 'pohon_masjid'
-  >('analytics');
+    'analytics' | 'rekap_tugas' | 'job_bareng' | 'dinas_luar' | 'evaluasi_unit' | 'manajemen_user' | 'master_task' | 'hari_libur' | 'google_sync' | 'pohon_masjid' | 'inisiatif_diagram'
+  >(isKepalaUnit ? 'evaluasi_unit' : 'analytics');
+
+  // Guard: Kepala Unit tidak memiliki akses ke Master Standar Kebersihan
+  useEffect(() => {
+    if (isKepalaUnit && (adminTab === 'master_task' || adminTab === 'hari_libur' || adminTab === 'google_sync')) {
+      setAdminTab('evaluasi_unit');
+    }
+  }, [isKepalaUnit, adminTab]);
 
   // Date filtering state using Jakarta (WIB) timezone
   const todayStr = getJakartaDateString();
@@ -1340,31 +1348,45 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </span>
         </button>
 
-        {!isKepalaUnit && (
-          <button
-            onClick={() => setAdminTab('manajemen_user')}
-            className={`py-2 px-3.5 rounded-xl transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              adminTab === 'manajemen_user'
-                ? 'bg-slate-900 text-white shadow-xs font-bold'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5 text-slate-300" />
-            <span>Rotasi Unit & User ({allUsers.length})</span>
-          </button>
-        )}
-
         <button
-          onClick={() => setAdminTab('master_task')}
+          onClick={() => setAdminTab('inisiatif_diagram')}
           className={`py-2 px-3.5 rounded-xl transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-            adminTab === 'master_task'
-              ? 'bg-slate-900 text-white shadow-xs font-bold'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            adminTab === 'inisiatif_diagram'
+              ? 'bg-emerald-700 text-white shadow-xs font-bold'
+              : 'text-emerald-800 hover:text-emerald-950 hover:bg-emerald-50 font-semibold'
           }`}
         >
-          <Building2 className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Master Standar Kebersihan ({masterTasks.length})</span>
+          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+          <span>Diagram Inisiatif Tim</span>
         </button>
+
+        {!isKepalaUnit && (
+          <>
+            <button
+              onClick={() => setAdminTab('manajemen_user')}
+              className={`py-2 px-3.5 rounded-xl transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                adminTab === 'manajemen_user'
+                  ? 'bg-slate-900 text-white shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5 text-slate-300" />
+              <span>Rotasi Unit & User ({allUsers.length})</span>
+            </button>
+
+            <button
+              onClick={() => setAdminTab('master_task')}
+              className={`py-2 px-3.5 rounded-xl transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                adminTab === 'master_task'
+                  ? 'bg-slate-900 text-white shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Master Standar Kebersihan ({masterTasks.length})</span>
+            </button>
+          </>
+        )}
 
         {!isKepalaUnit && (
           <>
@@ -2152,6 +2174,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Initiative & Additional Tasks Diagram */}
+          <InitiativeDiagramSection activeUser={activeUser} allUsers={allUsers} isAdmin={!isKepalaUnit} />
+        </div>
+      )}
+
+      {/* TAB: DIAGRAM INISIATIF TUGAS TAMBAHAN TIM (PLH & OB) */}
+      {adminTab === 'inisiatif_diagram' && (
+        <div className="space-y-4 animate-in fade-in duration-150">
+          <InitiativeDiagramSection activeUser={activeUser} allUsers={allUsers} isAdmin={!isKepalaUnit} />
         </div>
       )}
 

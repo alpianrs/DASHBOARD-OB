@@ -48,6 +48,7 @@ import {
   TaskLog,
   PLH_AREAS,
   DEFAULT_PLH_AREA_STAFF,
+  normalizePlhArea,
 } from '../types';
 import { StorageService, DEFAULT_TREE_SOP_INSTRUCTIONS } from '../services/storage';
 import { getJakartaDateString, formatJakartaDisplayDate } from '../utils/dateHelper';
@@ -84,10 +85,40 @@ export function getTreeWeeklyCheckStatus(order: TreeWorkOrder): {
   statusText: string;
   badgeClass: string;
   isThisWeek: boolean;
+  isUnderTreatment: boolean; // true jika pohon perlu penanganan / sedang ditangani
+  canDirectlyUpdate: boolean; // true jika di minggu depan ga perlu dicek ulang dari nol, tinggal update saja
 } {
   const currentMonday = getMondayOfWeek();
-  // Strictly rely on lastCheckedDate from real inspections (NOT falling back to registration date order.date)
   const lastDate = order.lastCheckedDate;
+
+  // 1. Cek apakah pohon dalam status "Perlu Penanganan" / "Sedang Ditangani"
+  // Sesuai aturan: jika pohon butuh penanganan, di minggu berikutnya fotonya tetap ada
+  // dan TIDAK PERLU DICEK ULANG, melainkan staf tinggal melakukan update tindakan/progres penanganan saja!
+  const isUnderTreatment =
+    (order.status === 'Perlu Penanganan' ||
+     order.status === 'Sedang Dikerjakan' ||
+     order.status === 'Dijadwalkan' ||
+     order.treatmentStatus === 'Belum Ditangani' ||
+     order.treatmentStatus === 'Sedang Ditangani' ||
+     order.checkStatusToday === 'Perlu Penanganan') &&
+    order.status !== 'Selesai' &&
+    order.treatmentStatus !== 'Sudah Ditangani';
+
+  if (isUnderTreatment) {
+    const isHandling = order.treatmentStatus === 'Sedang Ditangani' || order.status === 'Sedang Dikerjakan';
+    return {
+      isCheckedThisWeek: true, // Dianggap aktif dalam penanganan agar tidak menurunkan persentase penyelesaian
+      isCheckedThisMonth: true,
+      daysSinceLastCheck: 0,
+      statusText: isHandling ? 'Sedang Ditangani (Tinggal Update)' : 'Perlu Penanganan (Tinggal Update)',
+      badgeClass: isHandling
+        ? 'bg-amber-100 text-amber-900 border-amber-300'
+        : 'bg-rose-100 text-rose-800 border-rose-300',
+      isThisWeek: true,
+      isUnderTreatment: true,
+      canDirectlyUpdate: true,
+    };
+  }
 
   if (!lastDate) {
     return {
@@ -97,6 +128,8 @@ export function getTreeWeeklyCheckStatus(order: TreeWorkOrder): {
       statusText: 'Belum Dicek Minggu Ini',
       badgeClass: 'bg-amber-100 text-amber-800 border-amber-300',
       isThisWeek: false,
+      isUnderTreatment: false,
+      canDirectlyUpdate: false,
     };
   }
 
@@ -108,27 +141,13 @@ export function getTreeWeeklyCheckStatus(order: TreeWorkOrder): {
 
   const isThisWeek = lastDate >= currentMonday;
 
-  // If inspection specifically flagged "Perlu Penanganan"
-  if (
-    order.checkStatusToday === 'Perlu Penanganan' ||
-    (order.treatmentStatus === 'Belum Ditangani' && order.status === 'Perlu Penanganan')
-  ) {
-    return {
-      isCheckedThisWeek: false,
-      isCheckedThisMonth: false,
-      daysSinceLastCheck: diffDays,
-      statusText: 'Perlu Penanganan',
-      badgeClass: 'bg-rose-100 text-rose-800 border-rose-300',
-      isThisWeek,
-    };
-  }
-
   // To be marked as "Sudah Ceklis Aman", it MUST have been checked on or after Monday of the current week
   // AND have explicit safe status ('Sudah Dicek Aman' or 'Sudah Dicek' or 'Sudah Ditangani')
   const isExplicitlySafe =
     order.checkStatusToday === 'Sudah Dicek Aman' ||
     order.checkStatusToday === 'Sudah Dicek' ||
-    order.treatmentStatus === 'Sudah Ditangani';
+    order.treatmentStatus === 'Sudah Ditangani' ||
+    order.status === 'Selesai';
 
   if (isThisWeek && isExplicitlySafe) {
     return {
@@ -138,6 +157,8 @@ export function getTreeWeeklyCheckStatus(order: TreeWorkOrder): {
       statusText: diffDays === 0 ? 'Sudah Ceklis Aman (Hari Ini)' : `Sudah Ceklis Aman (${formatJakartaDisplayDate(lastDate)})`,
       badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300',
       isThisWeek: true,
+      isUnderTreatment: false,
+      canDirectlyUpdate: false,
     };
   }
 
@@ -148,6 +169,8 @@ export function getTreeWeeklyCheckStatus(order: TreeWorkOrder): {
     statusText: diffDays > 0 ? `Wajib Dicek (Terakhir: ${diffDays} hari lalu)` : 'Belum Dicek Minggu Ini',
     badgeClass: 'bg-amber-100 text-amber-800 border-amber-300',
     isThisWeek: false,
+    isUnderTreatment: false,
+    canDirectlyUpdate: false,
   };
 }
 
@@ -685,8 +708,14 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
       await googleSheetsService.saveTreeWorkOrdersToSheets();
 
       setInspectingOrder(null);
-      if (activeTab === 'need_action' && !isPerluPenanganan) {
-        setActiveTab('all');
+      // Pastikan pohon yang baru dicek tetap terlihat dan tidak hilang sendiri karena filter tab atau filter area
+      setActiveTab('all');
+      setSearchQuery('');
+      if (!isSuperUser && userAssignedArea) {
+        const match = PLH_AREAS.find((a) => a.toLowerCase().includes(userAssignedArea.toLowerCase()));
+        setSelectedAreaFilter(match || userAssignedArea);
+      } else if (selectedAreaFilter !== 'Semua' && selectedAreaFilter !== treeArea) {
+        setSelectedAreaFilter('Semua');
       }
       setFeedbackNotification({
         show: true,
@@ -849,10 +878,13 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     }
   }, [initialTreeId, initialAction, orders]);
 
-  // Quick check all trees in area
+  // Quick check all trees in area (requires explicit confirmation to prevent accidental mass-checking)
   const handleCheckAllInArea = (area: string) => {
     const areaOrders = orders.filter((o) => o.area === area);
     if (areaOrders.length === 0) return;
+
+    const confirmMsg = `Konfirmasi Pemeriksaan Serentak:\nApakah Anda yakin ingin menandai seluruh ${areaOrders.length} pohon di ${area} sebagai 'Sudah Dicek Aman'?\n\nPastikan seluruh pohon telah selesai ditinjau langsung di lapangan.`;
+    if (!window.confirm(confirmMsg)) return;
 
     const now = new Date();
     const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
@@ -941,12 +973,12 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
         return;
       }
 
-      // Fast Image Compressor: Resize to max 960px with JPEG quality 0.65 (<120KB) to prevent lag & memory crashes
+      // Ultra-Fast Lightweight Image Compressor: Resize to max 640px with JPEG quality 0.55 (~35KB) to completely eliminate camera lag, memory bloat, and storage quota overflow
       const img = new Image();
       img.onload = async () => {
         try {
           const canvas = document.createElement('canvas');
-          const MAX_DIM = 960;
+          const MAX_DIM = 640;
           let width = img.width || 640;
           let height = img.height || 480;
 
@@ -971,14 +1003,14 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
             // Watermark overlay for documentation integrity
             const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
             const dateStr = getJakartaDateString();
-            const bannerH = 26;
+            const bannerH = 24;
             ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
             ctx.fillRect(0, height - bannerH, width, bannerH);
             ctx.fillStyle = '#FFFFFF';
-            ctx.font = 'bold 11px sans-serif';
-            ctx.fillText(`PLH: ${prefix.replace(/_/g, ' ')} • ${dateStr} ${timeStr} • ${activeUser.name}`, 10, height - 8);
+            ctx.font = 'bold 10px sans-serif';
+            ctx.fillText(`PLH: ${prefix.replace(/_/g, ' ')} • ${dateStr} ${timeStr} • ${activeUser.name}`, 8, height - 7);
 
-            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.65);
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.55);
 
             // Instant lightweight local preview
             onSuccess(compressedBase64, '');
@@ -1015,7 +1047,14 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     if (!isSuperUser && userAssignedArea) {
       const uClean = userAssignedArea.toLowerCase().replace(/[^a-z0-9]/g, '');
       const oClean = o.area.toLowerCase().replace(/[^a-z0-9]/g, '');
-      if (!oClean.includes(uClean) && !uClean.includes(oClean)) {
+      const uNorm = normalizePlhArea(userAssignedArea).toLowerCase().replace(/[^a-z0-9]/g, '');
+      const oNorm = normalizePlhArea(o.area).toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (
+        !oClean.includes(uClean) &&
+        !uClean.includes(oClean) &&
+        !oNorm.includes(uNorm) &&
+        !uNorm.includes(oNorm)
+      ) {
         return false;
       }
     } else if (selectedAreaFilter !== 'Semua' && o.area !== selectedAreaFilter) {

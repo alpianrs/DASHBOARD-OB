@@ -975,6 +975,8 @@ const SEED_DINAS_REQUESTS: DinasRequest[] = [];
 const SEED_PEER_INSPECTIONS: PeerInspection[] = [];
 const SEED_WEEKLY_SCORES: WeeklyScore[] = [];
 
+export const SEED_ADHOC_TASKS: AdhocDailyTask[] = [];
+
 // In-memory active read/write cache to eliminate repeated JSON.parse overhead
 const memoryFallbackCache = new Map<string, any>();
 
@@ -1070,6 +1072,30 @@ export const removeStoredItem = (key: string): void => {
     console.error(`Error removing ${key} from localStorage:`, e);
   }
 };
+
+// Safe timestamp parser that handles timezone strings (WIB, WITA, WIT, etc.) without returning NaN
+export function parseSafeTimestamp(dateStr?: string, timeStr?: string): number {
+  if (!dateStr) return 0;
+  const cleanDate = dateStr.trim();
+  const cleanTime = (timeStr || '00:00')
+    .replace(/(WIB|WITA|WIT|UTC|GMT|\(|\))/gi, '')
+    .trim();
+
+  const dateParts = cleanDate.split('-');
+  if (dateParts.length === 3) {
+    const y = parseInt(dateParts[0], 10);
+    const m = parseInt(dateParts[1], 10) - 1;
+    const d = parseInt(dateParts[2], 10);
+    const timeParts = cleanTime.split(':');
+    const hh = timeParts[0] ? parseInt(timeParts[0], 10) || 0 : 0;
+    const mm = timeParts[1] ? parseInt(timeParts[1], 10) || 0 : 0;
+    const ss = timeParts[2] ? parseInt(timeParts[2], 10) || 0 : 0;
+    const parsed = new Date(y, m, d, hh, mm, ss).getTime();
+    if (!isNaN(parsed)) return parsed;
+  }
+  const direct = new Date(cleanDate).getTime();
+  return isNaN(direct) ? 0 : direct;
+}
 
 // Storage Service API
 export const StorageService = {
@@ -2052,42 +2078,100 @@ export const StorageService = {
       }
     });
 
-    // Merge with local trees so local checks / inspections / photos are not lost
+    const today = getJakartaDateString();
+
+    // Merge with local trees so local checks / inspections / photos are never lost
     local.forEach((l) => {
       if (!map.has(l.id)) {
         map.set(l.id, l);
       } else {
         const r = map.get(l.id)!;
-        // Merge inspection histories
+        // Merge inspection histories safely
         const historyMap = new Map<string, any>();
-        (r.inspectionHistory || []).forEach((h) => historyMap.set(h.id, h));
+        (r.inspectionHistory || []).forEach((h) => {
+          if (h && h.id) historyMap.set(h.id, h);
+        });
         (l.inspectionHistory || []).forEach((h) => {
-          if (!historyMap.has(h.id)) historyMap.set(h.id, h);
+          if (h && h.id && !historyMap.has(h.id)) historyMap.set(h.id, h);
         });
         const mergedHistory = Array.from(historyMap.values()).sort(
-          (a, b) => new Date(b.timestamp || b.date).getTime() - new Date(a.timestamp || a.date).getTime()
+          (a, b) =>
+            parseSafeTimestamp(b.timestamp || b.date, b.time) -
+            parseSafeTimestamp(a.timestamp || a.date, a.time)
         );
 
-        // Check which one has newer inspection
-        const lTime = l.lastCheckedDate ? new Date(`${l.lastCheckedDate} ${l.lastCheckedTime || '00:00'}`).getTime() : 0;
-        const rTime = r.lastCheckedDate ? new Date(`${r.lastCheckedDate} ${r.lastCheckedTime || '00:00'}`).getTime() : 0;
-        const isLocalNewerOrEqual = lTime >= rTime;
+        // Check which one has newer inspection using timezone-safe timestamp parser
+        const lTime = parseSafeTimestamp(l.lastCheckedDate, l.lastCheckedTime);
+        const rTime = parseSafeTimestamp(r.lastCheckedDate, r.lastCheckedTime);
+        const isLocalToday = l.lastCheckedDate === today;
+        const isRemoteToday = r.lastCheckedDate === today;
+
+        let isLocalNewerOrEqual = false;
+        if (isLocalToday && !isRemoteToday) {
+          isLocalNewerOrEqual = true;
+        } else if (lTime > 0 && rTime > 0) {
+          isLocalNewerOrEqual = lTime >= rTime;
+        } else if (l.lastCheckedDate && (!r.lastCheckedDate || l.lastCheckedDate >= r.lastCheckedDate)) {
+          isLocalNewerOrEqual = true;
+        } else if (
+          l.checkStatusToday &&
+          l.checkStatusToday !== 'Belum Dicek' &&
+          (!r.checkStatusToday || r.checkStatusToday === 'Belum Dicek')
+        ) {
+          isLocalNewerOrEqual = true;
+        }
 
         map.set(l.id, {
           ...(isLocalNewerOrEqual ? r : l),
           ...(isLocalNewerOrEqual ? l : r),
-          inspectionHistory: mergedHistory.length > 0 ? mergedHistory : undefined,
-          checkStatusToday: isLocalNewerOrEqual ? (l.checkStatusToday || r.checkStatusToday) : (r.checkStatusToday || l.checkStatusToday),
-          lastCheckedDate: isLocalNewerOrEqual ? (l.lastCheckedDate || r.lastCheckedDate) : (r.lastCheckedDate || l.lastCheckedDate),
-          lastCheckedTime: isLocalNewerOrEqual ? (l.lastCheckedTime || r.lastCheckedTime) : (r.lastCheckedTime || l.lastCheckedTime),
-          lastCheckedByName: isLocalNewerOrEqual ? (l.lastCheckedByName || r.lastCheckedByName) : (r.lastCheckedByName || l.lastCheckedByName),
+          inspectionHistory: mergedHistory.length > 0 ? mergedHistory.slice(0, 15) : undefined,
+          checkStatusToday: isLocalNewerOrEqual
+            ? (l.checkStatusToday || r.checkStatusToday)
+            : (r.checkStatusToday || l.checkStatusToday),
+          lastCheckedDate: isLocalNewerOrEqual
+            ? (l.lastCheckedDate || r.lastCheckedDate)
+            : (r.lastCheckedDate || l.lastCheckedDate),
+          lastCheckedTime: isLocalNewerOrEqual
+            ? (l.lastCheckedTime || r.lastCheckedTime)
+            : (r.lastCheckedTime || l.lastCheckedTime),
+          lastCheckedByName: isLocalNewerOrEqual
+            ? (l.lastCheckedByName || r.lastCheckedByName)
+            : (r.lastCheckedByName || l.lastCheckedByName),
+          // Crucial: preserve photos from both local and remote so a photo is NEVER lost!
           photoBeforeUrl: l.photoBeforeUrl || r.photoBeforeUrl,
           photoAfterUrl: l.photoAfterUrl || r.photoAfterUrl,
           drivePhotoBeforeUrl: l.drivePhotoBeforeUrl || r.drivePhotoBeforeUrl,
           drivePhotoAfterUrl: l.drivePhotoAfterUrl || r.drivePhotoAfterUrl,
+          lastCheckedPhotoUrl:
+            l.lastCheckedPhotoUrl ||
+            r.lastCheckedPhotoUrl ||
+            l.photoBeforeUrl ||
+            r.photoBeforeUrl,
+          treatmentStatus:
+            (isLocalNewerOrEqual ? l.treatmentStatus : r.treatmentStatus) ||
+            l.treatmentStatus ||
+            r.treatmentStatus,
+          status:
+            (isLocalNewerOrEqual ? l.status : r.status) || l.status || r.status,
+          condition:
+            (isLocalNewerOrEqual ? l.condition : r.condition) ||
+            l.condition ||
+            r.condition,
+          treatmentNeeded:
+            (isLocalNewerOrEqual ? l.treatmentNeeded : r.treatmentNeeded) ||
+            l.treatmentNeeded ||
+            r.treatmentNeeded,
+          notes:
+            (isLocalNewerOrEqual ? l.notes : r.notes) || l.notes || r.notes,
+          inspectionNotes:
+            (isLocalNewerOrEqual ? l.inspectionNotes : r.inspectionNotes) ||
+            l.inspectionNotes ||
+            r.inspectionNotes,
           standardPhotoUrl: l.standardPhotoUrl || r.standardPhotoUrl,
-          standardPhotoAngleGuide: l.standardPhotoAngleGuide || r.standardPhotoAngleGuide,
-          standardInstructions: l.standardInstructions || r.standardInstructions,
+          standardPhotoAngleGuide:
+            l.standardPhotoAngleGuide || r.standardPhotoAngleGuide,
+          standardInstructions:
+            l.standardInstructions || r.standardInstructions,
         });
       }
     });
@@ -2116,9 +2200,21 @@ export const StorageService = {
 
   // Pekerjaan Tambahan / Mandiri Harian Staf PLH (Hanya Masuk Work Order Hari Itu Saja)
   getAdhocDailyTasks: (date?: string): AdhocDailyTask[] => {
-    const list = getStoredItem<AdhocDailyTask[]>(STORAGE_KEYS.ADHOC_DAILY_TASKS, []);
-    if (!date) return list;
-    return list.filter((t) => isSameDay(t.date, date) || isSameDay(t.createdAt, date));
+    const raw = getStoredItem<AdhocDailyTask[]>(STORAGE_KEYS.ADHOC_DAILY_TASKS, []);
+    const list = Array.isArray(raw) ? raw : [];
+    const cleaned = list.filter(
+      (t) =>
+        t &&
+        t.id &&
+        !t.id.startsWith('adhoc-seed-') &&
+        !t.id.toLowerCase().includes('dummy') &&
+        !t.id.toLowerCase().includes('seed')
+    );
+    if (cleaned.length !== list.length) {
+      StorageService.saveAdhocDailyTasks(cleaned);
+    }
+    if (!date) return cleaned;
+    return cleaned.filter((t) => isSameDay(t.date, date) || isSameDay(t.createdAt, date));
   },
   saveAdhocDailyTasks: (tasks: AdhocDailyTask[]): void => {
     setStoredItem(STORAGE_KEYS.ADHOC_DAILY_TASKS, tasks);
@@ -2137,16 +2233,18 @@ export const StorageService = {
       userId: task.userId,
       userName: task.userName,
       userRole: 'user',
-      division: 'PLH',
+      division: task.division || 'PLH',
       unit: 'Semua Unit',
       taskId: task.id,
       taskTitle: `[Tugas Tambahan PLH] ${task.title} (${task.area})`,
-      category: 'Harian',
+      category: 'Insidental',
+      isIncidental: true,
       timingType: 'anytime',
       status: task.status === 'Selesai' ? 'Selesai' : 'Pending',
       isLate: false,
       photoUrl: task.photoUrl,
       notes: task.notes,
+      area: task.area,
     };
     const logs = StorageService.getTaskLogs();
     if (!logs.some((l) => l.id === logId)) {
@@ -2164,8 +2262,8 @@ export const StorageService = {
     const order = { ...list[index] };
     const history = [...(order.inspectionHistory || [])];
     history.unshift(record);
-
-    order.inspectionHistory = history;
+    // Keep max 15 inspection records to avoid localStorage quota issues
+    order.inspectionHistory = history.slice(0, 15);
     order.lastCheckedDate = record.date;
     order.lastCheckedTime = record.time;
     order.lastCheckedByName = record.inspectorName;

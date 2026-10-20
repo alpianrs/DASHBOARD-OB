@@ -47,6 +47,7 @@ import { UserTaskView } from './UserTaskView';
 import { JobBarengCard } from './JobBarengCard';
 import { MasjidRollingCard } from './MasjidRollingCard';
 import { TreeWorkOrderView } from './TreeWorkOrderView';
+import { InitiativeDiagramSection } from './InitiativeDiagramSection';
 import { generateWorkOrderSummaryPdf, printHtmlAsPdf } from '../utils/pdfGenerator';
 import { getJakartaDateString, isSameDay, normalizeDateString, isJobBarengExpired } from '../utils/dateHelper';
 import { formatGoogleDriveImageUrl, getGoogleDriveViewLink, getGoogleDriveThumbnailFallback } from '../utils/driveHelper';
@@ -95,7 +96,7 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
   onVerifyTaskLog,
 }) => {
   const [activeKordTab, setActiveKordTab] = useState<
-    'my_tasks' | 'job_bareng' | 'inspect_all' | 'weekly_rating' | 'monitoring' | 'plh_pohon'
+    'my_tasks' | 'job_bareng' | 'inspect_all' | 'weekly_rating' | 'monitoring' | 'plh_pohon' | 'inisiatif'
   >('monitoring');
 
   // Job Bareng & Insidental Modal State for Coordinator
@@ -240,6 +241,11 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
     const targetDate = new Date(selectedSaturdayDate);
     const evalYear = isNaN(targetDate.getFullYear()) ? new Date().getFullYear() : targetDate.getFullYear();
 
+    const hasKuScore = matchedExistingScore?.kepalaUnitScore !== undefined && matchedExistingScore.kepalaUnitScore > 0;
+    const finalAccumulated = hasKuScore
+      ? Number(((currentAverageScore + matchedExistingScore!.kepalaUnitScore!) / 2).toFixed(2))
+      : currentAverageScore;
+
     const newWeeklyScore: WeeklyScore = {
       id: matchedExistingScore?.id || `ws-${Date.now()}`,
       saturdayDate: selectedSaturdayDate,
@@ -251,12 +257,17 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
       unit: targetStaff.unit,
       division: kordDivision,
       evaluationType: kordDivision === 'PLH' ? 'PLH_4' : 'OB_15',
-      evaluatorRole: 'kordinator',
+      evaluatorRole: hasKuScore ? 'gabungan' : 'kordinator',
       kordinatorId: activeUser.id,
       kordinatorName: activeUser.name,
       kordinatorScore: currentAverageScore,
       kordinatorNotes: scoreNotes.trim(),
-      score: currentAverageScore,
+      kepalaUnitScore: matchedExistingScore?.kepalaUnitScore,
+      kepalaUnitName: matchedExistingScore?.kepalaUnitName,
+      kepalaUnitNotes: matchedExistingScore?.kepalaUnitNotes,
+      kepalaUnitCategoryScores: matchedExistingScore?.kepalaUnitCategoryScores,
+      accumulatedScore: finalAccumulated,
+      score: finalAccumulated,
       categoryScores: { ...categoryScores },
       categoryNotes: { ...categoryNotes },
       notes:
@@ -503,9 +514,21 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
             }`}
           >
             <TreePine className="w-3.5 h-3.5" />
-            <span>Work Order Pohon & Masjid</span>
+            <span>Pohon & Masjid</span>
           </button>
         )}
+
+        <button
+          onClick={() => setActiveKordTab('inisiatif')}
+          className={`py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            activeKordTab === 'inisiatif'
+              ? 'bg-emerald-700 text-white shadow-xs font-bold'
+              : 'text-emerald-800 hover:text-emerald-950 hover:bg-emerald-50'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          <span>Diagram Inisiatif</span>
+        </button>
       </div>
 
       {/* TAB 1: LIVE MONITORING TIM / ASSIGNED AREA PLH */}
@@ -1677,6 +1700,17 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
         <div className="space-y-4 animate-in fade-in duration-150">
           <MasjidRollingCard activeUser={activeUser} />
           <TreeWorkOrderView activeUser={activeUser} />
+        </div>
+      )}
+
+      {/* TAB 6: DIAGRAM INISIATIF TUGAS TAMBAHAN */}
+      {activeKordTab === 'inisiatif' && (
+        <div className="space-y-4 animate-in fade-in duration-150">
+          <InitiativeDiagramSection
+            activeUser={activeUser}
+            allUsers={allUsers}
+            isCoordinator={true}
+          />
         </div>
       )}
 
