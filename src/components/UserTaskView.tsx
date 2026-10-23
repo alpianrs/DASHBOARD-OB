@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   CheckCircle2,
   Check,
@@ -114,6 +114,17 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
   const [treeOrders, setTreeOrders] = useState<TreeWorkOrder[]>(() =>
     StorageService.getTreeWorkOrders()
   );
+
+  // Synchronize treeOrders in real-time when inspected or updated in modal
+  useEffect(() => {
+    const handleTreeUpdate = () => {
+      setTreeOrders(StorageService.getTreeWorkOrders());
+    };
+    window.addEventListener('lazuardi-tree-updated', handleTreeUpdate);
+    return () => {
+      window.removeEventListener('lazuardi-tree-updated', handleTreeUpdate);
+    };
+  }, []);
 
   const handleOpenTreeWithAction = (treeId: string, action: 'inspect' | 'treatment' | 'history') => {
     setTreeInitialId(treeId);

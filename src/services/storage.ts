@@ -22,6 +22,35 @@ import {
 import { isSameDay, getJakartaDateString, normalizeDateString } from '../utils/dateHelper';
 import { isAreaOnMasjidDutyThisWeek } from '../utils/masjidRolling';
 
+export const isPlhUser = (u?: Partial<User> | null): boolean => {
+  if (!u) return false;
+  if (u.division === 'PLH') return true;
+  const str = `${u.id || ''} ${u.username || ''} ${u.name || ''} ${u.unit || ''} ${u.assignedArea || ''}`.toLowerCase();
+  return (
+    str.includes('plh') ||
+    str.includes('pos 1') ||
+    str.includes('pos 2') ||
+    str.includes('pos1') ||
+    str.includes('pos2') ||
+    str.includes('syahril') ||
+    str.includes('komala') ||
+    str.includes('andi') ||
+    str.includes('junaedi') ||
+    str.includes('dedi') ||
+    str.includes('radilah') ||
+    str.includes('rahmat') ||
+    str.includes('minifarm') ||
+    str.includes('kolam renang') ||
+    str.includes('khaldun')
+  );
+};
+
+export const notifyTreeUpdated = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('lazuardi-tree-updated'));
+  }
+};
+
 const STORAGE_KEYS = {
   USERS: 'lz_fm_users',
   MASTER_TASKS: 'lz_fm_master_tasks',
@@ -78,6 +107,18 @@ export const SEED_PLH_USERS: User[] = [
     assignedArea: 'Area Pos 1',
     status: 'Aktif',
     phone: '08129999001',
+  },
+  {
+    id: 'u-plh-pos1',
+    username: 'petugas_pos1',
+    password: 'password123',
+    name: 'Petugas Pos 1 (PLH)',
+    role: 'user',
+    division: 'PLH',
+    unit: 'Pos 1',
+    assignedArea: 'Area Pos 1',
+    status: 'Aktif',
+    phone: '081234560005',
   },
   {
     id: 'u-plh-01',
@@ -599,34 +640,26 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
   // 1. Area Kolam Renang (Radilah)
   {
     id: 'two-2026-001',
-    date: '2026-09-22',
+    date: getJakartaDateString(),
     area: 'Area Kolam Renang',
     treeName: 'Pohon Trembesi Rimbun Dekat Kolam Renang',
-    condition: 'Rimbun',
-    treatmentNeeded: 'Penebangan / Topping Pohon Tinggi (Vendor Luar)',
-    handlerType: 'Vendor Luar',
-    vendorName: 'CV Duta Hijau Pertamanan',
-    vendorCost: 2500000,
-    scheduledWeek: 'Minggu ke-4 September 2026',
-    urgency: 'Tinggi / Bahaya',
-    status: 'Dijadwalkan',
-    treatmentStatus: 'Belum Ditangani',
-    notes: 'Dahan atas menjuntai ke kabel PLN dan atap tribun.',
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=800&q=80',
+    condition: 'Normal / Sehat',
+    treatmentNeeded: 'Penjarangan Kanopi Rimbun',
+    handlerType: 'Internal PLH',
+    urgency: 'Rendah',
+    status: 'Selesai',
+    treatmentStatus: 'Tidak Perlu Penanganan',
     reportedBy: 'u-plh-04',
     reportedByName: 'Radilah (PLH)',
     assignedStaffId: 'u-plh-04',
     assignedStaffName: 'Radilah (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:15 WIB',
-    lastCheckedByName: 'Radilah (PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Pengecekan: dahan tetap stabil.',
+    checkStatusToday: 'Belum Dicek',
+    inspectionHistory: [],
     createdAt: new Date().toISOString(),
   },
   {
     id: 'two-2026-014',
-    date: '2026-09-22',
+    date: getJakartaDateString(),
     area: 'Area Kolam Renang',
     treeName: 'Pohon Kelapa Gading Sisi Kolam Renang',
     condition: 'Normal / Sehat',
@@ -634,22 +667,18 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     handlerType: 'Internal PLH',
     urgency: 'Rendah',
     status: 'Selesai',
-    treatmentStatus: 'Sudah Ditangani',
-    notes: 'Pelepah daun tua dibersihkan.',
+    treatmentStatus: 'Tidak Perlu Penanganan',
     reportedBy: 'u-plh-04',
     reportedByName: 'Radilah (PLH)',
     assignedStaffId: 'u-plh-04',
     assignedStaffName: 'Radilah (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:30 WIB',
-    lastCheckedByName: 'Radilah (PLH)',
-    checkStatusToday: 'Sudah Dicek Aman',
-    inspectionNotes: 'Kondisi pelepah aman, bebas hama.',
+    checkStatusToday: 'Belum Dicek',
+    inspectionHistory: [],
     createdAt: new Date().toISOString(),
   },
   {
     id: 'two-2026-015',
-    date: '2026-09-22',
+    date: getJakartaDateString(),
     area: 'Area Kolam Renang',
     treeName: 'Pohon Beringin Dolar Taman Kolam',
     condition: 'Normal / Sehat',
@@ -657,49 +686,39 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     handlerType: 'Internal PLH',
     urgency: 'Rendah',
     status: 'Selesai',
-    treatmentStatus: 'Sudah Ditangani',
-    notes: 'Tajuk rapi dan terawat.',
+    treatmentStatus: 'Tidak Perlu Penanganan',
     reportedBy: 'u-plh-04',
     reportedByName: 'Radilah (PLH)',
     assignedStaffId: 'u-plh-04',
     assignedStaffName: 'Radilah (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:45 WIB',
-    lastCheckedByName: 'Radilah (PLH)',
-    checkStatusToday: 'Sudah Dicek Aman',
-    inspectionNotes: 'Tajuk bulat estetis, bebas hama.',
+    checkStatusToday: 'Belum Dicek',
+    inspectionHistory: [],
     createdAt: new Date().toISOString(),
   },
 
-  // 2. Area Pos 1 (Rahmat Hidayat)
+  // 2. Area Pos 1 (Rahmat Hidayat & Petugas Pos 1)
   {
     id: 'two-2026-004',
-    date: '2026-09-22',
+    date: getJakartaDateString(),
     area: 'Area Pos 1',
     treeName: 'Pohon Beringin & Mahoni Pintu Masuk Gerbang Pos 1',
-    condition: 'Rimbun',
+    condition: 'Normal / Sehat',
     treatmentNeeded: 'Penjarangan Kanopi Rimbun',
     handlerType: 'Internal PLH',
-    scheduledWeek: 'Minggu ke-4 September 2026',
-    urgency: 'Sedang',
-    status: 'Perlu Penanganan',
-    treatmentStatus: 'Belum Ditangani',
-    notes: 'Dahan rimbun condong ke jalur drop-off.',
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80',
+    urgency: 'Rendah',
+    status: 'Selesai',
+    treatmentStatus: 'Tidak Perlu Penanganan',
     reportedBy: 'u-kord-plh',
     reportedByName: 'Rahmat Hidayat (Kord PLH)',
     assignedStaffId: 'u-kord-plh',
     assignedStaffName: 'Rahmat Hidayat (Kord PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '07:30 WIB',
-    lastCheckedByName: 'Rahmat Hidayat (Kord PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Pengecekan: dahan lebat mulai sentuh tiang lampu.',
+    checkStatusToday: 'Belum Dicek',
+    inspectionHistory: [],
     createdAt: new Date().toISOString(),
   },
   {
     id: 'two-2026-006',
-    date: '2026-09-22',
+    date: getJakartaDateString(),
     area: 'Area Pos 1',
     treeName: 'Pohon Mangga Arumanis Depan Pos 1',
     condition: 'Normal / Sehat',
@@ -707,22 +726,18 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     handlerType: 'Internal PLH',
     urgency: 'Rendah',
     status: 'Selesai',
-    treatmentStatus: 'Sudah Ditangani',
-    notes: 'Pohon berbuah lebat, dahan bawah tinggi.',
+    treatmentStatus: 'Tidak Perlu Penanganan',
     reportedBy: 'u-kord-plh',
     reportedByName: 'Rahmat Hidayat (Kord PLH)',
     assignedStaffId: 'u-kord-plh',
     assignedStaffName: 'Rahmat Hidayat (Kord PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '07:45 WIB',
-    lastCheckedByName: 'Rahmat Hidayat (Kord PLH)',
-    checkStatusToday: 'Sudah Dicek Aman',
-    inspectionNotes: 'Kondisi sehat, daun hijau segar.',
+    checkStatusToday: 'Belum Dicek',
+    inspectionHistory: [],
     createdAt: new Date().toISOString(),
   },
   {
     id: 'two-2026-007',
-    date: '2026-09-22',
+    date: getJakartaDateString(),
     area: 'Area Pos 1',
     treeName: 'Pohon Pucuk Merah Pagar Depan Pos 1',
     condition: 'Normal / Sehat',
@@ -730,49 +745,39 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     handlerType: 'Internal PLH',
     urgency: 'Rendah',
     status: 'Selesai',
-    treatmentStatus: 'Sudah Ditangani',
-    notes: 'Pagar pucuk merah tumbuh rapi dan segar.',
+    treatmentStatus: 'Tidak Perlu Penanganan',
     reportedBy: 'u-kord-plh',
     reportedByName: 'Rahmat Hidayat (Kord PLH)',
     assignedStaffId: 'u-kord-plh',
     assignedStaffName: 'Rahmat Hidayat (Kord PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:00 WIB',
-    lastCheckedByName: 'Rahmat Hidayat (Kord PLH)',
-    checkStatusToday: 'Sudah Dicek Aman',
-    inspectionNotes: 'Pucuk merah berwarna cerah merata.',
+    checkStatusToday: 'Belum Dicek',
+    inspectionHistory: [],
     createdAt: new Date().toISOString(),
   },
 
   // 3. Area Pos 2 (Ahmad Syahril)
   {
     id: 'two-2026-002',
-    date: '2026-09-22',
+    date: getJakartaDateString(),
     area: 'Area Pos 2',
     treeName: 'Pohon Ketapang Kencana Dekat Gerbang Pos 2',
-    condition: 'Rimbun',
+    condition: 'Normal / Sehat',
     treatmentNeeded: 'Penjarangan Kanopi Rimbun',
     handlerType: 'Internal PLH',
-    scheduledWeek: 'Minggu ke-4 September 2026',
-    urgency: 'Sedang',
-    status: 'Sedang Dikerjakan',
-    treatmentStatus: 'Sedang Ditangani',
-    notes: 'Kanopi daun lebat tutupi lampu malam Pos 2.',
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=800&q=80',
+    urgency: 'Rendah',
+    status: 'Selesai',
+    treatmentStatus: 'Tidak Perlu Penanganan',
     reportedBy: 'u-plh-01',
     reportedByName: 'Ahmad Syahril (PLH)',
     assignedStaffId: 'u-plh-01',
     assignedStaffName: 'Ahmad Syahril (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:10 WIB',
-    lastCheckedByName: 'Ahmad Syahril (PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Proses pemangkasan berjalan.',
+    checkStatusToday: 'Belum Dicek',
+    inspectionHistory: [],
     createdAt: new Date().toISOString(),
   },
   {
     id: 'two-2026-008',
-    date: '2026-09-22',
+    date: getJakartaDateString(),
     area: 'Area Pos 2',
     treeName: 'Pohon Mahoni Samping Pos 2',
     condition: 'Normal / Sehat',
@@ -780,22 +785,18 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     handlerType: 'Internal PLH',
     urgency: 'Rendah',
     status: 'Selesai',
-    treatmentStatus: 'Sudah Ditangani',
-    notes: 'Batang kokoh tegak lurus, bebas rayap.',
+    treatmentStatus: 'Tidak Perlu Penanganan',
     reportedBy: 'u-plh-01',
     reportedByName: 'Ahmad Syahril (PLH)',
     assignedStaffId: 'u-plh-01',
     assignedStaffName: 'Ahmad Syahril (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:25 WIB',
-    lastCheckedByName: 'Ahmad Syahril (PLH)',
-    checkStatusToday: 'Sudah Dicek Aman',
-    inspectionNotes: 'Batang bersih, bebas rayap dan lumut.',
+    checkStatusToday: 'Belum Dicek',
+    inspectionHistory: [],
     createdAt: new Date().toISOString(),
   },
   {
     id: 'two-2026-009',
-    date: '2026-09-22',
+    date: getJakartaDateString(),
     area: 'Area Pos 2',
     treeName: 'Pohon Palem Kenari Jalur Gerbang 2',
     condition: 'Normal / Sehat',
@@ -803,48 +804,39 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     handlerType: 'Internal PLH',
     urgency: 'Rendah',
     status: 'Selesai',
-    treatmentStatus: 'Sudah Ditangani',
-    notes: 'Pelepah rapi tidak menghalangi spanduk.',
+    treatmentStatus: 'Tidak Perlu Penanganan',
     reportedBy: 'u-plh-01',
     reportedByName: 'Ahmad Syahril (PLH)',
     assignedStaffId: 'u-plh-01',
     assignedStaffName: 'Ahmad Syahril (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:40 WIB',
-    lastCheckedByName: 'Ahmad Syahril (PLH)',
-    checkStatusToday: 'Sudah Dicek Aman',
-    inspectionNotes: 'Pelepah kering sudah dipangkas tuntas.',
+    checkStatusToday: 'Belum Dicek',
+    inspectionHistory: [],
     createdAt: new Date().toISOString(),
   },
 
   // 4. Area Khaldun (Andi Komala)
   {
     id: 'two-2026-003',
-    date: '2026-09-20',
+    date: getJakartaDateString(),
     area: 'Area Khaldun',
     treeName: 'Pohon Flamboyan Area Lanskap Khaldun',
-    condition: 'Dahan Kering / Lapuk',
-    treatmentNeeded: 'Pemangkasan Ringan (Pruning Dahan Bawah)',
+    condition: 'Normal / Sehat',
+    treatmentNeeded: 'Penjarangan Kanopi Rimbun',
     handlerType: 'Internal PLH',
-    urgency: 'Sedang',
+    urgency: 'Rendah',
     status: 'Selesai',
-    treatmentStatus: 'Sudah Ditangani',
-    notes: '3 dahan kering dipangkas rapi.',
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=800&q=80',
+    treatmentStatus: 'Tidak Perlu Penanganan',
     reportedBy: 'u-plh-02',
     reportedByName: 'Andi Komala (PLH)',
     assignedStaffId: 'u-plh-02',
     assignedStaffName: 'Andi Komala (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '07:50 WIB',
-    lastCheckedByName: 'Andi Komala (PLH)',
-    checkStatusToday: 'Sudah Dicek Aman',
-    inspectionNotes: 'Bekas pangkasan mengering bagus.',
+    checkStatusToday: 'Belum Dicek',
+    inspectionHistory: [],
     createdAt: new Date().toISOString(),
   },
   {
     id: 'two-2026-010',
-    date: '2026-09-22',
+    date: getJakartaDateString(),
     area: 'Area Khaldun',
     treeName: 'Pohon Angsana Belakang Gedung Khaldun',
     condition: 'Normal / Sehat',
@@ -852,22 +844,18 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     handlerType: 'Internal PLH',
     urgency: 'Rendah',
     status: 'Selesai',
-    treatmentStatus: 'Sudah Ditangani',
-    notes: 'Tajuk rindang peneduh taman.',
+    treatmentStatus: 'Tidak Perlu Penanganan',
     reportedBy: 'u-plh-02',
     reportedByName: 'Andi Komala (PLH)',
     assignedStaffId: 'u-plh-02',
     assignedStaffName: 'Andi Komala (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:05 WIB',
-    lastCheckedByName: 'Andi Komala (PLH)',
-    checkStatusToday: 'Sudah Dicek Aman',
-    inspectionNotes: 'Daun rimbun hijau merata, aman.',
+    checkStatusToday: 'Belum Dicek',
+    inspectionHistory: [],
     createdAt: new Date().toISOString(),
   },
   {
     id: 'two-2026-011',
-    date: '2026-09-22',
+    date: getJakartaDateString(),
     area: 'Area Khaldun',
     treeName: 'Pohon Tabebuya Kuning Koridor Khaldun',
     condition: 'Normal / Sehat',
@@ -875,48 +863,39 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     handlerType: 'Internal PLH',
     urgency: 'Rendah',
     status: 'Selesai',
-    treatmentStatus: 'Sudah Ditangani',
-    notes: 'Pertumbuhan bunga stabil, perakaran aman.',
+    treatmentStatus: 'Tidak Perlu Penanganan',
     reportedBy: 'u-plh-02',
     reportedByName: 'Andi Komala (PLH)',
     assignedStaffId: 'u-plh-02',
     assignedStaffName: 'Andi Komala (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:20 WIB',
-    lastCheckedByName: 'Andi Komala (PLH)',
-    checkStatusToday: 'Sudah Dicek Aman',
-    inspectionNotes: 'Batang bersih, bebas parasit.',
+    checkStatusToday: 'Belum Dicek',
+    inspectionHistory: [],
     createdAt: new Date().toISOString(),
   },
 
   // 5. Area Ex Minifarm (Dedi Junaedi)
   {
     id: 'two-2026-005',
-    date: '2026-09-22',
+    date: getJakartaDateString(),
     area: 'Area Ex Minifarm',
     treeName: 'Pohon Mangga & Sengon Samping Bedengan Pembibitan',
-    condition: 'Terserang Hama / Benalu',
-    treatmentNeeded: 'Pemberian Nutrisi / Obat Hama Batang',
+    condition: 'Normal / Sehat',
+    treatmentNeeded: 'Penjarangan Kanopi Rimbun',
     handlerType: 'Internal PLH',
-    urgency: 'Sedang',
-    status: 'Sedang Dikerjakan',
-    treatmentStatus: 'Sedang Ditangani',
-    notes: 'Benalu dahan utama dan rayap sengon.',
-    photoBeforeUrl: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=800&q=80',
+    urgency: 'Rendah',
+    status: 'Selesai',
+    treatmentStatus: 'Tidak Perlu Penanganan',
     reportedBy: 'u-plh-03',
     reportedByName: 'Dedi Junaedi (PLH)',
     assignedStaffId: 'u-plh-03',
     assignedStaffName: 'Dedi Junaedi (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:00 WIB',
-    lastCheckedByName: 'Dedi Junaedi (PLH)',
-    checkStatusToday: 'Sudah Dicek',
-    inspectionNotes: 'Benalu dicabut 80%, semprot organik sore.',
+    checkStatusToday: 'Belum Dicek',
+    inspectionHistory: [],
     createdAt: new Date().toISOString(),
   },
   {
     id: 'two-2026-012',
-    date: '2026-09-22',
+    date: getJakartaDateString(),
     area: 'Area Ex Minifarm',
     treeName: 'Pohon Jambu Air Citra Minifarm',
     condition: 'Normal / Sehat',
@@ -924,22 +903,18 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     handlerType: 'Internal PLH',
     urgency: 'Rendah',
     status: 'Selesai',
-    treatmentStatus: 'Sudah Ditangani',
-    notes: 'Tajuk rapi di sekeliling bedengan.',
+    treatmentStatus: 'Tidak Perlu Penanganan',
     reportedBy: 'u-plh-03',
     reportedByName: 'Dedi Junaedi (PLH)',
     assignedStaffId: 'u-plh-03',
     assignedStaffName: 'Dedi Junaedi (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:15 WIB',
-    lastCheckedByName: 'Dedi Junaedi (PLH)',
-    checkStatusToday: 'Sudah Dicek Aman',
-    inspectionNotes: 'Buah mulai pentil, bebas lalat buah.',
+    checkStatusToday: 'Belum Dicek',
+    inspectionHistory: [],
     createdAt: new Date().toISOString(),
   },
   {
     id: 'two-2026-013',
-    date: '2026-09-22',
+    date: getJakartaDateString(),
     area: 'Area Ex Minifarm',
     treeName: 'Pohon Nangka Mini Area Ex Minifarm',
     condition: 'Normal / Sehat',
@@ -947,22 +922,17 @@ export const SEED_TREE_WORK_ORDERS: TreeWorkOrder[] = [
     handlerType: 'Internal PLH',
     urgency: 'Rendah',
     status: 'Selesai',
-    treatmentStatus: 'Sudah Ditangani',
-    notes: 'Batang pendek produktif, tanah gembur.',
+    treatmentStatus: 'Tidak Perlu Penanganan',
     reportedBy: 'u-plh-03',
     reportedByName: 'Dedi Junaedi (PLH)',
     assignedStaffId: 'u-plh-03',
     assignedStaffName: 'Dedi Junaedi (PLH)',
-    lastCheckedDate: '2026-09-22',
-    lastCheckedTime: '08:30 WIB',
-    lastCheckedByName: 'Dedi Junaedi (PLH)',
-    checkStatusToday: 'Sudah Dicek Aman',
-    inspectionNotes: 'Batang kokoh, buah aman terbungkus.',
+    checkStatusToday: 'Belum Dicek',
+    inspectionHistory: [],
     createdAt: new Date().toISOString(),
   },
 ];
 
-// Combine all MasterTasks (OB + PLH)
 export const ALL_INITIAL_MASTER_TASKS: MasterTask[] = [
   ...SEED_MASTER_TASKS.map((t) => ({ ...t, division: t.division || ('OB' as const) })),
   ...SEED_PLH_MASTER_TASKS,
@@ -1181,8 +1151,11 @@ export const StorageService = {
     let updatedUsers = cleaned.map((u) => {
       let mod = { ...u };
       let changed = false;
-      if (!mod.division && mod.role !== 'admin') {
-        const isPlh = mod.id.includes('plh') || mod.username.includes('plh') || mod.name.includes('(PLH)');
+      const isPlh = isPlhUser(mod);
+      if (isPlh && mod.division !== 'PLH' && mod.role !== 'admin') {
+        mod.division = 'PLH' as const;
+        changed = true;
+      } else if (!mod.division && mod.role !== 'admin') {
         mod.division = isPlh ? ('PLH' as const) : ('OB' as const);
         changed = true;
       }
@@ -1215,11 +1188,21 @@ export const StorageService = {
       return mod;
     });
 
-    // Ensure core seed users (admin, lili, rahmat) are present
+    // Ensure all seed users (including all 5 PLH staff + Coordinator) are present and properly assigned
     for (const coreUser of SEED_USERS) {
-      if (!updatedUsers.some((u) => u.id === coreUser.id || u.username.toLowerCase() === coreUser.username.toLowerCase())) {
+      const existingIdx = updatedUsers.findIndex((u) => u.id === coreUser.id || u.username.toLowerCase() === coreUser.username.toLowerCase());
+      if (existingIdx === -1) {
         updatedUsers.push(coreUser);
         needsResave = true;
+      } else {
+        if (coreUser.division && updatedUsers[existingIdx].division !== coreUser.division) {
+          updatedUsers[existingIdx].division = coreUser.division;
+          needsResave = true;
+        }
+        if (coreUser.assignedArea && !updatedUsers[existingIdx].assignedArea) {
+          updatedUsers[existingIdx].assignedArea = coreUser.assignedArea;
+          needsResave = true;
+        }
       }
     }
 
@@ -1995,31 +1978,53 @@ export const StorageService = {
         changed = true;
       }
 
-      // Initialize Inspection History if empty
-      if (!ord.inspectionHistory || ord.inspectionHistory.length === 0) {
-        ord.inspectionHistory = [
-          {
-            id: `tir-init-${ord.id}`,
-            treeId: ord.id,
-            date: ord.lastCheckedDate || ord.date,
-            time: ord.lastCheckedTime || '08:00 WIB',
-            inspectorId: ord.reportedBy,
-            inspectorName: ord.lastCheckedByName || ord.reportedByName,
-            condition: ord.condition,
-            checkStatus: ord.status === 'Perlu Penanganan' ? 'Perlu Penanganan' : 'Sudah Dicek Aman',
-            notes: ord.inspectionNotes || ord.notes,
-            treatmentNeeded: ord.treatmentNeeded,
-            treatmentStatus: ord.treatmentStatus,
-            handledByName: ord.handledByName || (ord.status === 'Selesai' ? ord.completedByName : undefined),
-            handledAt: ord.handledAt || (ord.status === 'Selesai' ? ord.completedAt : undefined),
-            treatmentReport: ord.treatmentReport,
-            photoBeforeUrl: ord.photoBeforeUrl,
-            photoAfterUrl: ord.photoAfterUrl,
-            drivePhotoBeforeUrl: ord.drivePhotoBeforeUrl,
-            drivePhotoAfterUrl: ord.drivePhotoAfterUrl,
-            timestamp: ord.createdAt || new Date().toISOString(),
-          },
-        ];
+      // Strip any legacy dummy Unsplash URLs and clean mock photos
+      const cleanPhoto = (url?: string) => (!url || url.includes('unsplash.com') || url.includes('dummy') ? undefined : url);
+      if (ord.photoBeforeUrl && ord.photoBeforeUrl.includes('unsplash.com')) {
+        ord.photoBeforeUrl = undefined;
+        changed = true;
+      }
+      if (ord.photoAfterUrl && ord.photoAfterUrl.includes('unsplash.com')) {
+        ord.photoAfterUrl = undefined;
+        changed = true;
+      }
+      if (ord.lastCheckedPhotoUrl && ord.lastCheckedPhotoUrl.includes('unsplash.com')) {
+        ord.lastCheckedPhotoUrl = undefined;
+        changed = true;
+      }
+
+      // Filter out legacy dummy inspection records
+      if (ord.inspectionHistory && ord.inspectionHistory.length > 0) {
+        const initialLen = ord.inspectionHistory.length;
+        ord.inspectionHistory = ord.inspectionHistory.filter(
+          (h) => !h.id.startsWith('tir-init-') && !h.id.includes('dummy') && (!h.photoBeforeUrl || !h.photoBeforeUrl.includes('unsplash.com'))
+        );
+        if (ord.inspectionHistory.length !== initialLen) {
+          changed = true;
+        }
+      }
+
+      // Initialize Treatment Status if not present
+      if (!ord.treatmentStatus) {
+        if (ord.status === 'Selesai') {
+          ord.treatmentStatus = 'Sudah Ditangani';
+        } else if (ord.status === 'Sedang Dikerjakan') {
+          ord.treatmentStatus = 'Sedang Ditangani';
+        } else if (ord.status === 'Perlu Penanganan' || ord.status === 'Dijadwalkan') {
+          ord.treatmentStatus = 'Belum Ditangani';
+        } else {
+          ord.treatmentStatus = ord.condition === 'Normal / Sehat' ? 'Tidak Perlu Penanganan' : 'Belum Ditangani';
+        }
+        changed = true;
+      }
+
+      // If under treatment, ensure photoBeforeUrl & drivePhotoBeforeUrl are preserved
+      if (
+        (ord.status === 'Perlu Penanganan' || ord.treatmentStatus === 'Belum Ditangani' || ord.treatmentStatus === 'Sedang Ditangani') &&
+        !ord.photoBeforeUrl &&
+        ord.lastCheckedPhotoUrl
+      ) {
+        ord.photoBeforeUrl = ord.lastCheckedPhotoUrl;
         changed = true;
       }
 
@@ -2032,7 +2037,7 @@ export const StorageService = {
       if (!ord.standardPhotoUrl || !ord.standardPhotoAngleGuide || !ord.standardInstructions || ord.standardInstructions.length === 0) {
         const seedMatch = SEED_TREE_WORK_ORDERS.find((s) => s.id === ord.id || (s.area === ord.area && s.treeName === ord.treeName));
         if (seedMatch) {
-          if (!ord.standardPhotoUrl && seedMatch.standardPhotoUrl) {
+          if (!ord.standardPhotoUrl && seedMatch.standardPhotoUrl && !seedMatch.standardPhotoUrl.includes('unsplash.com')) {
             ord.standardPhotoUrl = seedMatch.standardPhotoUrl;
             changed = true;
           }
@@ -2066,33 +2071,45 @@ export const StorageService = {
   },
   saveTreeWorkOrders: (orders: TreeWorkOrder[]): void => {
     setStoredItem(STORAGE_KEYS.TREE_WORK_ORDERS, orders || []);
+    notifyTreeUpdated();
   },
   mergeTreeWorkOrders: (remoteOrders: TreeWorkOrder[]): TreeWorkOrder[] => {
     const local = StorageService.getTreeWorkOrders();
     const map = new Map<string, TreeWorkOrder>();
 
-    // Index remote trees first
+    const isDummyUrl = (url?: string) => !url || url.includes('unsplash.com') || url.includes('dummy');
+
+    // Index remote trees first (clean out any dummy URLs from remote)
     remoteOrders.forEach((r) => {
       if (r && r.id) {
-        map.set(r.id, { ...r });
+        map.set(r.id, {
+          ...r,
+          photoBeforeUrl: isDummyUrl(r.photoBeforeUrl) ? undefined : r.photoBeforeUrl,
+          photoAfterUrl: isDummyUrl(r.photoAfterUrl) ? undefined : r.photoAfterUrl,
+          lastCheckedPhotoUrl: isDummyUrl(r.lastCheckedPhotoUrl) ? undefined : r.lastCheckedPhotoUrl,
+        });
       }
     });
 
     const today = getJakartaDateString();
 
-    // Merge with local trees so local checks / inspections / photos are never lost
+    // Merge with local trees so local checks / inspections / photos are NEVER lost
     local.forEach((l) => {
       if (!map.has(l.id)) {
         map.set(l.id, l);
       } else {
         const r = map.get(l.id)!;
-        // Merge inspection histories safely
+        // Merge inspection histories safely (strip dummy records)
         const historyMap = new Map<string, any>();
         (r.inspectionHistory || []).forEach((h) => {
-          if (h && h.id) historyMap.set(h.id, h);
+          if (h && h.id && !h.id.startsWith('tir-init-') && !isDummyUrl(h.photoBeforeUrl)) {
+            historyMap.set(h.id, h);
+          }
         });
         (l.inspectionHistory || []).forEach((h) => {
-          if (h && h.id && !historyMap.has(h.id)) historyMap.set(h.id, h);
+          if (h && h.id && !h.id.startsWith('tir-init-') && !isDummyUrl(h.photoBeforeUrl) && !historyMap.has(h.id)) {
+            historyMap.set(h.id, h);
+          }
         });
         const mergedHistory = Array.from(historyMap.values()).sort(
           (a, b) =>
@@ -2107,27 +2124,64 @@ export const StorageService = {
         const isRemoteToday = r.lastCheckedDate === today;
 
         let isLocalNewerOrEqual = false;
-        if (isLocalToday && !isRemoteToday) {
-          isLocalNewerOrEqual = true;
-        } else if (lTime > 0 && rTime > 0) {
-          isLocalNewerOrEqual = lTime >= rTime;
-        } else if (l.lastCheckedDate && (!r.lastCheckedDate || l.lastCheckedDate >= r.lastCheckedDate)) {
-          isLocalNewerOrEqual = true;
-        } else if (
+        // CRITICAL: If local tree was checked (not 'Belum Dicek') and remote is 'Belum Dicek', LOCAL ALWAYS WINS!
+        if (
           l.checkStatusToday &&
           l.checkStatusToday !== 'Belum Dicek' &&
           (!r.checkStatusToday || r.checkStatusToday === 'Belum Dicek')
         ) {
           isLocalNewerOrEqual = true;
+        } else if (isLocalToday && !isRemoteToday) {
+          isLocalNewerOrEqual = true;
+        } else if (lTime > 0 && rTime > 0) {
+          // Guard against future fake/dummy dates from remote
+          const nowPlus1Day = Date.now() + 86400000;
+          if (rTime > nowPlus1Day && lTime <= nowPlus1Day) {
+            isLocalNewerOrEqual = true;
+          } else {
+            isLocalNewerOrEqual = lTime >= rTime;
+          }
+        } else if (l.lastCheckedDate && (!r.lastCheckedDate || l.lastCheckedDate >= r.lastCheckedDate)) {
+          isLocalNewerOrEqual = true;
+        } else if (
+          l.checkStatusToday &&
+          l.checkStatusToday !== 'Belum Dicek'
+        ) {
+          isLocalNewerOrEqual = true;
+        }
+
+        // Preserve photos from both local and remote so a photo is NEVER lost!
+        const resolvedPhotoBefore = !isDummyUrl(l.photoBeforeUrl)
+          ? l.photoBeforeUrl
+          : (!isDummyUrl(r.photoBeforeUrl) ? r.photoBeforeUrl : undefined);
+        const resolvedDrivePhotoBefore = !isDummyUrl(l.drivePhotoBeforeUrl)
+          ? l.drivePhotoBeforeUrl
+          : (!isDummyUrl(r.drivePhotoBeforeUrl) ? r.drivePhotoBeforeUrl : undefined);
+        const resolvedPhotoAfter = !isDummyUrl(l.photoAfterUrl)
+          ? l.photoAfterUrl
+          : (!isDummyUrl(r.photoAfterUrl) ? r.photoAfterUrl : undefined);
+        const resolvedDrivePhotoAfter = !isDummyUrl(l.drivePhotoAfterUrl)
+          ? l.drivePhotoAfterUrl
+          : (!isDummyUrl(r.drivePhotoAfterUrl) ? r.drivePhotoAfterUrl : undefined);
+        const resolvedLastPhoto =
+          resolvedPhotoBefore ||
+          resolvedDrivePhotoBefore ||
+          (!isDummyUrl(l.lastCheckedPhotoUrl) ? l.lastCheckedPhotoUrl : undefined) ||
+          (!isDummyUrl(r.lastCheckedPhotoUrl) ? r.lastCheckedPhotoUrl : undefined);
+
+        // Safe status preservation: Never revert a local check to 'Belum Dicek'
+        let finalCheckStatus = isLocalNewerOrEqual
+          ? (l.checkStatusToday || r.checkStatusToday)
+          : (r.checkStatusToday || l.checkStatusToday);
+        if (l.checkStatusToday && l.checkStatusToday !== 'Belum Dicek' && (!finalCheckStatus || finalCheckStatus === 'Belum Dicek')) {
+          finalCheckStatus = l.checkStatusToday;
         }
 
         map.set(l.id, {
           ...(isLocalNewerOrEqual ? r : l),
           ...(isLocalNewerOrEqual ? l : r),
           inspectionHistory: mergedHistory.length > 0 ? mergedHistory.slice(0, 15) : undefined,
-          checkStatusToday: isLocalNewerOrEqual
-            ? (l.checkStatusToday || r.checkStatusToday)
-            : (r.checkStatusToday || l.checkStatusToday),
+          checkStatusToday: finalCheckStatus,
           lastCheckedDate: isLocalNewerOrEqual
             ? (l.lastCheckedDate || r.lastCheckedDate)
             : (r.lastCheckedDate || l.lastCheckedDate),
@@ -2137,16 +2191,11 @@ export const StorageService = {
           lastCheckedByName: isLocalNewerOrEqual
             ? (l.lastCheckedByName || r.lastCheckedByName)
             : (r.lastCheckedByName || l.lastCheckedByName),
-          // Crucial: preserve photos from both local and remote so a photo is NEVER lost!
-          photoBeforeUrl: l.photoBeforeUrl || r.photoBeforeUrl,
-          photoAfterUrl: l.photoAfterUrl || r.photoAfterUrl,
-          drivePhotoBeforeUrl: l.drivePhotoBeforeUrl || r.drivePhotoBeforeUrl,
-          drivePhotoAfterUrl: l.drivePhotoAfterUrl || r.drivePhotoAfterUrl,
-          lastCheckedPhotoUrl:
-            l.lastCheckedPhotoUrl ||
-            r.lastCheckedPhotoUrl ||
-            l.photoBeforeUrl ||
-            r.photoBeforeUrl,
+          photoBeforeUrl: resolvedPhotoBefore,
+          photoAfterUrl: resolvedPhotoAfter,
+          drivePhotoBeforeUrl: resolvedDrivePhotoBefore,
+          drivePhotoAfterUrl: resolvedDrivePhotoAfter,
+          lastCheckedPhotoUrl: resolvedLastPhoto,
           treatmentStatus:
             (isLocalNewerOrEqual ? l.treatmentStatus : r.treatmentStatus) ||
             l.treatmentStatus ||
@@ -2167,7 +2216,7 @@ export const StorageService = {
             (isLocalNewerOrEqual ? l.inspectionNotes : r.inspectionNotes) ||
             l.inspectionNotes ||
             r.inspectionNotes,
-          standardPhotoUrl: l.standardPhotoUrl || r.standardPhotoUrl,
+          standardPhotoUrl: isDummyUrl(l.standardPhotoUrl) ? (!isDummyUrl(r.standardPhotoUrl) ? r.standardPhotoUrl : undefined) : l.standardPhotoUrl,
           standardPhotoAngleGuide:
             l.standardPhotoAngleGuide || r.standardPhotoAngleGuide,
           standardInstructions:
@@ -2470,6 +2519,11 @@ export const canInspectPeer = (
 
   if (inspectorRole === 'admin' || inspectorRole === 'kordinator') {
     return true; // Admin dan Kordinator dapat menginspeksi seluruh anggota/unit di divisinya
+  }
+
+  // Divisi PLH: Seluruh sesama staf PLH di 5 area dapat saling melakukan peer inspection
+  if (inspectorDivision === 'PLH' || targetDivision === 'PLH') {
+    return true;
   }
   
   const normInsp = String(inspectorUnit || '').trim().toLowerCase();

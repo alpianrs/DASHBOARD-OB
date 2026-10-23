@@ -408,7 +408,7 @@ export interface TreeWorkOrder {
   vendorCost?: number; // Biaya pengerjaan vendor (jika ada)
   scheduledWeek?: string; // Target minggu pengerjaan, e.g. "Minggu 3 September 2026"
   urgency: 'Rendah' | 'Sedang' | 'Tinggi / Bahaya';
-  notes: string; // Catatan khusus kondisi pohon
+  notes?: string; // Catatan khusus kondisi pohon
   photoBeforeUrl?: string;
   photoAfterUrl?: string;
   drivePhotoBeforeUrl?: string;

@@ -57,6 +57,7 @@ import {
   getCurrentWeekSaturday,
   toISODateString,
 } from '../utils/saturdayHelper';
+import { isPlhUser, SEED_PLH_USERS } from '../services/storage';
 
 interface KordinatorViewProps {
   activeUser: User;
@@ -127,10 +128,19 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
     kordDivision === 'PLH' ? 'Semua Area' : 'Semua Unit'
   );
 
-  // Strict division-scoped staff
-  const divisionStaff = allUsers.filter(
-    (u) => u.role === 'user' && u.status === 'Aktif' && (u.division || 'OB') === kordDivision
-  );
+  // Strict division-scoped staff (Kordinator PLH dapat menilai seluruh 5 staf area PLH)
+  const divisionStaff = React.useMemo(() => {
+    if (kordDivision === 'PLH') {
+      const plhStaff = allUsers.filter(
+        (u) => (u.division === 'PLH' || isPlhUser(u)) && u.role === 'user' && u.status !== 'Nonaktif'
+      );
+      if (plhStaff.length > 0) return plhStaff;
+      return SEED_PLH_USERS.filter((u) => u.role === 'user');
+    }
+    return allUsers.filter(
+      (u) => u.role === 'user' && u.status === 'Aktif' && (u.division || 'OB') === 'OB'
+    );
+  }, [allUsers, kordDivision]);
 
   const [selectedStaffId, setSelectedStaffId] = useState<string>(
     divisionStaff[0]?.id || ''
@@ -1246,10 +1256,38 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
 
           <form onSubmit={handleScoreSubmit} className="space-y-5 text-xs">
             {/* Choose Target Staff */}
-            <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200/80">
-              <label className="block font-bold text-slate-800 mb-1.5 text-xs">
+            <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200/80 space-y-2.5">
+              <label className="block font-bold text-slate-800 text-xs">
                 Pilih Petugas {kordDivision === 'PLH' ? 'PLH (Lingkungan Hidup)' : 'OB / OG'} yang Dievaluasi:
               </label>
+
+              {kordDivision === 'PLH' && divisionStaff.length > 0 && (
+                <div className="space-y-1 pt-0.5">
+                  <span className="text-[10.5px] font-bold text-emerald-900 block">Pilih Cepat Petugas per 5 Wilayah PLH:</span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {divisionStaff.map((u) => {
+                      const isSelected = selectedStaffId === u.id;
+                      const areaName = u.assignedArea || u.unit || 'Area PLH';
+                      return (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => setSelectedStaffId(u.id)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
+                            isSelected
+                              ? 'bg-emerald-700 text-white border-emerald-800 shadow-sm'
+                              : 'bg-white text-emerald-950 border-emerald-300 hover:bg-emerald-50'
+                          }`}
+                        >
+                          <MapPin className={`w-3.5 h-3.5 ${isSelected ? 'text-emerald-200' : 'text-emerald-600'}`} />
+                          <span>{areaName}: {u.name.replace(/\(PLH\)/gi, '').trim()}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <select
                 value={selectedStaffId}
                 onChange={(e) => setSelectedStaffId(e.target.value)}
@@ -1257,12 +1295,12 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
               >
                 {divisionStaff.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.name} — Unit {u.unit} (Divisi: {u.division || 'OB'})
+                    {u.name} — Area {u.assignedArea || u.unit} (Divisi: {u.division || 'PLH'})
                   </option>
                 ))}
               </select>
-              <p className="text-[11px] text-slate-500 mt-1.5">
-                * Catatan: Nilai ini hanya dapat dilihat oleh Kordinator {kordDivision} dan Admin, tidak tampil pada akun petugas.
+              <p className="text-[11px] text-slate-500 mt-1">
+                * Kordinator PLH dapat mengevaluasi seluruh 5 staf area PLH (Pos 1, Pos 2, Area Khaldun, Area Ex Minifarm, dan Area Kolam Renang). Nilai ini hanya dapat dilihat oleh Kordinator dan Admin.
               </p>
             </div>
 

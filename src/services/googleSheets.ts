@@ -160,6 +160,7 @@ function setupDatabase() {
     ["u-ku-arazi", "kepala.arazi", "password123", "Kepala Unit Ar Razi", "kepala_unit", "Ar Razi", "Aktif", "08123456705", "OB", "Ar Razi"],
     ["u-ku-khaldun", "kepala.khaldun", "password123", "Kepala Unit Khaldun", "kepala_unit", "Khaldun", "Aktif", "08123456706", "OB", "Khaldun"],
     // Staf Lapangan Divisi PLH Resmi
+    ["u-plh-pos1", "petugas_pos1", "password123", "Petugas Pos 1 (PLH)", "user", "Pos 1", "Aktif", "081234560005", "PLH", "Area Pos 1"],
     ["u-plh-01", "syahril", "password123", "Ahmad Syahril (PLH)", "user", "Pos 2", "Aktif", "081234560001", "PLH", "Area Pos 2"],
     ["u-plh-02", "andi", "password123", "Andi Komala (PLH)", "user", "Area Khaldun", "Aktif", "081234560002", "PLH", "Area Khaldun"],
     ["u-plh-03", "dedi", "password123", "Dedi Junaedi (PLH)", "user", "Area Ex Minifarm", "Aktif", "081234560003", "PLH", "Area Ex Minifarm"],
@@ -241,29 +242,29 @@ function setupDatabase() {
   ];
   var initialTreeOrders = [
     // 1. Area Kolam Renang (Radilah)
-    ["two-2026-001", "2026-09-22", "Area Kolam Renang", "Pohon Trembesi Rimbun Dekat Kolam Renang", "Rimbun", "Penebangan / Topping Pohon Tinggi (Vendor Luar)", "Vendor Luar", "CV Duta Hijau Pertamanan", 2500000, "Minggu ke-4 September 2026", "Tinggi / Bahaya", "Dijadwalkan", "Dahan atas menjuntai ke kabel PLN dan atap tribun.", "https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=800&q=80", "", "u-plh-04", "Radilah (PLH)", "2026-09-22", "08:15 WIB", "Radilah (PLH)", "Sudah Dicek", "Pengecekan: dahan tetap stabil.", "", "", new Date().toISOString()],
-    ["two-2026-014", "2026-09-22", "Area Kolam Renang", "Pohon Kelapa Gading Sisi Kolam Renang", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "Pelepah daun tua dibersihkan.", "", "", "u-plh-04", "Radilah (PLH)", "2026-09-22", "08:30 WIB", "Radilah (PLH)", "Sudah Dicek", "Kondisi pelepah aman, bebas hama.", "", "", new Date().toISOString()],
-    ["two-2026-015", "2026-09-22", "Area Kolam Renang", "Pohon Beringin Dolar Taman Kolam", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "Tajuk rapi dan terawat.", "", "", "u-plh-04", "Radilah (PLH)", "2026-09-22", "08:45 WIB", "Radilah (PLH)", "Sudah Dicek", "Tajuk bulat estetis, bebas hama.", "", "", new Date().toISOString()],
+    ["two-2026-001", "", "Area Kolam Renang", "Pohon Trembesi Rimbun Dekat Kolam Renang", "Normal / Sehat", "Penjarangan Kanopi Rimbun", "Internal PLH", "", 0, "", "Rendah", "Selesai", "", "", "", "u-plh-04", "Radilah (PLH)", "", "", "Radilah (PLH)", "Belum Dicek", "", "", "", new Date().toISOString(), "Tidak Perlu Penanganan", "", "", "", "", "", "[]", "", "", ""],
+    ["two-2026-014", "", "Area Kolam Renang", "Pohon Kelapa Gading Sisi Kolam Renang", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "", "", "", "u-plh-04", "Radilah (PLH)", "", "", "Radilah (PLH)", "Belum Dicek", "", "", "", new Date().toISOString(), "Tidak Perlu Penanganan", "", "", "", "", "", "[]", "", "", ""],
+    ["two-2026-015", "", "Area Kolam Renang", "Pohon Beringin Dolar Taman Kolam", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "", "", "", "u-plh-04", "Radilah (PLH)", "", "", "Radilah (PLH)", "Belum Dicek", "", "", "", new Date().toISOString(), "Tidak Perlu Penanganan", "", "", "", "", "", "[]", "", "", ""],
 
-    // 2. Area Pos 1 (Rahmat Hidayat)
-    ["two-2026-004", "2026-09-22", "Area Pos 1", "Pohon Beringin & Mahoni Pintu Masuk Gerbang Pos 1", "Rimbun", "Penjarangan Kanopi Rimbun", "Internal PLH", "", 0, "Minggu ke-4 September 2026", "Sedang", "Perlu Penanganan", "Dahan rimbun condong ke jalur drop-off.", "https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80", "", "u-kord-plh", "Rahmat Hidayat (Kord PLH)", "2026-09-22", "07:30 WIB", "Rahmat Hidayat (Kord PLH)", "Sudah Dicek", "Pengecekan: dahan lebat mulai sentuh tiang lampu.", "", "", new Date().toISOString()],
-    ["two-2026-006", "2026-09-22", "Area Pos 1", "Pohon Mangga Arumanis Depan Pos 1", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "Pohon berbuah lebat, dahan bawah tinggi.", "", "", "u-kord-plh", "Rahmat Hidayat (Kord PLH)", "2026-09-22", "07:45 WIB", "Rahmat Hidayat (Kord PLH)", "Sudah Dicek", "Kondisi sehat, daun hijau segar.", "", "", new Date().toISOString()],
-    ["two-2026-007", "2026-09-22", "Area Pos 1", "Pohon Pucuk Merah Pagar Depan Pos 1", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "Pagar pucuk merah tumbuh rapi dan segar.", "", "", "u-kord-plh", "Rahmat Hidayat (Kord PLH)", "2026-09-22", "08:00 WIB", "Rahmat Hidayat (Kord PLH)", "Sudah Dicek", "Pucuk merah berwarna cerah merata.", "", "", new Date().toISOString()],
+    // 2. Area Pos 1 (Petugas Pos 1)
+    ["two-2026-004", "", "Area Pos 1", "Pohon Beringin & Mahoni Pintu Masuk Gerbang Pos 1", "Normal / Sehat", "Penjarangan Kanopi Rimbun", "Internal PLH", "", 0, "", "Rendah", "Selesai", "", "", "", "u-plh-pos1", "Petugas Pos 1 (PLH)", "", "", "Petugas Pos 1 (PLH)", "Belum Dicek", "", "", "", new Date().toISOString(), "Tidak Perlu Penanganan", "", "", "", "", "", "[]", "", "", ""],
+    ["two-2026-006", "", "Area Pos 1", "Pohon Mangga Arumanis Depan Pos 1", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "", "", "", "u-plh-pos1", "Petugas Pos 1 (PLH)", "", "", "Petugas Pos 1 (PLH)", "Belum Dicek", "", "", "", new Date().toISOString(), "Tidak Perlu Penanganan", "", "", "", "", "", "[]", "", "", ""],
+    ["two-2026-007", "", "Area Pos 1", "Pohon Pucuk Merah Pagar Depan Pos 1", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "", "", "", "u-plh-pos1", "Petugas Pos 1 (PLH)", "", "", "Petugas Pos 1 (PLH)", "Belum Dicek", "", "", "", new Date().toISOString(), "Tidak Perlu Penanganan", "", "", "", "", "", "[]", "", "", ""],
 
     // 3. Area Pos 2 (Ahmad Syahril)
-    ["two-2026-002", "2026-09-22", "Area Pos 2", "Pohon Ketapang Kencana Dekat Gerbang Pos 2", "Rimbun", "Penjarangan Kanopi Rimbun", "Internal PLH", "", 0, "Minggu ke-4 September 2026", "Sedang", "Sedang Dikerjakan", "Kanopi daun lebat tutupi lampu malam Pos 2.", "https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=800&q=80", "", "u-plh-01", "Ahmad Syahril (PLH)", "2026-09-22", "08:10 WIB", "Ahmad Syahril (PLH)", "Sudah Dicek", "Proses pemangkasan berjalan.", "", "", new Date().toISOString()],
-    ["two-2026-008", "2026-09-22", "Area Pos 2", "Pohon Mahoni Samping Pos 2", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "Batang kokoh tegak lurus, bebas rayap.", "", "", "u-plh-01", "Ahmad Syahril (PLH)", "2026-09-22", "08:25 WIB", "Ahmad Syahril (PLH)", "Sudah Dicek", "Batang bersih, bebas rayap dan lumut.", "", "", new Date().toISOString()],
-    ["two-2026-009", "2026-09-22", "Area Pos 2", "Pohon Palem Kenari Jalur Gerbang 2", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "Pelepah rapi tidak menghalangi spanduk.", "", "", "u-plh-01", "Ahmad Syahril (PLH)", "2026-09-22", "08:40 WIB", "Ahmad Syahril (PLH)", "Sudah Dicek", "Pelepah kering sudah dipangkas tuntas.", "", "", new Date().toISOString()],
+    ["two-2026-002", "", "Area Pos 2", "Pohon Ketapang Kencana Dekat Gerbang Pos 2", "Normal / Sehat", "Penjarangan Kanopi Rimbun", "Internal PLH", "", 0, "", "Rendah", "Selesai", "", "", "", "u-plh-01", "Ahmad Syahril (PLH)", "", "", "Ahmad Syahril (PLH)", "Belum Dicek", "", "", "", new Date().toISOString(), "Tidak Perlu Penanganan", "", "", "", "", "", "[]", "", "", ""],
+    ["two-2026-008", "", "Area Pos 2", "Pohon Mahoni Samping Pos 2", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "", "", "", "u-plh-01", "Ahmad Syahril (PLH)", "", "", "Ahmad Syahril (PLH)", "Belum Dicek", "", "", "", new Date().toISOString(), "Tidak Perlu Penanganan", "", "", "", "", "", "[]", "", "", ""],
+    ["two-2026-009", "", "Area Pos 2", "Pohon Palem Kenari Jalur Gerbang 2", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "", "", "", "u-plh-01", "Ahmad Syahril (PLH)", "", "", "Ahmad Syahril (PLH)", "Belum Dicek", "", "", "", new Date().toISOString(), "Tidak Perlu Penanganan", "", "", "", "", "", "[]", "", "", ""],
 
     // 4. Area Khaldun (Andi Komala)
-    ["two-2026-003", "2026-09-20", "Area Khaldun", "Pohon Flamboyan Area Lanskap Khaldun", "Dahan Kering / Lapuk", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Sedang", "Selesai", "3 dahan kering dipangkas rapi.", "https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=800&q=80", "", "u-plh-02", "Andi Komala (PLH)", "2026-09-22", "07:50 WIB", "Andi Komala (PLH)", "Sudah Dicek", "Bekas pangkasan mengering bagus.", "2026-09-20T14:30:00.000Z", "Andi Komala (PLH)", new Date().toISOString()],
-    ["two-2026-010", "2026-09-22", "Area Khaldun", "Pohon Angsana Belakang Gedung Khaldun", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "Tajuk rindang peneduh taman.", "", "", "u-plh-02", "Andi Komala (PLH)", "2026-09-22", "08:05 WIB", "Andi Komala (PLH)", "Sudah Dicek", "Daun rimbun hijau merata, aman.", "", "", new Date().toISOString()],
-    ["two-2026-011", "2026-09-22", "Area Khaldun", "Pohon Tabebuya Kuning Koridor Khaldun", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "Pertumbuhan bunga stabil, perakaran aman.", "", "", "u-plh-02", "Andi Komala (PLH)", "2026-09-22", "08:20 WIB", "Andi Komala (PLH)", "Sudah Dicek", "Batang bersih, bebas parasit.", "", "", new Date().toISOString()],
+    ["two-2026-003", "", "Area Khaldun", "Pohon Flamboyan Area Lanskap Khaldun", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "", "", "", "u-plh-02", "Andi Komala (PLH)", "", "", "Andi Komala (PLH)", "Belum Dicek", "", "", "", new Date().toISOString(), "Tidak Perlu Penanganan", "", "", "", "", "", "[]", "", "", ""],
+    ["two-2026-010", "", "Area Khaldun", "Pohon Angsana Belakang Gedung Khaldun", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "", "", "", "u-plh-02", "Andi Komala (PLH)", "", "", "Andi Komala (PLH)", "Belum Dicek", "", "", "", new Date().toISOString(), "Tidak Perlu Penanganan", "", "", "", "", "", "[]", "", "", ""],
+    ["two-2026-011", "", "Area Khaldun", "Pohon Tabebuya Kuning Koridor Khaldun", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "", "", "", "u-plh-02", "Andi Komala (PLH)", "", "", "Andi Komala (PLH)", "Belum Dicek", "", "", "", new Date().toISOString(), "Tidak Perlu Penanganan", "", "", "", "", "", "[]", "", "", ""],
 
     // 5. Area Ex Minifarm (Dedi Junaedi)
-    ["two-2026-005", "2026-09-22", "Area Ex Minifarm", "Pohon Mangga & Sengon Samping Bedengan Pembibitan", "Terserang Hama / Benalu", "Pemberian Nutrisi / Obat Hama Batang", "Internal PLH", "", 0, "", "Sedang", "Sedang Dikerjakan", "Benalu dahan utama dan rayap sengon.", "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=800&q=80", "", "u-plh-03", "Dedi Junaedi (PLH)", "2026-09-22", "08:00 WIB", "Dedi Junaedi (PLH)", "Sudah Dicek", "Benalu dicabut 80%, semprot organik sore.", "", "", new Date().toISOString()],
-    ["two-2026-012", "2026-09-22", "Area Ex Minifarm", "Pohon Jambu Air Citra Minifarm", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "Tajuk rapi di sekeliling bedengan.", "", "", "u-plh-03", "Dedi Junaedi (PLH)", "2026-09-22", "08:15 WIB", "Dedi Junaedi (PLH)", "Sudah Dicek", "Buah mulai pentil, bebas lalat buah.", "", "", new Date().toISOString()],
-    ["two-2026-013", "2026-09-22", "Area Ex Minifarm", "Pohon Nangka Mini Area Ex Minifarm", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "Batang pendek produktif, tanah gembur.", "", "", "u-plh-03", "Dedi Junaedi (PLH)", "2026-09-22", "08:30 WIB", "Dedi Junaedi (PLH)", "Sudah Dicek", "Batang kokoh, buah aman terbungkus.", "", "", new Date().toISOString()]
+    ["two-2026-005", "", "Area Ex Minifarm", "Pohon Mangga & Sengon Samping Bedengan Pembibitan", "Normal / Sehat", "Penjarangan Kanopi Rimbun", "Internal PLH", "", 0, "", "Rendah", "Selesai", "", "", "", "u-plh-03", "Dedi Junaedi (PLH)", "", "", "Dedi Junaedi (PLH)", "Belum Dicek", "", "", "", new Date().toISOString(), "Tidak Perlu Penanganan", "", "", "", "", "", "[]", "", "", ""],
+    ["two-2026-012", "", "Area Ex Minifarm", "Pohon Jambu Air Citra Minifarm", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "", "", "", "u-plh-03", "Dedi Junaedi (PLH)", "", "", "Dedi Junaedi (PLH)", "Belum Dicek", "", "", "", new Date().toISOString(), "Tidak Perlu Penanganan", "", "", "", "", "", "[]", "", "", ""],
+    ["two-2026-013", "", "Area Ex Minifarm", "Pohon Nangka Mini Area Ex Minifarm", "Normal / Sehat", "Pemangkasan Ringan (Pruning Dahan Bawah)", "Internal PLH", "", 0, "", "Rendah", "Selesai", "", "", "", "u-plh-03", "Dedi Junaedi (PLH)", "", "", "Dedi Junaedi (PLH)", "Belum Dicek", "", "", "", new Date().toISOString(), "Tidak Perlu Penanganan", "", "", "", "", "", "[]", "", "", ""]
   ];
   createOrSetupSheet(ss, "WorkOrder_Pohon", treeWorkOrdersHeader, initialTreeOrders, "#14532d");
 
@@ -2250,15 +2251,23 @@ export const GoogleSheetsService = {
                   ? rawDivision
                   : 'OB';
 
-                const combinedStr = `${username} ${name}`.toLowerCase();
+                const combinedStr = `${username} ${name} ${unit || ''} ${row[0] || ''}`.toLowerCase();
                 if (
                   division === 'OB' && (
                     combinedStr.includes('plh') ||
+                    combinedStr.includes('pos 1') ||
+                    combinedStr.includes('pos1') ||
+                    combinedStr.includes('pos 2') ||
+                    combinedStr.includes('pos2') ||
                     combinedStr.includes('syahril') ||
                     combinedStr.includes('komala') ||
+                    combinedStr.includes('andi') ||
                     combinedStr.includes('junaedi') ||
+                    combinedStr.includes('dedi') ||
                     combinedStr.includes('radilah') ||
-                    combinedStr.includes('rahmat')
+                    combinedStr.includes('rahmat') ||
+                    combinedStr.includes('minifarm') ||
+                    combinedStr.includes('kolam')
                   )
                 ) {
                   division = 'PLH';
