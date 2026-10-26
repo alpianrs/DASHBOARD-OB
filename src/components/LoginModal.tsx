@@ -8,9 +8,6 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
-  ShieldCheck,
-  Lock,
-  Building2,
 } from 'lucide-react';
 import { User } from '../types';
 import { StorageService } from '../services/storage';
@@ -259,48 +256,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 <span>Masuk ke Sistem</span>
               </button>
             </form>
-
-            {/* Pintasan Login Akun Kepala Unit (Monitoring OB Per Unit) */}
-            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Akun Monitoring Kepala Unit (OB):</span>
-                </span>
-                <span className="text-[10px] text-slate-500 font-mono">Sandi bawaan: password123</span>
-              </div>
-              <p className="text-[10px] text-slate-500 leading-relaxed">
-                Database user tersimpan di Google Sheet (Sheet <strong>Users</strong>). Sandi dapat diubah langsung di spreadsheet kolom Password (C).
-              </p>
-              <div className="grid grid-cols-2 gap-1.5">
-                {[
-                  { name: 'TK', user: 'kepala.tk', pass: 'password123', label: 'Kepala Unit TK' },
-                  { name: 'SD', user: 'kepala.sd', pass: 'password123', label: 'Kepala Unit SD' },
-                  { name: 'SMP', user: 'kepala.smp', pass: 'password123', label: 'Kepala Unit SMP' },
-                  { name: 'Pelangi', user: 'kepala.pelangi', pass: 'password123', label: 'Kepala Unit Pelangi' },
-                  { name: 'Ar Razi', user: 'kepala.arazi', pass: 'password123', label: 'Kepala Unit Ar Razi' },
-                  { name: 'Khaldun', user: 'kepala.khaldun', pass: 'password123', label: 'Kepala Unit Khaldun' },
-                ].map((item) => (
-                  <button
-                    key={item.user}
-                    type="button"
-                    onClick={() => {
-                      setUsername(item.user);
-                      setPassword(item.pass);
-                    }}
-                    className="p-2 rounded-xl bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-left transition cursor-pointer flex items-center justify-between group shadow-2xs"
-                  >
-                    <div>
-                      <div className="font-extrabold text-[11px] text-slate-900 group-hover:text-indigo-900 flex items-center gap-1">
-                        <span>🏛️</span>
-                        <span>{item.label}</span>
-                      </div>
-                      <div className="text-[9px] text-slate-400 font-mono mt-0.5">user: {item.user}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
 
             {/* Action Tarik Data dari Sheet */}
             <div className="pt-3 border-t border-slate-100">

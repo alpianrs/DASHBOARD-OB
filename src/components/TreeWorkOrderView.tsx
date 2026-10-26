@@ -52,7 +52,7 @@ import {
 } from '../types';
 import { StorageService, DEFAULT_TREE_SOP_INSTRUCTIONS } from '../services/storage';
 import { getJakartaDateString, formatJakartaDisplayDate } from '../utils/dateHelper';
-import { getMondayOfWeek } from '../utils/masjidRolling';
+import { getMondayOfWeek, formatWeekRange } from '../utils/masjidRolling';
 import { googleSheetsService } from '../services/googleSheets';
 import {
   generateTreeWorkOrderPdf,
@@ -93,7 +93,7 @@ export function getTreeWeeklyCheckStatus(order: TreeWorkOrder): {
 
   // 1. Cek apakah pohon dalam status "Perlu Penanganan" / "Sedang Ditangani"
   // Sesuai aturan: jika pohon butuh penanganan, di minggu berikutnya fotonya tetap ada
-  // dan TIDAK PERLU DICEK ULANG, melainkan staf tinggal melakukan update tindakan/progres penanganan saja!
+  // dan TIDAK PERLU DICEK ULANG DARI NOL, melainkan staf tinggal melakukan update tindakan/progres penanganan saja!
   const isUnderTreatment =
     (order.status === 'Perlu Penanganan' ||
      order.status === 'Sedang Dikerjakan' ||
@@ -106,15 +106,18 @@ export function getTreeWeeklyCheckStatus(order: TreeWorkOrder): {
 
   if (isUnderTreatment) {
     const isHandling = order.treatmentStatus === 'Sedang Ditangani' || order.status === 'Sedang Dikerjakan';
+    const isUpdatedThisWeek = Boolean(lastDate && lastDate >= currentMonday);
     return {
-      isCheckedThisWeek: true, // Dianggap aktif dalam penanganan agar tidak menurunkan persentase penyelesaian
-      isCheckedThisMonth: true,
+      isCheckedThisWeek: isUpdatedThisWeek,
+      isCheckedThisMonth: isUpdatedThisWeek,
       daysSinceLastCheck: 0,
-      statusText: isHandling ? 'Sedang Ditangani (Tinggal Update)' : 'Perlu Penanganan (Tinggal Update)',
+      statusText: isUpdatedThisWeek
+        ? (isHandling ? 'Sedang Ditangani (Sudah Update Minggu Ini)' : 'Perlu Penanganan (Tercatat Minggu Ini)')
+        : (isHandling ? 'Sedang Ditangani (Wajib Update Minggu Ini)' : 'Perlu Penanganan (Tinggal Update)'),
       badgeClass: isHandling
         ? 'bg-amber-100 text-amber-900 border-amber-300'
         : 'bg-rose-100 text-rose-800 border-rose-300',
-      isThisWeek: true,
+      isThisWeek: isUpdatedThisWeek,
       isUnderTreatment: true,
       canDirectlyUpdate: true,
     };
@@ -141,13 +144,13 @@ export function getTreeWeeklyCheckStatus(order: TreeWorkOrder): {
 
   const isThisWeek = lastDate >= currentMonday;
 
-  // To be marked as "Sudah Ceklis Aman", it MUST have been checked on or after Monday of the current week
-  // AND have explicit safe status ('Sudah Dicek Aman' or 'Sudah Dicek' or 'Sudah Ditangani')
+  // Syarat SUDAH CEKLIS AMAN:
+  // 1. Wajib dicek pada atau setelah hari Senin minggu ini (lastDate >= currentMonday)
+  // 2. checkStatusToday TIDAK bernilai 'Belum Dicek'
+  // 3. Status explicit aman ('Sudah Dicek Aman' / 'Sudah Dicek') atau penanganan selesai
   const isExplicitlySafe =
-    order.checkStatusToday === 'Sudah Dicek Aman' ||
-    order.checkStatusToday === 'Sudah Dicek' ||
-    order.treatmentStatus === 'Sudah Ditangani' ||
-    order.status === 'Selesai';
+    (order.checkStatusToday === 'Sudah Dicek Aman' || order.checkStatusToday === 'Sudah Dicek') ||
+    (order.treatmentStatus === 'Sudah Ditangani' && order.status === 'Selesai' && order.checkStatusToday !== 'Belum Dicek');
 
   if (isThisWeek && isExplicitlySafe) {
     return {
@@ -166,7 +169,7 @@ export function getTreeWeeklyCheckStatus(order: TreeWorkOrder): {
     isCheckedThisWeek: false,
     isCheckedThisMonth: false,
     daysSinceLastCheck: diffDays,
-    statusText: diffDays > 0 ? `Wajib Dicek (Terakhir: ${diffDays} hari lalu)` : 'Belum Dicek Minggu Ini',
+    statusText: diffDays > 0 ? `Belum Dicek Minggu Ini (Terakhir: ${diffDays} hari lalu)` : 'Belum Dicek Minggu Ini',
     badgeClass: 'bg-amber-100 text-amber-800 border-amber-300',
     isThisWeek: false,
     isUnderTreatment: false,
@@ -228,6 +231,11 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     }
     return 'Semua';
   });
+
+  // Filter Mingguan Dashboard: Semua, Minggu Ini, Belum Dicek Minggu Ini, Sudah Aman Minggu Ini, dsb.
+  const [weeklyFilter, setWeeklyFilter] = useState<
+    'all' | 'this_week' | 'this_week_unchecked' | 'this_week_safe' | 'need_treatment' | 'last_week'
+  >('all');
 
   // Guard: Fitur Laporan per Area PLH hanya dapat diakses oleh Kordinator PLH & Admin FM
   useEffect(() => {
@@ -1093,49 +1101,114 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     if (activeTab === 'urgent') {
       return o.urgency === 'Tinggi / Bahaya' || o.condition === 'Miring / Rawan Tumbang';
     }
+    // Weekly Filter
+    const currentMon = getMondayOfWeek();
+    if (weeklyFilter === 'this_week_unchecked') {
+      const status = getTreeWeeklyCheckStatus(o);
+      return !status.isCheckedThisWeek;
+    }
+    if (weeklyFilter === 'this_week_safe') {
+      const status = getTreeWeeklyCheckStatus(o);
+      return status.isCheckedThisWeek && !status.isUnderTreatment;
+    }
+    if (weeklyFilter === 'need_treatment') {
+      const status = getTreeWeeklyCheckStatus(o);
+      return status.isUnderTreatment;
+    }
+    if (weeklyFilter === 'this_week') {
+      // Tampilkan seluruh pohon yang masuk target minggu berjalan
+      return true;
+    }
+    if (weeklyFilter === 'last_week') {
+      return Boolean(o.lastCheckedDate && o.lastCheckedDate < currentMon);
+    }
+
     return true;
   });
 
-  // Export CSV
+  // Manual Reset Siklus Ceklis Mingguan (Reset Tiap Senin)
+  const handleManualWeeklyReset = () => {
+    if (confirm('Konfirmasi Reset Siklus Mingguan:\nApakah Anda ingin mereset status pemeriksaan pohon untuk siklus minggu baru ini?\n\nPohon yang sehat akan berstatus "Belum Dicek Minggu Ini". Seluruh riwayat foto dan penanganan terdahulu tetap tersimpan aman di TaskLogs_Pohon.')) {
+      const updated = StorageService.resetWeeklyTreeCheckCycle();
+      setOrders(updated);
+      googleSheetsService.saveTreeWorkOrdersToSheets(updated).catch(console.warn);
+      setFeedbackNotification({
+        show: true,
+        type: 'success',
+        title: 'Siklus Ceklis Mingguan Berhasil Direset!',
+        message: 'Status ceklis pohon telah kembali segar untuk minggu berjalan. Data historis di TaskLogs_Pohon tetap tersimpan utuh.',
+        statusText: 'Siklus Minggu Baru (Senin)',
+        syncNote: 'Perubahan disinkronkan ke WorkOrder_Pohon.',
+      });
+    }
+  };
+
+  // Export CSV Lengkap untuk Rekapitulasi & Manajemen Pohon
   const handleExportCSV = () => {
+    const currentMon = getMondayOfWeek();
     const headers = [
       'ID_WorkOrder',
-      'Tanggal',
+      'Tanggal_Lapor',
       'Area_Lokasi',
       'Nama_Pohon',
-      'Kondisi',
-      'Treatment_Dibutuhkan',
+      'Kondisi_Pohon',
+      'Tindakan_Treatment',
       'Pelaksana',
       'Nama_Vendor',
       'Biaya_Vendor',
       'Target_Minggu',
       'Tingkat_Urgensi',
-      'Status',
-      'Catatan_Khusus',
-      'Pelapor',
+      'Status_Pohon',
+      'Status_Minggu_Ini',
+      'Tanggal_Terakhir_Cek',
+      'Jam_Cek',
+      'Petugas_Pemeriksa',
+      'Catatan_Pemeriksaan',
+      'Status_Penanganan',
+      'Laporan_Hasil_Penanganan',
+      'Petugas_Penanganan',
+      'Waktu_Penanganan',
+      'Link_Foto_Before',
+      'Link_Foto_After',
+      'Link_Foto_Acuan_Standar',
+      'Panduan_Sudut_Foto'
     ];
-    const rows = orders.map((o) => [
-      o.id,
-      o.date,
-      `"${o.area}"`,
-      `"${o.treeName}"`,
-      `"${o.condition}"`,
-      `"${o.treatmentNeeded}"`,
-      `"${o.handlerType}"`,
-      `"${o.vendorName || '-'}"`,
-      o.vendorCost || 0,
-      `"${o.scheduledWeek || '-'}"`,
-      `"${o.urgency}"`,
-      `"${o.status}"`,
-      `"${(o.notes || '').replace(/"/g, '""')}"`,
-      `"${o.reportedByName}"`,
-    ]);
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const rows = orders.map((o) => {
+      const status = getTreeWeeklyCheckStatus(o);
+      return [
+        o.id,
+        o.date,
+        `"${o.area}"`,
+        `"${o.treeName}"`,
+        `"${o.condition}"`,
+        `"${o.treatmentNeeded}"`,
+        `"${o.handlerType}"`,
+        `"${o.vendorName || '-'}"`,
+        o.vendorCost || 0,
+        `"${o.scheduledWeek || '-'}"`,
+        `"${o.urgency}"`,
+        `"${o.status}"`,
+        `"${status.statusText}"`,
+        `"${o.lastCheckedDate || '-'}"`,
+        `"${o.lastCheckedTime || '-'}"`,
+        `"${o.lastCheckedByName || '-'}"`,
+        `"${(o.inspectionNotes || o.notes || '').replace(/"/g, '""')}"`,
+        `"${o.treatmentStatus || '-'}"`,
+        `"${(o.treatmentReport || '').replace(/"/g, '""')}"`,
+        `"${o.handledByName || '-'}"`,
+        `"${o.handledAt || '-'}"`,
+        `"${o.drivePhotoBeforeUrl || o.photoBeforeUrl || '-'}"`,
+        `"${o.drivePhotoAfterUrl || o.photoAfterUrl || '-'}"`,
+        `"${o.standardPhotoUrl || '-'}"`,
+        `"${(o.standardPhotoAngleGuide || '').replace(/"/g, '""')}"`
+      ];
+    });
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `WorkOrder_Pohon_Lazuardi_${today}.csv`);
+    link.setAttribute('download', `Rekap_WorkOrder_Pohon_Lazuardi_${today}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1329,6 +1402,158 @@ function setupTabWorkOrderPohon() {
           )}
         </div>
       )}
+
+      {/* PANEL KONTROL SIKLUS MINGGUAN & UNDUH REKAP POHON (RESET TIAP SENIN) */}
+      {(() => {
+        const currentMon = getMondayOfWeek();
+        const weekLabel = formatWeekRange(currentMon);
+        const totalTrees = orders.length;
+        const uncheckedTrees = orders.filter((o) => !getTreeWeeklyCheckStatus(o).isCheckedThisWeek);
+        const safeTrees = orders.filter((o) => {
+          const st = getTreeWeeklyCheckStatus(o);
+          return st.isCheckedThisWeek && !st.isUnderTreatment;
+        });
+        const treatmentTrees = orders.filter((o) => getTreeWeeklyCheckStatus(o).isUnderTreatment);
+        const lastWeekTrees = orders.filter((o) => o.lastCheckedDate && o.lastCheckedDate < currentMon);
+
+        return (
+          <div className="bg-white rounded-2xl border border-emerald-200/90 p-4 shadow-xs space-y-3.5">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2.5 py-1 rounded-lg bg-emerald-700 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-2xs">
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Siklus Minggu Ini: {weekLabel}</span>
+                  </span>
+                  <span className="text-slate-500 text-[11px] font-medium flex items-center gap-1">
+                    <RefreshCw className="w-3 h-3 text-emerald-600" />
+                    <span>Otomatis Reset Setiap Hari Senin Jam 00:00 WIB</span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 pt-1 text-xs">
+                  <span className="font-bold text-slate-800">
+                    Progres Pemeriksaan Minggu Ini:
+                  </span>
+                  <span className="font-extrabold text-emerald-800">
+                    {safeTrees.length} / {totalTrees} Pohon Aman
+                  </span>
+                  {treatmentTrees.length > 0 && (
+                    <span className="text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 text-[11px]">
+                      • {treatmentTrees.length} Butuh Penanganan
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons: Unduh Excel/CSV, Cetak PDF, Reset Manual */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleExportCSV}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-xs cursor-pointer flex items-center gap-1.5"
+                  title="Unduh rekapitulasi data seluruh pohon ke file spreadsheet (Excel / CSV)"
+                >
+                  <Download className="w-4 h-4 text-emerald-200" />
+                  <span>Unduh Rekap Pohon (Excel / CSV)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPdfAreaSelection(selectedAreaFilter === 'Semua' ? 'Semua' : selectedAreaFilter);
+                    setShowPdfFilterModal(true);
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition shadow-xs cursor-pointer flex items-center gap-1.5"
+                  title="Buka pilihan periode dan cetak laporan resmi pohon ke format PDF"
+                >
+                  <Printer className="w-4 h-4 text-emerald-400" />
+                  <span>Cetak Laporan PDF</span>
+                </button>
+                {isSuperUser && (
+                  <button
+                    type="button"
+                    onClick={handleManualWeeklyReset}
+                    className="px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs transition cursor-pointer flex items-center gap-1.5"
+                    title="Manual reset siklus minggu ini (kembalikan status pohon sehat ke Belum Dicek)"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Reset Siklus Senin</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Filter Cepat Mingguan */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Filter Tampilan Mingguan:
+              </span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setWeeklyFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    weeklyFilter === 'all'
+                      ? 'bg-slate-800 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  Semua Pohon ({totalTrees})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWeeklyFilter('this_week_unchecked')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    weeklyFilter === 'this_week_unchecked'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
+                  }`}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>Belum Dicek Minggu Ini ({uncheckedTrees.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWeeklyFilter('this_week_safe')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    weeklyFilter === 'this_week_safe'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Sudah Ceklis Aman ({safeTrees.length})</span>
+                </button>
+                {treatmentTrees.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setWeeklyFilter('need_treatment')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      weeklyFilter === 'need_treatment'
+                        ? 'bg-rose-600 text-white shadow-xs'
+                        : 'bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100'
+                    }`}
+                  >
+                    <Wrench className="w-3.5 h-3.5" />
+                    <span>Perlu Penanganan Aktif ({treatmentTrees.length})</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setWeeklyFilter('last_week')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    weeklyFilter === 'last_week'
+                      ? 'bg-indigo-700 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Pernah Dicek Sebelum Minggu Ini ({lastWeekTrees.length})</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Filter Tabs */}
       <div className="flex items-center justify-between gap-2 flex-wrap bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs">

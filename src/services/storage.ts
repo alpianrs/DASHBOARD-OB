@@ -20,7 +20,7 @@ import {
   normalizePlhArea,
 } from '../types';
 import { isSameDay, getJakartaDateString, normalizeDateString } from '../utils/dateHelper';
-import { isAreaOnMasjidDutyThisWeek } from '../utils/masjidRolling';
+import { isAreaOnMasjidDutyThisWeek, getMondayOfWeek } from '../utils/masjidRolling';
 
 export const isPlhUser = (u?: Partial<User> | null): boolean => {
   if (!u) return false;
@@ -2028,8 +2028,28 @@ export const StorageService = {
         changed = true;
       }
 
+      // Auto-Reset Status Ceklis Mingguan Pohon:
+      // Setiap hari Senin jam 00:00 WIB dimulai siklus minggu baru.
+      // Jika pohon terakhir dicek sebelum hari Senin minggu berjalan (lastCheckedDate < currentMonday):
+      // - Pohon Normal / Selesai: checkStatusToday otomatis kembali menjadi 'Belum Dicek'.
+      // - Pohon Butuh Penanganan: foto sebelum & status penanganan tetap dipertahankan, siap diperbarui progresnya.
+      const currentMonday = getMondayOfWeek();
+      const isUnderTreatment =
+        (ord.status === 'Perlu Penanganan' ||
+         ord.treatmentStatus === 'Belum Ditangani' ||
+         ord.treatmentStatus === 'Sedang Ditangani') &&
+        ord.status !== 'Selesai' &&
+        ord.treatmentStatus !== 'Sudah Ditangani';
+
+      if (!ord.lastCheckedDate || (ord.lastCheckedDate < currentMonday && !isUnderTreatment)) {
+        if (ord.checkStatusToday && ord.checkStatusToday !== 'Belum Dicek') {
+          ord.checkStatusToday = 'Belum Dicek';
+          changed = true;
+        }
+      }
+
       if (!ord.checkStatusToday) {
-        ord.checkStatusToday = ord.status === 'Perlu Penanganan' ? 'Perlu Penanganan' : 'Belum Dicek';
+        ord.checkStatusToday = isUnderTreatment ? 'Perlu Penanganan' : 'Belum Dicek';
         changed = true;
       }
 
@@ -2496,6 +2516,30 @@ export const StorageService = {
   resetTreeWorkOrdersToDefault: (): TreeWorkOrder[] => {
     setStoredItem(STORAGE_KEYS.TREE_WORK_ORDERS, SEED_TREE_WORK_ORDERS);
     return SEED_TREE_WORK_ORDERS;
+  },
+
+  // Manual Reset Siklus Ceklis Mingguan (Reset Tiap Senin)
+  resetWeeklyTreeCheckCycle: (): TreeWorkOrder[] => {
+    const list = StorageService.getTreeWorkOrders();
+    const currentMonday = getMondayOfWeek();
+    const updated = list.map((ord) => {
+      const isUnderTreatment =
+        (ord.status === 'Perlu Penanganan' ||
+         ord.treatmentStatus === 'Belum Ditangani' ||
+         ord.treatmentStatus === 'Sedang Ditangani') &&
+        ord.status !== 'Selesai' &&
+        ord.treatmentStatus !== 'Sudah Ditangani';
+      if (!isUnderTreatment) {
+        return {
+          ...ord,
+          checkStatusToday: 'Belum Dicek' as const,
+        };
+      }
+      return ord;
+    });
+    setStoredItem(STORAGE_KEYS.TREE_WORK_ORDERS, updated);
+    notifyTreeUpdated();
+    return updated;
   },
 };
 
