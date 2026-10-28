@@ -4544,8 +4544,7 @@ function setupTabWorkOrderPohon() {
                       alt="Preview Foto Acuan"
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src =
-                          'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=800&q=80';
+                        (e.currentTarget as HTMLImageElement).style.display = 'none';
                       }}
                     />
                     <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between pointer-events-none">
@@ -4860,8 +4859,8 @@ function setupTabWorkOrderPohon() {
                       onClick={() =>
                         copySampleData(
                           'pohon',
-                          `two-pos1-01\t2026-09-23\tArea Pos 1\tPohon Trembesi Gerbang\tRimbun\tPenjarangan Kanopi Rimbun\tInternal PLH\t-\t0\tMinggu ke-4 September 2026\tSedang\tPerlu Penanganan\tCabang rimbun menutupi lampu jalan\thttps://images.unsplash.com/photo-1502082553048-f009c37129b9?w=600\t-\tu-plh-pos1\tPetugas Pos 1\t2026-09-23\t08:15 WIB\tPetugas Pos 1\tSudah Dicek Aman\tKondisi dahan terpantau aman pasca hujan\t-\t-\t2026-09-23T08:15:00.000Z
-two-kolam-02\t2026-09-23\tArea Kolam Renang\tPohon Flamboyan Kolam\tMiring / Rawan Tumbang\tPenebangan / Topping Pohon Tinggi (Vendor Luar)\tVendor Luar\tCV Duta Hijau\t1500000\tMinggu ke-4 September 2026\tTinggi / Bahaya\tDijadwalkan\tAkar miring ke arah dinding kolam renang\thttps://images.unsplash.com/photo-1542273917363-3b1817f69a2d?w=600\t-\tu-plh-kolam\tPetugas Kolam\t2026-09-23\t09:30 WIB\tPetugas Kolam\tPerlu Penanganan\tWajib pengawasan ekstra saat anak-anak renang\t-\t-\t2026-09-23T09:30:00.000Z`
+                          `two-pos1-01\t2026-09-23\tArea Pos 1\tPohon Trembesi Gerbang\tRimbun\tPenjarangan Kanopi Rimbun\tInternal PLH\t-\t0\tMinggu ke-4 September 2026\tSedang\tPerlu Penanganan\tCabang rimbun menutupi lampu jalan\t-\t-\tu-plh-pos1\tPetugas Pos 1\t2026-09-23\t08:15 WIB\tPetugas Pos 1\tSudah Dicek Aman\tKondisi dahan terpantau aman pasca hujan\t-\t-\t2026-09-23T08:15:00.000Z
+two-kolam-02\t2026-09-23\tArea Kolam Renang\tPohon Flamboyan Kolam\tMiring / Rawan Tumbang\tPenebangan / Topping Pohon Tinggi (Vendor Luar)\tVendor Luar\tCV Duta Hijau\t1500000\tMinggu ke-4 September 2026\tTinggi / Bahaya\tDijadwalkan\tAkar miring ke arah dinding kolam renang\t-\t-\tu-plh-kolam\tPetugas Kolam\t2026-09-23\t09:30 WIB\tPetugas Kolam\tPerlu Penanganan\tWajib pengawasan ekstra saat anak-anak renang\t-\t-\t2026-09-23T09:30:00.000Z`
                         )
                       }
                       className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
@@ -4935,8 +4934,8 @@ two-kolam-02\t2026-09-23\tArea Kolam Renang\tPohon Flamboyan Kolam\tMiring / Raw
                       onClick={() =>
                         copySampleData(
                           'master_plh',
-                          `mt-plh-01\tPenyiraman & Pemupukan Rutin Tanaman\tSemua Unit\tHarian\tpre_readiness\t1. Siapkan selang dan nozzle semprot\n2. Siram area taman merata sebelum terik matahari\n3. Bersihkan daun kering di pot\tYA\tAktif\tArea Pos 1\tSemua Petugas\thttps://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=600\tPLH
-mt-plh-02\tPemangkasan Rumput & Pruning Dahan Bawah\tSemua Unit\tMingguan\tanytime\t1. Gunakan mesin potong rumput safety APD\n2. Potong rumput dengan ketinggian rata 3 cm\n3. Sapu dan masukkan sisa rumput ke bak kompos\tYA\tAktif\tArea Pos 2\tSemua Petugas\thttps://images.unsplash.com/photo-1592417817098-8f3d6910985c?w=600\tPLH`
+                          `mt-plh-01\tPenyiraman & Pemupukan Rutin Tanaman\tSemua Unit\tHarian\tpre_readiness\t1. Siapkan selang dan nozzle semprot\n2. Siram area taman merata sebelum terik matahari\n3. Bersihkan daun kering di pot\tYA\tAktif\tArea Pos 1\tSemua Petugas\t-\tPLH
+mt-plh-02\tPemangkasan Rumput & Pruning Dahan Bawah\tSemua Unit\tMingguan\tanytime\t1. Gunakan mesin potong rumput safety APD\n2. Potong rumput dengan ketinggian rata 3 cm\n3. Sapu dan masukkan sisa rumput ke bak kompos\tYA\tAktif\tArea Pos 2\tSemua Petugas\t-\tPLH`
                         )
                       }
                       className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
@@ -5001,7 +5000,7 @@ mt-plh-02\tPemangkasan Rumput & Pruning Dahan Bawah\tSemua Unit\tMingguan\tanyti
                       onClick={() =>
                         copySampleData(
                           'logs_plh',
-                          `tl-plh-01\t2026-09-23T07:45:00.000Z\t2026-09-23\tu-plh-pos1\tPetugas Pos 1\tTK\tPenyiraman Tanaman Area Pos 1\tHarian\tpre_readiness\tSelesai\tTIDAK\t-\t-\thttps://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=600\tTanaman disiram merata, kondisi basah segar\t5\tBagus & tepat waktu\t-\t-\t-\tPLH`
+                          `tl-plh-01\t2026-09-23T07:45:00.000Z\t2026-09-23\tu-plh-pos1\tPetugas Pos 1\tTK\tPenyiraman Tanaman Area Pos 1\tHarian\tpre_readiness\tSelesai\tTIDAK\t-\t-\t-\tTanaman disiram merata, kondisi basah segar\t5\tBagus & tepat waktu\t-\t-\t-\tPLH`
                         )
                       }
                       className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700 transition flex items-center gap-1.5 cursor-pointer shadow-xs"

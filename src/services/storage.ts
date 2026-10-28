@@ -268,7 +268,7 @@ const SEED_USERS: User[] = [
   ...SEED_PLH_USERS,
 ];
 
-// Seed Master Tasks with realistic assignee assignments and SOP standard benchmark photos
+// Seed Master Tasks with realistic assignee assignments (Tanpa foto dummy)
 const SEED_MASTER_TASKS: MasterTask[] = [
   // PRE-READINESS (00:00 - 09:00)
   {
@@ -285,7 +285,6 @@ const SEED_MASTER_TASKS: MasterTask[] = [
       'Isi ulang sabun cuci tangan dan tisu toilet.',
     ],
     photoRequired: true,
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80',
     estimatedMinutes: 25,
     area: 'Toilet & Wastafel Unit',
     isActive: true,
@@ -304,7 +303,6 @@ const SEED_MASTER_TASKS: MasterTask[] = [
       'Buka ventilasi / nyalakan AC 15 menit sebelum kegiatan dimulai.',
     ],
     photoRequired: true,
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=800&q=80',
     estimatedMinutes: 30,
     area: 'Ruang Kelas & Kantor Guru',
     isActive: true,
@@ -339,7 +337,6 @@ const SEED_MASTER_TASKS: MasterTask[] = [
       'Pastikan keset lobby dalam posisi rapi dan bersih.',
     ],
     photoRequired: true,
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1517502884422-41eaead166d4?auto=format&fit=crop&w=800&q=80',
     estimatedMinutes: 20,
     area: 'Lobby & Koridor',
     isActive: true,
@@ -377,7 +374,6 @@ const SEED_MASTER_TASKS: MasterTask[] = [
       'Pasang papan peringatan Wet Floor jika lantai masih basah.',
     ],
     photoRequired: true,
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80',
     estimatedMinutes: 40,
     area: 'Koridor & Ruang Kelas',
     isActive: true,
@@ -431,7 +427,6 @@ const SEED_MASTER_TASKS: MasterTask[] = [
       'Bilas dan keringkan dengan wiper lantai.',
     ],
     photoRequired: true,
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80',
     estimatedMinutes: 60,
     area: 'Toilet Unit',
     isActive: true,
@@ -449,7 +444,6 @@ const SEED_MASTER_TASKS: MasterTask[] = [
       'Lap kusen dan pinggiran jendela dengan lap microfiber.',
     ],
     photoRequired: true,
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80',
     estimatedMinutes: 45,
     area: 'Jendela Gedung',
     isActive: true,
@@ -526,7 +520,6 @@ export const SEED_PLH_MASTER_TASKS: MasterTask[] = [
       'Rapikan selang air pada tempatnya dan pastikan kran tertutup rapat.',
     ],
     photoRequired: true,
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80',
     estimatedMinutes: 30,
     area: 'Area Pos 1',
     isActive: true,
@@ -545,7 +538,6 @@ export const SEED_PLH_MASTER_TASKS: MasterTask[] = [
       'Siram tanaman pot dan tanaman pagar di sekitar Pos 2.',
     ],
     photoRequired: true,
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1590402494682-cd3fb53b1f70?auto=format&fit=crop&w=800&q=80',
     estimatedMinutes: 25,
     area: 'Area Pos 2',
     isActive: true,
@@ -564,7 +556,6 @@ export const SEED_PLH_MASTER_TASKS: MasterTask[] = [
       'Cek kesehatan pohon dan tanaman peneduh di sekeliling Khaldun.',
     ],
     photoRequired: true,
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=800&q=80',
     estimatedMinutes: 30,
     area: 'Area Khaldun',
     isActive: true,
@@ -583,7 +574,6 @@ export const SEED_PLH_MASTER_TASKS: MasterTask[] = [
       'Cabut rumput liar (weeding) di sekitar area tanam Ex Minifarm.',
     ],
     photoRequired: true,
-    standardPhotoUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6eb2251a?auto=format&fit=crop&w=800&q=80',
     estimatedMinutes: 45,
     area: 'Area Ex Minifarm',
     isActive: true,
@@ -1316,12 +1306,9 @@ export const StorageService = {
         updated.assignee = seedMatch?.assignee || 'Semua Petugas';
         modified = true;
       }
-      if (!updated.standardPhotoUrl) {
-        const seedMatch = ALL_INITIAL_MASTER_TASKS.find((st) => st.id === t.id);
-        if (seedMatch?.standardPhotoUrl) {
-          updated.standardPhotoUrl = seedMatch.standardPhotoUrl;
-          modified = true;
-        }
+      if (updated.standardPhotoUrl && (updated.standardPhotoUrl.includes('unsplash.com') || updated.standardPhotoUrl.includes('dummy'))) {
+        updated.standardPhotoUrl = undefined;
+        modified = true;
       }
       if (modified) {
         hasUpdated = true;
@@ -1336,6 +1323,22 @@ export const StorageService = {
   },
   saveMasterTasks: (tasks: MasterTask[]): void => {
     setStoredItem(STORAGE_KEYS.MASTER_TASKS, tasks || []);
+  },
+  mergeMasterTasks: (remoteTasks: MasterTask[]): MasterTask[] => {
+    const localTasks = StorageService.getMasterTasks();
+    if (!remoteTasks || remoteTasks.length === 0) return localTasks;
+    const taskMap = new Map<string, MasterTask>();
+    localTasks.forEach((t) => {
+      if (t && t.id) taskMap.set(t.id, t);
+    });
+    remoteTasks.forEach((t) => {
+      if (t && t.id) {
+        taskMap.set(t.id, { ...(taskMap.get(t.id) || {}), ...t });
+      }
+    });
+    const merged = Array.from(taskMap.values());
+    setStoredItem(STORAGE_KEYS.MASTER_TASKS, merged);
+    return merged;
   },
   addMasterTask: (task: MasterTask): void => {
     const tasks = StorageService.getMasterTasks();

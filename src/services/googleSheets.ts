@@ -171,16 +171,16 @@ function setupDatabase() {
   // 2. Setup Sheet: MasterTask (Standar Kebersihan Khusus Divisi OB)
   var masterTaskHeader = ["ID", "Title", "Unit", "Category", "TimingType", "Instructions", "PhotoRequired", "IsActive", "Area", "Assignee", "StandardPhotoURL", "Division"];
   var initialOBMasterTasks = [
-    ["mt-001", "Pre-Readiness: Pembersihan & Sanitasi Toilet", "Semua Unit", "Harian", "pre_readiness", "Kuras & bersihkan kloset | Isi sabun cuci tangan & tisu | Pel lantai disinfektan", "YA", "AKTIF", "Toilet & Selasar", "Petugas Unit TK (OB)", "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80", "OB"],
-    ["mt-002", "Pre-Readiness: Sapu, Pel & Kerapihan Ruang Kelas", "Semua Unit", "Harian", "pre_readiness", "Sapu bersih debu & sampah kolong meja | Pel lantai wangi | Rapikan formasi meja-kursi", "YA", "AKTIF", "Ruang Kelas", "Semua Petugas", "https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=800&q=80", "OB"],
+    ["mt-001", "Pre-Readiness: Pembersihan & Sanitasi Toilet", "Semua Unit", "Harian", "pre_readiness", "Kuras & bersihkan kloset | Isi sabun cuci tangan & tisu | Pel lantai disinfektan", "YA", "AKTIF", "Toilet & Selasar", "Petugas Unit TK (OB)", "", "OB"],
+    ["mt-002", "Pre-Readiness: Sapu, Pel & Kerapihan Ruang Kelas", "Semua Unit", "Harian", "pre_readiness", "Sapu bersih debu & sampah kolong meja | Pel lantai wangi | Rapikan formasi meja-kursi", "YA", "AKTIF", "Ruang Kelas", "Semua Petugas", "", "OB"],
     ["mt-003", "Pre-Readiness: Penyemprotan Disinfektan Handle Pintu & Meja Guru", "Semua Unit", "Harian", "pre_readiness", "Lap handle pintu & saklar | Bersihkan meja & kursi guru", "YA", "AKTIF", "Area Umum & Guru", "Petugas Unit SD (OB)", "", "OB"],
     ["mt-004", "Pre-Readiness: Pengosongan Seluruh Tempat Sampah", "Semua Unit", "Harian", "pre_readiness", "Angkut seluruh tempat sampah kelas & selasar ke TPS | Pasang trashbag baru", "YA", "AKTIF", "Selasar & Koridor", "Semua Petugas", "", "OB"],
-    ["mt-005", "Pembersihan Rutin Selasar, Koridor & Tangga", "Semua Unit", "Harian", "anytime", "Sapu selasar | Pel jika ada noda atau licin | Cek kebersihan handrail tangga", "YA", "AKTIF", "Koridor & Tangga", "Semua Petugas", "https://images.unsplash.com/photo-1517502884422-41eaead166d4?auto=format&fit=crop&w=800&q=80", "OB"],
+    ["mt-005", "Pembersihan Rutin Selasar, Koridor & Tangga", "Semua Unit", "Harian", "anytime", "Sapu selasar | Pel jika ada noda atau licin | Cek kebersihan handrail tangga", "YA", "AKTIF", "Koridor & Tangga", "Semua Petugas", "", "OB"],
     ["mt-006", "Pengecekan Dispenser & Air Minum Galon", "Semua Unit", "Harian", "anytime", "Cek ketersediaan air galon siswa & guru | Lap baki tetesan dispenser", "TIDAK", "AKTIF", "Pantry & Koridor", "Semua Petugas", "", "OB"],
     ["mt-007", "Clock Out: Penguncian Pintu, Jendela & Matikan AC/Lampu", "Semua Unit", "Harian", "clock_out", "Pastikan seluruh AC & lampu mati | Kunci jendela & pintu ruangan", "YA", "AKTIF", "Seluruh Ruangan Unit", "Petugas Pelangi (OB)", "", "OB"],
-    ["mt-008", "Clock Out: Pembersihan Akhir Toilet & Wastafel", "Semua Unit", "Harian", "clock_out", "Keringkan lantai | Matikan keran air | Pastikan tidak ada air terbuang", "YA", "AKTIF", "Toilet Unit", "Semua Petugas", "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80", "OB"],
+    ["mt-008", "Clock Out: Pembersihan Akhir Toilet & Wastafel", "Semua Unit", "Harian", "clock_out", "Keringkan lantai | Matikan keran air | Pastikan tidak ada air terbuang", "YA", "AKTIF", "Toilet Unit", "Semua Petugas", "", "OB"],
     ["mt-009", "Clock Out: Pengangkutan Sampah Sore ke TPS Akhir", "Semua Unit", "Harian", "clock_out", "Pastikan tidak ada sisa sampah organik di dalam gedung", "YA", "AKTIF", "TPS Luar", "Semua Petugas", "", "OB"],
-    ["mt-012", "Pembersihan Kaca Jendela Luar & Dalam", "Semua Unit", "Mingguan", "anytime", "Gunakan wiper & pembersih kaca | Lap bingkai kusen", "YA", "AKTIF", "Jendela Gedung", "Semua Petugas", "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80", "OB"],
+    ["mt-012", "Pembersihan Kaca Jendela Luar & Dalam", "Semua Unit", "Mingguan", "anytime", "Gunakan wiper & pembersih kaca | Lap bingkai kusen", "YA", "AKTIF", "Jendela Gedung", "Semua Petugas", "", "OB"],
     ["mt-013", "Deep Cleaning Saluran Air & Drainase Selokan", "Semua Unit", "Mingguan", "anytime", "Angkat endapan lumpur | Pastikan aliran air lancar bebas jentik", "YA", "AKTIF", "Saluran Selokan", "Semua Petugas", "", "OB"],
     ["mt-014", "Pembersihan Sawang Langit-langit & Plafon Tinggi", "Semua Unit", "Bulanan", "anytime", "Gunakan stik panjang sawang | Bersihkan exhaust fan", "YA", "AKTIF", "Plafon & Exhaust", "Semua Petugas", "", "OB"]
   ];
@@ -188,10 +188,10 @@ function setupDatabase() {
 
   // 3. Setup Sheet: MasterTask_PLH (Standar Pemeliharaan Khusus Divisi PLH per 5 Wilayah Resmi)
   var initialPLHMasterTasks = [
-    ["mt-plh-01", "Pre-Readiness: Penyiraman Taman & Perapihan Area Pos 1", "Semua Unit", "Harian", "pre_readiness", "Siram tanaman hias & rumput gerbang utama | Sapu daun gugur paving drop-off | Rapikan selang", "YA", "AKTIF", "Area Pos 1", "Rahmat Hidayat (Kord PLH)", "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80", "PLH"],
-    ["mt-plh-02", "Pre-Readiness: Kebersihan Taman & Drainase Area Pos 2", "Semua Unit", "Harian", "pre_readiness", "Sapu serasah daun kering sekeliling Pos 2 | Cek grill saluran pembuangan air | Siram tanaman pot", "YA", "AKTIF", "Area Pos 2", "Ahmad Syahril (PLH)", "https://images.unsplash.com/photo-1590402494682-cd3fb53b1f70?auto=format&fit=crop&w=800&q=80", "PLH"],
-    ["mt-plh-03", "Perawatan Lanskap Terbuka, Taman & Jalur Pedestrian Khaldun", "Semua Unit", "Harian", "anytime", "Siram tanaman lanskap terbuka | Bersihkan jalur pedestrian dari lumut/daun | Cek kesehatan pohon", "YA", "AKTIF", "Area Khaldun", "Andi Komala (PLH)", "https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=800&q=80", "PLH"],
-    ["mt-plh-04", "Pemeliharaan Bedengan Pembibitan, Kompos & Gulma Ex Minifarm", "Semua Unit", "Harian", "anytime", "Kelola bak komposter organik daun | Rapikan bedengan tanaman produktif | Cabut rumput liar", "YA", "AKTIF", "Area Ex Minifarm", "Dedi Junaedi (PLH)", "https://images.unsplash.com/photo-1592417817098-8f3d6eb2251a?auto=format&fit=crop&w=800&q=80", "PLH"],
+    ["mt-plh-01", "Pre-Readiness: Penyiraman Taman & Perapihan Area Pos 1", "Semua Unit", "Harian", "pre_readiness", "Siram tanaman hias & rumput gerbang utama | Sapu daun gugur paving drop-off | Rapikan selang", "YA", "AKTIF", "Area Pos 1", "Rahmat Hidayat (Kord PLH)", "", "PLH"],
+    ["mt-plh-02", "Pre-Readiness: Kebersihan Taman & Drainase Area Pos 2", "Semua Unit", "Harian", "pre_readiness", "Sapu serasah daun kering sekeliling Pos 2 | Cek grill saluran pembuangan air | Siram tanaman pot", "YA", "AKTIF", "Area Pos 2", "Ahmad Syahril (PLH)", "", "PLH"],
+    ["mt-plh-03", "Perawatan Lanskap Terbuka, Taman & Jalur Pedestrian Khaldun", "Semua Unit", "Harian", "anytime", "Siram tanaman lanskap terbuka | Bersihkan jalur pedestrian dari lumut/daun | Cek kesehatan pohon", "YA", "AKTIF", "Area Khaldun", "Andi Komala (PLH)", "", "PLH"],
+    ["mt-plh-04", "Pemeliharaan Bedengan Pembibitan, Kompos & Gulma Ex Minifarm", "Semua Unit", "Harian", "anytime", "Kelola bak komposter organik daun | Rapikan bedengan tanaman produktif | Cabut rumput liar", "YA", "AKTIF", "Area Ex Minifarm", "Dedi Junaedi (PLH)", "", "PLH"],
     ["mt-plh-05", "Pembersihan Daun, Bibir Kolam & Saluran Area Kolam Renang", "Semua Unit", "Harian", "anytime", "Jaring serasah di permukaan kolam | Sikat deck pinggir kolam | Cek sirkulasi pompa filter air", "YA", "AKTIF", "Area Kolam Renang", "Radilah (PLH)", "", "PLH"],
     ["mt-plh-06", "Clock Out: Perapihan Selang Air, Mesin Rumput & Kerapihan Area", "Semua Unit", "Harian", "clock_out", "Bersihkan & keringkan gunting dahan/cangkul | Gulung selang air rapi | Kunci gudang alat", "YA", "AKTIF", "Area Pos 1", "Semua Petugas (PLH)", "", "PLH"]
   ];
@@ -637,8 +637,8 @@ function writeSheet(ss, sheetName, rows) {
   }
   
   if (rows && rows.length > 0) {
-    // Konversi foto base64 ke Drive saat batch write
-    if (sheetName === "TaskLogs") {
+    // 1. TaskLogs & TaskLogs_PLH: Konversi foto base64 ke Drive & Lindungi riwayat agar tidak hilang
+    if (sheetName === "TaskLogs" || sheetName === "TaskLogs_PLH") {
       for (var r = 1; r < rows.length; r++) {
         var row = rows[r];
         var photoIdx = row.length >= 20 ? 13 : 12;
@@ -648,20 +648,32 @@ function writeSheet(ss, sheetName, rows) {
         }
       }
 
-      // Concurrency protection: Merge with existing rows instead of destructive clearContents
+      // Concurrency & Persistence Protection:
+      // Data riwayat task logs di Google Sheets TIDAK BOLEH hilang otomatis.
+      // Selalu gabungkan (merge) dengan baris yang sudah ada berdasarkan ID (col 0).
       var existingData = sheet.getDataRange().getValues();
       if (existingData.length > 1) {
         var existingMap = {};
         for (var ex = 1; ex < existingData.length; ex++) {
           var exRow = existingData[ex];
-          var exId = String(exRow[0] || "");
-          if (exId) existingMap[exId] = exRow;
+          var exId = String(exRow[0] || "").trim();
+          if (exId && exId !== "ID") existingMap[exId] = exRow;
         }
         for (var inR = 1; inR < rows.length; inR++) {
           var inRow = rows[inR];
-          var inId = String(inRow[0] || "");
-          if (inId) {
-            existingMap[inId] = inRow;
+          var inId = String(inRow[0] || "").trim();
+          if (inId && inId !== "ID") {
+            if (existingMap[inId]) {
+              var mergedLog = existingMap[inId].slice(0);
+              for (var c = 0; c < inRow.length; c++) {
+                if (inRow[c] !== "" && inRow[c] !== null && inRow[c] !== undefined) {
+                  mergedLog[c] = inRow[c];
+                }
+              }
+              existingMap[inId] = mergedLog;
+            } else {
+              existingMap[inId] = inRow;
+            }
           }
         }
         var mergedRows = [rows[0]];
@@ -670,12 +682,111 @@ function writeSheet(ss, sheetName, rows) {
         }
         rows = mergedRows;
       }
-    } else if (sheetName === "MasterTask") {
+    } else if (sheetName === "MasterTask" || sheetName === "MasterTask_PLH") {
+      // 2. MasterTask & MasterTask_PLH: Konversi foto standar & lindungi daftar SOP
       for (var r = 1; r < rows.length; r++) {
         var row = rows[r];
         if (row && row[10] && typeof row[10] === "string" && (row[10].indexOf("data:image") === 0 || row[10].length > 500)) {
           row[10] = saveBase64ImageToDrive(row[10], "standar_sop_" + r + "_" + (new Date().getTime()) + ".jpg");
         }
+      }
+
+      var existingTaskData = sheet.getDataRange().getValues();
+      if (existingTaskData.length > 1) {
+        var existingTaskMap = {};
+        for (var extk = 1; extk < existingTaskData.length; extk++) {
+          var extkRow = existingTaskData[extk];
+          var extkId = String(extkRow[0] || "").trim();
+          if (extkId && extkId !== "ID") existingTaskMap[extkId] = extkRow;
+        }
+        for (var inTk = 1; inTk < rows.length; inTk++) {
+          var inTkRow = rows[inTk];
+          var inTkId = String(inTkRow[0] || "").trim();
+          if (inTkId && inTkId !== "ID") {
+            if (existingTaskMap[inTkId]) {
+              var mergedTaskRow = existingTaskMap[inTkId].slice(0);
+              for (var tc = 0; tc < inTkRow.length; tc++) {
+                if (inTkRow[tc] !== "" && inTkRow[tc] !== null && inTkRow[tc] !== undefined) {
+                  mergedTaskRow[tc] = inTkRow[tc];
+                }
+              }
+              existingTaskMap[inTkId] = mergedTaskRow;
+            } else {
+              existingTaskMap[inTkId] = inTkRow;
+            }
+          }
+        }
+        var mergedTaskRows = [rows[0]];
+        for (var tkKey in existingTaskMap) {
+          mergedTaskRows.push(existingTaskMap[tkKey]);
+        }
+        rows = mergedTaskRows;
+      }
+    } else if (sheetName === "JobBareng" || sheetName === "JobBareng_PLH") {
+      // 3. JobBareng & JobBareng_PLH
+      var existingJobData = sheet.getDataRange().getValues();
+      if (existingJobData.length > 1) {
+        var existingJobMap = {};
+        for (var exj = 1; exj < existingJobData.length; exj++) {
+          var exjRow = existingJobData[exj];
+          var exjId = String(exjRow[0] || "").trim();
+          if (exjId && exjId !== "ID") existingJobMap[exjId] = exjRow;
+        }
+        for (var inJ = 1; inJ < rows.length; inJ++) {
+          var inJRow = rows[inJ];
+          var inJId = String(inJRow[0] || "").trim();
+          if (inJId && inJId !== "ID") {
+            if (existingJobMap[inJId]) {
+              var mergedJRow = existingJobMap[inJId].slice(0);
+              for (var jc = 0; jc < inJRow.length; jc++) {
+                if (inJRow[jc] !== "" && inJRow[jc] !== null && inJRow[jc] !== undefined) {
+                  mergedJRow[jc] = inJRow[jc];
+                }
+              }
+              existingJobMap[inJId] = mergedJRow;
+            } else {
+              existingJobMap[inJId] = inJRow;
+            }
+          }
+        }
+        var mergedJobRows = [rows[0]];
+        for (var jKey in existingJobMap) {
+          mergedJobRows.push(existingJobMap[jKey]);
+        }
+        rows = mergedJobRows;
+      }
+    } else if (sheetName === "WeeklyScores" || sheetName === "WeeklyScores_PLH") {
+      // 4. WeeklyScores & WeeklyScores_PLH
+      var existingWsData = sheet.getDataRange().getValues();
+      if (existingWsData.length > 1) {
+        var existingWsMap = {};
+        for (var exw = 1; exw < existingWsData.length; exw++) {
+          var exwRow = existingWsData[exw];
+          var exwId = String(exwRow[0] || "").trim();
+          if (exwId && exwId !== "ID") existingWsMap[exwId] = exwRow;
+        }
+        for (var inW = 1; inW < rows.length; inW++) {
+          var inWRow = rows[inW];
+          var inWId = String(inWRow[0] || "").trim();
+          if (inWId && inWId !== "ID") {
+            if (existingWsMap[inWId]) {
+              var mergedWRow = existingWsMap[inWId].slice(0);
+              for (var wc = 0; wc < inWRow.length; wc++) {
+                if (inWRow[wc] !== "" && inWRow[wc] !== null && inWRow[wc] !== undefined) {
+                  mergedWRow[wc] = inWRow[wc];
+                }
+              }
+              existingWsMap[inWId] = mergedWRow;
+            } else {
+              existingWsMap[inWId] = inWRow;
+            }
+          }
+        }
+        var mergedWsRows = [rows[0]];
+        for (var wKey in existingWsMap) {
+          mergedWsRows.push(existingWsMap[wKey]);
+        }
+        rows = mergedWsRows;
       }
     } else if (sheetName === "PeerInspections") {
       for (var r = 1; r < rows.length; r++) {
@@ -685,10 +796,31 @@ function writeSheet(ss, sheetName, rows) {
           row[11] = saveBase64ImageToDrive(row[11], "inspeksi_" + inspector + "_" + r + "_" + (new Date().getTime()) + ".jpg");
         }
       }
+      var existingPiData = sheet.getDataRange().getValues();
+      if (existingPiData.length > 1) {
+        var existingPiMap = {};
+        for (var exp = 1; exp < existingPiData.length; exp++) {
+          var expRow = existingPiData[exp];
+          var expId = String(expRow[0] || "").trim();
+          if (expId && expId !== "ID") existingPiMap[expId] = expRow;
+        }
+        for (var inP = 1; inP < rows.length; inP++) {
+          var inPRow = rows[inP];
+          var inPId = String(inPRow[0] || "").trim();
+          if (inPId && inPId !== "ID") {
+            existingPiMap[inPId] = inPRow;
+          }
+        }
+        var mergedPiRows = [rows[0]];
+        for (var pKey in existingPiMap) {
+          mergedPiRows.push(existingPiMap[pKey]);
+        }
+        rows = mergedPiRows;
+      }
     } else if (sheetName === "WorkOrder_Pohon") {
       // Concurrency & Persistence Protection:
       // Merge with existing trees by Tree ID (col 0).
-      // Any tree already in the sheet is NEVER deleted unless deleted directly by user in the database!
+      // Data pohon di Google Sheets TIDAK BOLEH hilang otomatis kecuali dihapus manual oleh user di Google Sheets!
       // Incoming fields update existing row without blanking out existing data or history.
       var existingTreeData = sheet.getDataRange().getValues();
       if (existingTreeData.length > 1) {
@@ -761,13 +893,64 @@ function writeSheet(ss, sheetName, rows) {
         }
         rows = mergedLogRows;
       }
+    } else if (sheetName === "Users") {
+      var existingUserData = sheet.getDataRange().getValues();
+      if (existingUserData.length > 1) {
+        var existingUserMap = {};
+        for (var exu = 1; exu < existingUserData.length; exu++) {
+          var exuRow = existingUserData[exu];
+          var exuId = String(exuRow[0] || "").trim();
+          if (exuId && exuId !== "ID") existingUserMap[exuId] = exuRow;
+        }
+        for (var inU = 1; inU < rows.length; inU++) {
+          var inURow = rows[inU];
+          var inUId = String(inURow[0] || "").trim();
+          if (inUId && inUId !== "ID") {
+            if (existingUserMap[inUId]) {
+              var mergedURow = existingUserMap[inUId].slice(0);
+              for (var uc = 0; uc < inURow.length; uc++) {
+                if (inURow[uc] !== "" && inURow[uc] !== null && inURow[uc] !== undefined) {
+                  mergedURow[uc] = inURow[uc];
+                }
+              }
+              existingUserMap[inUId] = mergedURow;
+            } else {
+              existingUserMap[inUId] = inURow;
+            }
+          }
+        }
+        var mergedUserRows = [rows[0]];
+        for (var uKey in existingUserMap) {
+          mergedUserRows.push(existingUserMap[uKey]);
+        }
+        rows = mergedUserRows;
+      }
     }
 
-    sheet.clearContents();
-    sheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+    // Normalisasi setiap baris agar panjang kolom seragam dengan header (mencegah error dimensi setValues)
+    var targetCols = rows[0].length;
+    var safeRows = [];
+    for (var nr = 0; nr < rows.length; nr++) {
+      var rItem = rows[nr] || [];
+      var cleanRow = [];
+      for (var nc = 0; nc < targetCols; nc++) {
+        var val = rItem[nc];
+        cleanRow.push(val === undefined || val === null ? "" : val);
+      }
+      safeRows.push(cleanRow);
+    }
+
+    // Tulis data secara aman langsung ke sheet tanpa clearContents di awal
+    sheet.getRange(1, 1, safeRows.length, targetCols).setValues(safeRows);
+    
+    // Hanya hapus baris sisa di bawahnya jika data lama memiliki lebih banyak baris
+    var prevLastRow = sheet.getLastRow();
+    if (prevLastRow > safeRows.length) {
+      sheet.getRange(safeRows.length + 1, 1, prevLastRow - safeRows.length, targetCols).clearContent();
+    }
     
     // Style header row
-    var headerRange = sheet.getRange(1, 1, 1, rows[0].length);
+    var headerRange = sheet.getRange(1, 1, 1, targetCols);
     headerRange.setBackground("#0f172a");
     headerRange.setFontColor("#FFFFFF");
     headerRange.setFontWeight("bold");
@@ -2458,7 +2641,9 @@ export const GoogleSheetsService = {
                   division: taskDivision,
                 };
               });
-            StorageService.saveMasterTasks(parsedTasks);
+            if (parsedTasks.length > 0) {
+              StorageService.mergeMasterTasks(parsedTasks);
+            }
           }
 
           if (rLogs !== undefined) {
@@ -3086,7 +3271,7 @@ export const GoogleSheetsService = {
             };
           });
         if (remoteTasks.length > 0) {
-          StorageService.saveMasterTasks(remoteTasks);
+          StorageService.mergeMasterTasks(remoteTasks);
         }
       }
 
