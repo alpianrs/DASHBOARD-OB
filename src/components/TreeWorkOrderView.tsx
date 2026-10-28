@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   TreePine,
   Plus,
@@ -237,6 +237,12 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     'all' | 'this_week' | 'this_week_unchecked' | 'this_week_safe' | 'need_treatment' | 'last_week'
   >('all');
 
+  // Progressive rendering / pagination agar aplikasi tetap ringan & responsif
+  const [visibleCount, setVisibleCount] = useState<number>(24);
+  useEffect(() => {
+    setVisibleCount(24);
+  }, [activeTab, weeklyFilter, selectedAreaFilter, searchQuery]);
+
   // Guard: Fitur Laporan per Area PLH hanya dapat diakses oleh Kordinator PLH & Admin FM
   useEffect(() => {
     if (!isCoordinatorPLH && activeTab === 'area_breakdown') {
@@ -256,7 +262,9 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
   const [inspectingOrder, setInspectingOrder] = useState<TreeWorkOrder | null>(null);
   const [inspectStatus, setInspectStatus] = useState<'Sudah Dicek Aman' | 'Perlu Penanganan' | 'Belum Dicek'>('Sudah Dicek Aman');
   const [inspectCondition, setInspectCondition] = useState<TreeCondition>('Normal / Sehat');
+  const [inspectCustomCondition, setInspectCustomCondition] = useState<string>('');
   const [inspectNotes, setInspectNotes] = useState<string>('');
+  const [showOptionalNotes, setShowOptionalNotes] = useState<boolean>(false);
   const [inspectTreatmentNeeded, setInspectTreatmentNeeded] = useState<string>('Penjarangan Kanopi Rimbun');
   const [inspectHandlerType, setInspectHandlerType] = useState<TreeHandlerType>('Internal PLH');
   const [inspectVendorName, setInspectVendorName] = useState<string>('');
@@ -332,6 +340,7 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
   const [formStaffName, setFormStaffName] = useState<string>('');
   const [formTreeName, setFormTreeName] = useState<string>('');
   const [formCondition, setFormCondition] = useState<TreeCondition>('Rimbun');
+  const [formCustomCondition, setFormCustomCondition] = useState<string>('');
   const [formTreatment, setFormTreatment] = useState<TreeTreatmentType>(
     'Penjarangan Kanopi Rimbun'
   );
@@ -376,6 +385,7 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     setFormStaffName(DEFAULT_PLH_AREA_STAFF[defaultArea]?.name || activeUser.name);
     setFormTreeName('');
     setFormCondition('Rimbun');
+    setFormCustomCondition('');
     setFormTreatment('Penjarangan Kanopi Rimbun');
     setFormHandlerType('Internal PLH');
     setFormVendorName('');
@@ -399,7 +409,16 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     setFormArea(order.area);
     setFormStaffName(order.assignedStaffName || DEFAULT_PLH_AREA_STAFF[order.area]?.name || '');
     setFormTreeName(order.treeName);
-    setFormCondition(order.condition);
+
+    const standardConditions = ['Rimbun', 'Dahan Kering / Lapuk', 'Miring / Rawan Tumbang', 'Terserang Hama / Benalu', 'Normal / Sehat', 'Dahan Patah / Kering', 'Dekat Kabel / Atap', 'Sarang Hama / Ulat', 'Batang Lapuk / Berongga'];
+    if (order.condition && !standardConditions.includes(order.condition)) {
+      setFormCondition('Lainnya');
+      setFormCustomCondition(order.condition);
+    } else {
+      setFormCondition(order.condition || 'Rimbun');
+      setFormCustomCondition('');
+    }
+
     setFormTreatment(order.treatmentNeeded);
     setFormHandlerType(order.handlerType);
     setFormVendorName(order.vendorName || '');
@@ -431,6 +450,7 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
       name: activeUser.name,
     };
     const finalStaffName = formStaffName.trim() || areaStaff.name;
+    const finalFormCondition: TreeCondition = formCondition === 'Lainnya' ? (formCustomCondition.trim() || 'Kondisi Khusus') : formCondition;
 
     if (editingOrder) {
       const updated: TreeWorkOrder = {
@@ -439,7 +459,7 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
         assignedStaffId: editingOrder.assignedStaffId || areaStaff.id,
         assignedStaffName: finalStaffName,
         treeName: formTreeName.trim(),
-        condition: formCondition,
+        condition: finalFormCondition,
         treatmentNeeded: formTreatment,
         handlerType: formHandlerType,
         isLargeTreatment: isLarge,
@@ -470,7 +490,7 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
         time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
         inspectorId: activeUser.id,
         inspectorName: activeUser.name,
-        condition: formCondition,
+        condition: finalFormCondition,
         checkStatus: formStatus === 'Perlu Penanganan' ? 'Perlu Penanganan' : 'Sudah Dicek Aman',
         notes: formNotes.trim() || 'Pemeriksaan awal kondisi pohon.',
         treatmentNeeded: formTreatment,
@@ -489,7 +509,7 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
         assignedStaffId: areaStaff.id,
         assignedStaffName: finalStaffName,
         treeName: formTreeName.trim(),
-        condition: formCondition,
+        condition: finalFormCondition,
         treatmentNeeded: formTreatment,
         handlerType: formHandlerType,
         isLargeTreatment: isLarge,
@@ -626,12 +646,42 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     });
   };
 
+  const STANDARD_TREE_CONDITIONS = [
+    'Normal / Sehat',
+    'Rimbun',
+    'Dahan Patah / Kering',
+    'Dekat Kabel / Atap',
+    'Miring / Rawan Tumbang',
+    'Sarang Hama / Ulat',
+    'Batang Lapuk / Berongga',
+  ];
+
   // Open Quick Daily Inspection Modal
   const openInspectionModal = (order: TreeWorkOrder) => {
     setInspectingOrder(order);
-    setInspectStatus(order.checkStatusToday || (order.status === 'Perlu Penanganan' ? 'Perlu Penanganan' : 'Sudah Dicek Aman'));
-    setInspectCondition(order.condition || 'Normal / Sehat');
-    setInspectNotes(order.inspectionNotes || '');
+    const initialStatus = order.checkStatusToday || (order.status === 'Perlu Penanganan' ? 'Perlu Penanganan' : 'Sudah Dicek Aman');
+    setInspectStatus(initialStatus);
+
+    const cond = order.condition || 'Normal / Sehat';
+    if (cond && !STANDARD_TREE_CONDITIONS.includes(cond)) {
+      setInspectCondition('Lainnya');
+      setInspectCustomCondition(cond);
+    } else {
+      setInspectCondition(cond);
+      setInspectCustomCondition('');
+    }
+
+    const rawNotes = order.inspectionNotes || '';
+    const isSafeBoilerplate =
+      rawNotes.includes('Pemeriksaan rutin') ||
+      rawNotes.includes('terpantau aman') ||
+      rawNotes.includes('terawat') ||
+      rawNotes.toLowerCase().includes('aman');
+
+    // Jika statusnya Perlu Penanganan atau catatannya berupa kalimat rutin aman, kosongkan agar staf tidak perlu menghapus manual
+    const initialNotes = (initialStatus === 'Perlu Penanganan' && isSafeBoilerplate) ? '' : rawNotes;
+    setInspectNotes(initialNotes);
+    setShowOptionalNotes(Boolean(initialNotes && initialNotes.trim().length > 0 && !isSafeBoilerplate));
     setInspectTreatmentNeeded(order.treatmentNeeded || 'Penjarangan Kanopi Rimbun');
     setInspectHandlerType(order.handlerType || 'Internal PLH');
     setInspectVendorName(order.vendorName || '');
@@ -651,8 +701,20 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     const now = new Date();
     const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
     const isPerluPenanganan = inspectStatus === 'Perlu Penanganan';
-    const trimmedNotes = inspectNotes.trim() || 'Pemeriksaan rutin: Kondisi terpantau aman dan terawat.';
+
+    // Catatan: Jika pohon aman, otomatis tercatat aman dan terawat tanpa perlu diketik manual
+    // Jika perlu penanganan, gunakan ketikan masalah dari staf atau default keterangan penanganan
+    const defaultSafeNote = 'Kondisi terpantau aman dan terawat.';
+    const trimmedNotes = isPerluPenanganan
+      ? (inspectNotes.trim() || 'Perlu penanganan lanjutan pada pohon.')
+      : (inspectNotes.trim() || defaultSafeNote);
+
     const costNum = isPerluPenanganan && inspectHandlerType === 'Vendor Luar' && inspectVendorCost ? parseInt(inspectVendorCost, 10) || 0 : undefined;
+
+    // Kondisi: Jika "Lainnya", ambil dari ketikan langsung staf
+    const finalCondition: TreeCondition = inspectCondition === 'Lainnya'
+      ? (inspectCustomCondition.trim() || 'Kondisi Khusus')
+      : inspectCondition;
 
     const newRecord: TreeInspectionRecord = {
       id: `tir-${Date.now()}`,
@@ -661,7 +723,7 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
       time: timeStr,
       inspectorId: activeUser.id,
       inspectorName: activeUser.name,
-      condition: inspectCondition,
+      condition: finalCondition,
       checkStatus: isPerluPenanganan ? 'Perlu Penanganan' : 'Sudah Dicek Aman',
       notes: trimmedNotes,
       treatmentNeeded: isPerluPenanganan ? inspectTreatmentNeeded : undefined,
@@ -1051,82 +1113,164 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     reader.readAsDataURL(file);
   };
 
-  // Filtering
-  const filteredOrders = orders.filter((o) => {
-    // Restriksi Area: Masing-masing staf PLH hanya bisa melihat pohon di area tanggung jawabnya
-    if (!isSuperUser && userAssignedArea) {
-      const uClean = userAssignedArea.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const oClean = o.area.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const uNorm = normalizePlhArea(userAssignedArea).toLowerCase().replace(/[^a-z0-9]/g, '');
-      const oNorm = normalizePlhArea(o.area).toLowerCase().replace(/[^a-z0-9]/g, '');
-      if (
-        !oClean.includes(uClean) &&
-        !uClean.includes(oClean) &&
-        !oNorm.includes(uNorm) &&
-        !uNorm.includes(oNorm)
-      ) {
+  // Filtering with useMemo to keep app lightweight, fast, and responsive
+  const filteredOrders = useMemo(() => {
+    const currentMon = getMondayOfWeek();
+    return orders.filter((o) => {
+      // Restriksi Area: Masing-masing staf PLH hanya bisa melihat pohon di area tanggung jawabnya
+      if (!isSuperUser && userAssignedArea) {
+        const uClean = userAssignedArea.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const oClean = o.area.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const uNorm = normalizePlhArea(userAssignedArea).toLowerCase().replace(/[^a-z0-9]/g, '');
+        const oNorm = normalizePlhArea(o.area).toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (
+          !oClean.includes(uClean) &&
+          !uClean.includes(oClean) &&
+          !oNorm.includes(uNorm) &&
+          !uNorm.includes(oNorm)
+        ) {
+          return false;
+        }
+      } else if (selectedAreaFilter !== 'Semua' && o.area !== selectedAreaFilter) {
         return false;
       }
-    } else if (selectedAreaFilter !== 'Semua' && o.area !== selectedAreaFilter) {
-      return false;
-    }
-    // Search Query
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const match =
-        o.treeName.toLowerCase().includes(q) ||
-        o.area.toLowerCase().includes(q) ||
-        o.notes.toLowerCase().includes(q) ||
-        (o.treatmentReport && o.treatmentReport.toLowerCase().includes(q)) ||
-        (o.vendorName && o.vendorName.toLowerCase().includes(q));
-      if (!match) return false;
-    }
-    // Tab Filter
-    if (activeTab === 'need_action') {
-      return o.treatmentStatus === 'Belum Ditangani' || (o.status === 'Perlu Penanganan' && o.treatmentStatus !== 'Sudah Ditangani');
-    }
-    if (activeTab === 'in_progress') {
-      return o.treatmentStatus === 'Sedang Ditangani' || o.status === 'Sedang Dikerjakan';
-    }
-    if (activeTab === 'completed') {
-      return o.treatmentStatus === 'Sudah Ditangani' || o.status === 'Selesai';
-    }
-    if (activeTab === 'has_photos') {
-      return Boolean(o.photoBeforeUrl && o.photoAfterUrl);
-    }
-    if (activeTab === 'weekly_vendor') {
-      return o.handlerType === 'Vendor Luar' || o.isLargeTreatment === true;
-    }
-    if (activeTab === 'internal') {
-      return o.handlerType === 'Internal PLH';
-    }
-    if (activeTab === 'urgent') {
-      return o.urgency === 'Tinggi / Bahaya' || o.condition === 'Miring / Rawan Tumbang';
-    }
-    // Weekly Filter
-    const currentMon = getMondayOfWeek();
-    if (weeklyFilter === 'this_week_unchecked') {
-      const status = getTreeWeeklyCheckStatus(o);
-      return !status.isCheckedThisWeek;
-    }
-    if (weeklyFilter === 'this_week_safe') {
-      const status = getTreeWeeklyCheckStatus(o);
-      return status.isCheckedThisWeek && !status.isUnderTreatment;
-    }
-    if (weeklyFilter === 'need_treatment') {
-      const status = getTreeWeeklyCheckStatus(o);
-      return status.isUnderTreatment;
-    }
-    if (weeklyFilter === 'this_week') {
-      // Tampilkan seluruh pohon yang masuk target minggu berjalan
-      return true;
-    }
-    if (weeklyFilter === 'last_week') {
-      return Boolean(o.lastCheckedDate && o.lastCheckedDate < currentMon);
-    }
+      // Search Query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const match =
+          o.treeName.toLowerCase().includes(q) ||
+          o.area.toLowerCase().includes(q) ||
+          o.notes.toLowerCase().includes(q) ||
+          (o.treatmentReport && o.treatmentReport.toLowerCase().includes(q)) ||
+          (o.vendorName && o.vendorName.toLowerCase().includes(q));
+        if (!match) return false;
+      }
+      // Tab Filter
+      if (activeTab === 'need_action') {
+        return o.treatmentStatus === 'Belum Ditangani' || (o.status === 'Perlu Penanganan' && o.treatmentStatus !== 'Sudah Ditangani');
+      }
+      if (activeTab === 'in_progress') {
+        return o.treatmentStatus === 'Sedang Ditangani' || o.status === 'Sedang Dikerjakan';
+      }
+      if (activeTab === 'completed') {
+        return o.treatmentStatus === 'Sudah Ditangani' || o.status === 'Selesai';
+      }
+      if (activeTab === 'has_photos') {
+        return Boolean(o.photoBeforeUrl && o.photoAfterUrl);
+      }
+      if (activeTab === 'weekly_vendor') {
+        return o.handlerType === 'Vendor Luar' || o.isLargeTreatment === true;
+      }
+      if (activeTab === 'internal') {
+        return o.handlerType === 'Internal PLH';
+      }
+      if (activeTab === 'urgent') {
+        return o.urgency === 'Tinggi / Bahaya' || o.condition === 'Miring / Rawan Tumbang';
+      }
+      // Weekly Filter
+      if (weeklyFilter === 'this_week_unchecked') {
+        const status = getTreeWeeklyCheckStatus(o);
+        return !status.isCheckedThisWeek;
+      }
+      if (weeklyFilter === 'this_week_safe') {
+        const status = getTreeWeeklyCheckStatus(o);
+        return status.isCheckedThisWeek && !status.isUnderTreatment;
+      }
+      if (weeklyFilter === 'need_treatment') {
+        const status = getTreeWeeklyCheckStatus(o);
+        return status.isUnderTreatment;
+      }
+      if (weeklyFilter === 'this_week') {
+        return true;
+      }
+      if (weeklyFilter === 'last_week') {
+        return Boolean(o.lastCheckedDate && o.lastCheckedDate < currentMon);
+      }
 
-    return true;
-  });
+      return true;
+    });
+  }, [orders, isSuperUser, userAssignedArea, selectedAreaFilter, searchQuery, activeTab, weeklyFilter]);
+
+  // Memoized Tab Counts to prevent repeated filtering on render
+  const tabCounts = useMemo(() => {
+    let vendorCount = 0;
+    let internalCount = 0;
+    let urgentCount = 0;
+    let completedCount = 0;
+    for (const o of orders) {
+      if (o.handlerType === 'Vendor Luar' || o.isLargeTreatment) vendorCount++;
+      if (o.handlerType === 'Internal PLH') internalCount++;
+      if (o.urgency === 'Tinggi / Bahaya' || o.condition === 'Miring / Rawan Tumbang') urgentCount++;
+      if (o.status === 'Selesai' || o.treatmentStatus === 'Sudah Ditangani') completedCount++;
+    }
+    return { vendorCount, internalCount, urgentCount, completedCount };
+  }, [orders]);
+
+  // Memoized Weekly Summary Stats
+  const weeklySummaryStats = useMemo(() => {
+    const currentMon = getMondayOfWeek();
+    const weekLabel = formatWeekRange(currentMon);
+    const totalTrees = orders.length;
+    let uncheckedCount = 0;
+    let safeCount = 0;
+    let treatmentCount = 0;
+    let lastWeekCount = 0;
+    for (const o of orders) {
+      const st = getTreeWeeklyCheckStatus(o);
+      if (!st.isCheckedThisWeek) uncheckedCount++;
+      else if (!st.isUnderTreatment) safeCount++;
+      if (st.isUnderTreatment) treatmentCount++;
+      if (o.lastCheckedDate && o.lastCheckedDate < currentMon) lastWeekCount++;
+    }
+    return {
+      currentMon,
+      weekLabel,
+      totalTrees,
+      uncheckedCount,
+      safeCount,
+      treatmentCount,
+      lastWeekCount,
+    };
+  }, [orders]);
+
+  // Memoized Area Orders Map
+  const areaSummaryMap = useMemo(() => {
+    const map: Record<string, {
+      orders: TreeWorkOrder[];
+      totalTrees: number;
+      safeCount: number;
+      pruningCount: number;
+      urgentCount: number;
+      vendorCount: number;
+      totalCost: number;
+      checkedThisWeekCount: number;
+      isAllCheckedThisWeek: boolean;
+    }> = {};
+    for (const area of PLH_AREAS) {
+      const areaOrders = orders.filter((o) => o.area === area);
+      const totalTrees = areaOrders.length;
+      const safeCount = areaOrders.filter((o) => o.condition === 'Normal / Sehat' || o.status === 'Selesai').length;
+      const pruningCount = areaOrders.filter((o) => o.condition === 'Rimbun' && o.status !== 'Selesai').length;
+      const urgentCount = areaOrders.filter((o) => o.urgency === 'Tinggi / Bahaya' && o.status !== 'Selesai').length;
+      const vendorCount = areaOrders.filter((o) => o.handlerType === 'Vendor Luar' || o.isLargeTreatment).length;
+      const totalCost = areaOrders.reduce((sum, o) => sum + (o.vendorCost || 0), 0);
+      const checkedThisWeekCount = areaOrders.filter(
+        (o) => getTreeWeeklyCheckStatus(o).isCheckedThisWeek
+      ).length;
+      map[area] = {
+        orders: areaOrders,
+        totalTrees,
+        safeCount,
+        pruningCount,
+        urgentCount,
+        vendorCount,
+        totalCost,
+        checkedThisWeekCount,
+        isAllCheckedThisWeek: totalTrees > 0 && checkedThisWeekCount === totalTrees,
+      };
+    }
+    return map;
+  }, [orders]);
 
   // Manual Reset Siklus Ceklis Mingguan (Reset Tiap Senin)
   const handleManualWeeklyReset = () => {
@@ -1417,16 +1561,7 @@ function setupTabWorkOrderPohon() {
 
       {/* PANEL KONTROL SIKLUS MINGGUAN & UNDUH REKAP POHON (RESET TIAP SENIN) */}
       {(() => {
-        const currentMon = getMondayOfWeek();
-        const weekLabel = formatWeekRange(currentMon);
-        const totalTrees = orders.length;
-        const uncheckedTrees = orders.filter((o) => !getTreeWeeklyCheckStatus(o).isCheckedThisWeek);
-        const safeTrees = orders.filter((o) => {
-          const st = getTreeWeeklyCheckStatus(o);
-          return st.isCheckedThisWeek && !st.isUnderTreatment;
-        });
-        const treatmentTrees = orders.filter((o) => getTreeWeeklyCheckStatus(o).isUnderTreatment);
-        const lastWeekTrees = orders.filter((o) => o.lastCheckedDate && o.lastCheckedDate < currentMon);
+        const { weekLabel, totalTrees, uncheckedCount, safeCount, treatmentCount, lastWeekCount } = weeklySummaryStats;
 
         return (
           <div className="bg-white rounded-2xl border border-emerald-200/90 p-4 shadow-xs space-y-3.5">
@@ -1447,11 +1582,11 @@ function setupTabWorkOrderPohon() {
                     Progres Pemeriksaan Minggu Ini:
                   </span>
                   <span className="font-extrabold text-emerald-800">
-                    {safeTrees.length} / {totalTrees} Pohon Aman
+                    {safeCount} / {totalTrees} Pohon Aman
                   </span>
-                  {treatmentTrees.length > 0 && (
+                  {treatmentCount > 0 && (
                     <span className="text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 text-[11px]">
-                      • {treatmentTrees.length} Butuh Penanganan
+                      • {treatmentCount} Butuh Penanganan
                     </span>
                   )}
                 </div>
@@ -1521,7 +1656,7 @@ function setupTabWorkOrderPohon() {
                   }`}
                 >
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>Belum Dicek Minggu Ini ({uncheckedTrees.length})</span>
+                  <span>Belum Dicek Minggu Ini ({uncheckedCount})</span>
                 </button>
                 <button
                   type="button"
@@ -1533,9 +1668,9 @@ function setupTabWorkOrderPohon() {
                   }`}
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Sudah Ceklis Aman ({safeTrees.length})</span>
+                  <span>Sudah Ceklis Aman ({safeCount})</span>
                 </button>
-                {treatmentTrees.length > 0 && (
+                {treatmentCount > 0 && (
                   <button
                     type="button"
                     onClick={() => setWeeklyFilter('need_treatment')}
@@ -1546,7 +1681,7 @@ function setupTabWorkOrderPohon() {
                     }`}
                   >
                     <Wrench className="w-3.5 h-3.5" />
-                    <span>Perlu Penanganan Aktif ({treatmentTrees.length})</span>
+                    <span>Perlu Penanganan Aktif ({treatmentCount})</span>
                   </button>
                 )}
                 <button
@@ -1559,7 +1694,7 @@ function setupTabWorkOrderPohon() {
                   }`}
                 >
                   <Clock className="w-3.5 h-3.5" />
-                  <span>Pernah Dicek Sebelum Minggu Ini ({lastWeekTrees.length})</span>
+                  <span>Pernah Dicek Sebelum Minggu Ini ({lastWeekCount})</span>
                 </button>
               </div>
             </div>
@@ -1606,7 +1741,7 @@ function setupTabWorkOrderPohon() {
             }`}
           >
             <Building2 className="w-3.5 h-3.5" />
-            <span>WO Mingguan: Vendor Luar ({orders.filter((o) => o.handlerType === 'Vendor Luar' || o.isLargeTreatment).length})</span>
+            <span>WO Mingguan: Vendor Luar ({tabCounts.vendorCount})</span>
           </button>
           <button
             type="button"
@@ -1617,7 +1752,7 @@ function setupTabWorkOrderPohon() {
                 : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
             }`}
           >
-            Internal PLH ({orders.filter((o) => o.handlerType === 'Internal PLH').length})
+            Internal PLH ({tabCounts.internalCount})
           </button>
           <button
             type="button"
@@ -1629,7 +1764,7 @@ function setupTabWorkOrderPohon() {
             }`}
           >
             <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Urgen / Bahaya ({orders.filter((o) => o.urgency === 'Tinggi / Bahaya').length})</span>
+            <span>Urgen / Bahaya ({tabCounts.urgentCount})</span>
           </button>
           <button
             type="button"
@@ -1640,7 +1775,7 @@ function setupTabWorkOrderPohon() {
                 : 'text-blue-700 bg-blue-50 hover:bg-blue-100'
             }`}
           >
-            Selesai ({orders.filter((o) => o.status === 'Selesai').length})
+            Selesai ({tabCounts.completedCount})
           </button>
         </div>
 
@@ -1711,17 +1846,19 @@ function setupTabWorkOrderPohon() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {PLH_AREAS.map((area) => {
               const staff = DEFAULT_PLH_AREA_STAFF[area] || { name: 'Petugas PLH', id: '' };
-              const areaOrders = orders.filter((o) => o.area === area);
-              const totalTrees = areaOrders.length;
-              const safeCount = areaOrders.filter((o) => o.condition === 'Normal / Sehat' || o.status === 'Selesai').length;
-              const pruningCount = areaOrders.filter((o) => o.condition === 'Rimbun' && o.status !== 'Selesai').length;
-              const urgentCount = areaOrders.filter((o) => o.urgency === 'Tinggi / Bahaya' && o.status !== 'Selesai').length;
-              const vendorCount = areaOrders.filter((o) => o.handlerType === 'Vendor Luar' || o.isLargeTreatment).length;
-              const totalCost = areaOrders.reduce((sum, o) => sum + (o.vendorCost || 0), 0);
-              const checkedThisWeekCount = areaOrders.filter(
-                (o) => getTreeWeeklyCheckStatus(o).isCheckedThisWeek
-              ).length;
-              const isAllCheckedThisWeek = totalTrees > 0 && checkedThisWeekCount === totalTrees;
+              const summary = areaSummaryMap[area] || {
+                orders: [],
+                totalTrees: 0,
+                safeCount: 0,
+                pruningCount: 0,
+                urgentCount: 0,
+                vendorCount: 0,
+                totalCost: 0,
+                checkedThisWeekCount: 0,
+                isAllCheckedThisWeek: false,
+              };
+              const { totalTrees, safeCount, pruningCount, urgentCount, vendorCount, totalCost, checkedThisWeekCount, isAllCheckedThisWeek } = summary;
+              const areaOrders = summary.orders;
 
               const isUserArea = activeUser.assignedArea === area;
 
@@ -1934,21 +2071,22 @@ function setupTabWorkOrderPohon() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredOrders.map((order) => {
-            const isVendor = order.handlerType === 'Vendor Luar' || order.isLargeTreatment;
-            const isFinished = order.status === 'Selesai';
-            return (
-              <div
-                key={order.id}
-                className={`bg-white rounded-2xl border transition shadow-xs flex flex-col justify-between overflow-hidden ${
-                  order.urgency === 'Tinggi / Bahaya'
-                    ? 'border-rose-300 shadow-rose-100'
-                    : isVendor
-                    ? 'border-amber-300 shadow-amber-50'
-                    : 'border-slate-200'
-                }`}
-              >
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredOrders.slice(0, visibleCount).map((order) => {
+              const isVendor = order.handlerType === 'Vendor Luar' || order.isLargeTreatment;
+              const isFinished = order.status === 'Selesai';
+              return (
+                <div
+                  key={order.id}
+                  className={`bg-white rounded-2xl border transition shadow-xs flex flex-col justify-between overflow-hidden card-content-auto ${
+                    order.urgency === 'Tinggi / Bahaya'
+                      ? 'border-rose-300 shadow-rose-100'
+                      : isVendor
+                      ? 'border-amber-300 shadow-amber-50'
+                      : 'border-slate-200'
+                  }`}
+                >
                 {/* Card Header */}
                 <div className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
@@ -2157,6 +2295,8 @@ function setupTabWorkOrderPohon() {
                           <img
                             src={formatGoogleDriveImageUrl(order.standardPhotoUrl)}
                             alt="Standar Pohon"
+                            loading="lazy"
+                            decoding="async"
                             className="w-full h-full object-cover group-hover:scale-105 transition"
                           />
                           <div className="absolute inset-0 bg-black/25 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
@@ -2301,6 +2441,8 @@ function setupTabWorkOrderPohon() {
                               <img
                                 src={formatGoogleDriveImageUrl(order.photoBeforeUrl || order.drivePhotoBeforeUrl)}
                                 alt="Before"
+                                loading="lazy"
+                                decoding="async"
                                 referrerPolicy="no-referrer"
                                 className="w-full h-full object-cover group-hover:scale-105 transition duration-200 cursor-pointer"
                                 onClick={() => openCompareModal(order)}
@@ -2334,6 +2476,8 @@ function setupTabWorkOrderPohon() {
                               <img
                                 src={formatGoogleDriveImageUrl(order.photoAfterUrl || order.drivePhotoAfterUrl)}
                                 alt="After"
+                                loading="lazy"
+                                decoding="async"
                                 referrerPolicy="no-referrer"
                                 className="w-full h-full object-cover group-hover:scale-105 transition duration-200 cursor-pointer"
                                 onClick={() => openCompareModal(order)}
@@ -2441,6 +2585,31 @@ function setupTabWorkOrderPohon() {
             );
           })}
         </div>
+
+        {filteredOrders.length > visibleCount && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl shadow-xs">
+            <span className="text-xs font-semibold text-emerald-950">
+              Menampilkan <strong>{Math.min(visibleCount, filteredOrders.length)}</strong> dari <strong>{filteredOrders.length}</strong> pohon
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setVisibleCount((prev) => prev + 24)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs cursor-pointer transition"
+              >
+                Muat Lebih Banyak (+24)
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisibleCount(filteredOrders.length)}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white text-emerald-900 border border-emerald-300 hover:bg-emerald-100 shadow-2xs cursor-pointer transition"
+              >
+                Tampilkan Semua ({filteredOrders.length})
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
       )}
 
       {/* Modal Form Tambah / Edit */}
@@ -2531,7 +2700,13 @@ function setupTabWorkOrderPohon() {
                   </label>
                   <select
                     value={formCondition}
-                    onChange={(e) => setFormCondition(e.target.value as TreeCondition)}
+                    onChange={(e) => {
+                      const val = e.target.value as TreeCondition;
+                      setFormCondition(val);
+                      if (val === 'Lainnya' && !formCustomCondition) {
+                        setFormCustomCondition('');
+                      }
+                    }}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="Rimbun">🌳 Rimbun (Perlu Treatment / Pemangkasan)</option>
@@ -2539,7 +2714,21 @@ function setupTabWorkOrderPohon() {
                     <option value="Miring / Rawan Tumbang">⚠️ Miring / Rawan Tumbang (Bahaya)</option>
                     <option value="Terserang Hama / Benalu">🐛 Terserang Hama / Benalu</option>
                     <option value="Normal / Sehat">✅ Normal / Sehat (Monitoring)</option>
+                    <option value="Lainnya">✍️ Lainnya / Ketik Sendiri (Other)...</option>
                   </select>
+
+                  {formCondition === 'Lainnya' && (
+                    <div className="mt-2 animate-in fade-in duration-150">
+                      <input
+                        type="text"
+                        autoFocus
+                        value={formCustomCondition}
+                        onChange={(e) => setFormCustomCondition(e.target.value)}
+                        placeholder="Ketik kondisi fisik pohon langsung..."
+                        className="w-full px-3 py-2 rounded-lg border border-emerald-400 bg-emerald-50/40 text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -3295,7 +3484,18 @@ function setupTabWorkOrderPohon() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setInspectStatus('Perlu Penanganan')}
+                    onClick={() => {
+                      setInspectStatus('Perlu Penanganan');
+                      setInspectNotes((prev) => {
+                        const isSafe =
+                          !prev ||
+                          prev.includes('Pemeriksaan rutin') ||
+                          prev.includes('terpantau aman') ||
+                          prev.includes('terawat') ||
+                          prev.toLowerCase().includes('aman');
+                        return isSafe ? '' : prev;
+                      });
+                    }}
                     className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
                       inspectStatus === 'Perlu Penanganan'
                         ? 'bg-rose-600 text-white border-rose-700 shadow-xs'
@@ -3315,7 +3515,13 @@ function setupTabWorkOrderPohon() {
                 </label>
                 <select
                   value={inspectCondition}
-                  onChange={(e) => setInspectCondition(e.target.value as TreeCondition)}
+                  onChange={(e) => {
+                    const val = e.target.value as TreeCondition;
+                    setInspectCondition(val);
+                    if (val === 'Lainnya' && !inspectCustomCondition) {
+                      setInspectCustomCondition('');
+                    }
+                  }}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500"
                 >
                   <option value="Normal / Sehat">🌳 Normal / Sehat & Bersih</option>
@@ -3325,7 +3531,27 @@ function setupTabWorkOrderPohon() {
                   <option value="Miring / Rawan Tumbang">⚠️ Miring / Rawan Tumbang (Bahaya)</option>
                   <option value="Sarang Hama / Ulat">🐛 Sarang Hama / Ulat</option>
                   <option value="Batang Lapuk / Berongga">🪵 Batang Lapuk / Berongga</option>
+                  <option value="Lainnya">✍️ Lainnya / Ketik Sendiri (Other)...</option>
                 </select>
+
+                {inspectCondition === 'Lainnya' && (
+                  <div className="mt-2 p-2.5 bg-emerald-50/70 border border-emerald-300 rounded-xl space-y-1 animate-in fade-in duration-150">
+                    <label className="block text-[11px] font-bold text-emerald-950">
+                      Ketik Kondisi Fisik Pohon Secara Langsung:
+                    </label>
+                    <input
+                      type="text"
+                      autoFocus
+                      value={inspectCustomCondition}
+                      onChange={(e) => setInspectCustomCondition(e.target.value)}
+                      placeholder="Contoh: Kulit batang terkelupas, akar menjalar ke selokan, dahan retak kena angin..."
+                      className="w-full px-3 py-2 rounded-lg border border-emerald-300 bg-white text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                    />
+                    <p className="text-[10px] text-emerald-700">
+                      *Kondisi ini akan otomatis tersimpan ke database & tertera di laporan PDF.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Opsi Tambahan jika Perlu Penanganan */}
@@ -3460,18 +3686,85 @@ function setupTabWorkOrderPohon() {
                 </div>
               )}
 
-              {/* Catatan Pemeriksaan */}
+              {/* Catatan Pemeriksaan (Otomatis jika Aman, Wajib/Fokus jika Perlu Penanganan) */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Catatan Lapangan & Hasil Pengecekan:
-                </label>
-                <textarea
-                  rows={3}
-                  value={inspectNotes}
-                  onChange={(e) => setInspectNotes(e.target.value)}
-                  placeholder="Contoh: Pohon sudah dicek pasca hujan lebat, tidak ada dahan rapuh yang menjuntai ke jalan..."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500"
-                />
+                {inspectStatus === 'Sudah Dicek Aman' ? (
+                  <div className="p-3 bg-emerald-50/90 border border-emerald-200 rounded-2xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11.5px] font-bold text-emerald-950 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span>Kondisi Pohon Aman (Tidak Perlu Diketik)</span>
+                      </span>
+                      <span className="text-[9.5px] text-emerald-800 font-bold bg-emerald-200/70 px-2 py-0.5 rounded-md">
+                        Otomatis Dicatat
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-emerald-800 leading-relaxed">
+                      Petugas tidak perlu mengetik catatan manual saat kondisi pohon aman. Sistem otomatis mencatat status pohon aman dan terawat saat disimpan.
+                    </p>
+                    <div>
+                      {!showOptionalNotes ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowOptionalNotes(true)}
+                          className="text-[10.5px] font-bold text-emerald-700 hover:text-emerald-900 underline cursor-pointer"
+                        >
+                          + Tambah catatan lapangan tambahan (opsional)
+                        </button>
+                      ) : (
+                        <div className="mt-1.5 space-y-1">
+                          <textarea
+                            rows={2}
+                            value={inspectNotes}
+                            onChange={(e) => setInspectNotes(e.target.value)}
+                            placeholder="Ketik catatan khusus bila ada hal spesifik yang ingin disampaikan..."
+                            className="w-full px-3 py-2 rounded-xl border border-emerald-300 bg-white text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-rose-900 flex items-center gap-1.5">
+                        <AlertTriangle className="w-4 h-4 text-rose-600" />
+                        <span>Catatan Lapangan & Detail Masalah yang Perlu Ditangani:</span>
+                      </label>
+                      <span className="text-[10px] text-rose-700 font-bold bg-rose-100 px-2 py-0.5 rounded-md">
+                        Wajib Diisi
+                      </span>
+                    </div>
+                    <textarea
+                      rows={3}
+                      required
+                      value={inspectNotes}
+                      onChange={(e) => setInspectNotes(e.target.value)}
+                      placeholder="Jelaskan detail kendala (contoh: Dahan rimbun menutupi kabel PLN arah pos 1, cabang patah menggantung di atas kanopi parkiran, dll)..."
+                      className="w-full px-3 py-2 rounded-xl border border-rose-300 bg-rose-50/40 text-xs font-medium text-slate-900 focus:ring-2 focus:ring-rose-500"
+                    />
+                    {/* Quick chips agar staf bisa langsung klik atau ketik */}
+                    <div className="flex flex-wrap gap-1 pt-1 items-center">
+                      <span className="text-[10px] text-slate-500 font-semibold mr-1">Pilihan cepat:</span>
+                      {[
+                        'Dahan rimbun menutupi lampu/kabel',
+                        'Dahan kering rawan patah tertiup angin',
+                        'Akar merusak paving / selokan',
+                        'Sarang hama/ulat perlu disemprot',
+                        'Pohon miring ke arah atap',
+                      ].map((chip) => (
+                        <button
+                          key={chip}
+                          type="button"
+                          onClick={() => setInspectNotes((prev) => (prev ? `${prev}. ${chip}` : chip))}
+                          className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white border border-rose-200 text-rose-800 hover:bg-rose-100 transition cursor-pointer shadow-2xs"
+                        >
+                          + {chip}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">

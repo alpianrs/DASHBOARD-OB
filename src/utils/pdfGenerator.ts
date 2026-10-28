@@ -165,6 +165,36 @@ const getPrintStyles = () => `
 `;
 
 /**
+ * Kotak Penjelasan Resmi Status Penanganan PLH: "Selesai" vs "Perlu Tindakan / Penanganan"
+ */
+export const getPlhStatusExplanationBlock = () => `
+  <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; margin: 14px 0 16px 0; page-break-inside: avoid;">
+    <div style="font-size: 10px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 7px; display: flex; align-items: center; gap: 6px;">
+      <span style="background: #047857; color: #ffffff; padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 900;">PANDUAN STATUS</span>
+      <span>PENJELASAN STATUS PENANGANAN POHON & LINGKUNGAN HIDUP (PLH):</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 9.5px; line-height: 1.45;">
+      <div style="background: #ffffff; border: 1px solid #a7f3d0; border-left: 3.5px solid #059669; border-radius: 6px; padding: 7px 10px;">
+        <div style="font-weight: 800; color: #065f46; font-size: 9.5px; margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
+          <span>✅ STATUS "SELESAI" (SUDAH DITANGANI / AMAN):</span>
+        </div>
+        <div style="color: #334155; font-size: 9px;">
+          Tindakan penanganan pohon (seperti pemangkasan kanopi rimbun, pemotongan dahan rapuh/kering, pembersihan benalu/hama, atau perapihan akar) <strong>telah tuntas dilaksanakan</strong> oleh Tim Internal PLH atau Rekanan Vendor Luar. Kondisi pohon telah diverifikasi kembali aman, sehat, kanopi teratur, dan tidak mengganggu fasilitas maupun keselamatan siswa.
+        </div>
+      </div>
+      <div style="background: #ffffff; border: 1px solid #fecdd3; border-left: 3.5px solid #e11d48; border-radius: 6px; padding: 7px 10px;">
+        <div style="font-weight: 800; color: #9f1239; font-size: 9.5px; margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
+          <span>⚠️ STATUS "PERLU TINDAKAN" (PERLU PENANGANAN):</span>
+        </div>
+        <div style="color: #334155; font-size: 9px;">
+          Hasil inspeksi / pengecekan lapangan menemukan kendala fisik yang <strong>memerlukan tindakan penanganan segera</strong> (contoh: kanopi rimbun menutupi kabel PLN/lampu jalan, dahan kering lapuk rawan patah tertiup angin, kemiringan batang rawan tumbang, atau sarang hama). Pekerjaan telah dijadwalkan dalam Work Order untuk dieksekusi oleh pelaksana terkait.
+        </div>
+      </div>
+    </div>
+  </div>
+`;
+
+/**
  * 1. Unduh / Cetak Work Order Pohon Tunggal (Surat Perintah Kerja Resmi)
  */
 export const generateTreeWorkOrderPdf = (order: TreeWorkOrder): string => {
@@ -359,6 +389,8 @@ export const generateTreeWorkOrderPdf = (order: TreeWorkOrder): string => {
       `
           : ''
       }
+
+      ${getPlhStatusExplanationBlock()}
 
       <!-- Lembar Tanda Tangan Resmi -->
       <div class="signature-grid">
@@ -582,6 +614,8 @@ export const generateTreeHistoryReportPdf = (order: TreeWorkOrder): string => {
           }
         </tbody>
       </table>
+
+      ${getPlhStatusExplanationBlock()}
 
       <!-- Tanda Tangan -->
       <div class="signature-grid" style="margin-top: 35px;">
@@ -866,6 +900,8 @@ export const generateTreeAreaReportPdf = (
           }
         </tbody>
       </table>
+
+      ${getPlhStatusExplanationBlock()}
 
       <!-- Tanda Tangan Resmi Yayasan Lazuardi FM -->
       <div class="signature-grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 35px;">
@@ -1513,6 +1549,8 @@ export const generateWorkOrderSummaryPdf = (
           }
         </tbody>
       </table>
+
+      ${division === 'PLH' || division === 'Semua' ? getPlhStatusExplanationBlock() : ''}
 
       <!-- Tanda Tangan Resmi Yayasan Lazuardi FM -->
       <div class="signature-grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 35px;">

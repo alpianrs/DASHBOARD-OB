@@ -2340,9 +2340,9 @@ export const StorageService = {
     order.lastCheckedTime = record.time;
     order.lastCheckedByName = record.inspectorName;
     order.condition = record.condition;
-    order.checkStatusToday = record.checkStatus === 'Perlu Penanganan' ? 'Perlu Penanganan' : 'Sudah Dicek Aman';
-    order.inspectionNotes = record.notes || order.inspectionNotes || 'Pemeriksaan rutin: Kondisi terpantau aman.';
-    order.notes = record.notes || order.inspectionNotes || order.notes || 'Pemeriksaan rutin: Kondisi terpantau aman.';
+    const isPerlu = record.checkStatus === 'Perlu Penanganan';
+    order.inspectionNotes = record.notes || (isPerlu ? '' : 'Kondisi terpantau aman dan terawat.');
+    order.notes = record.notes || order.notes || (isPerlu ? '' : 'Kondisi terpantau aman dan terawat.');
 
     if (record.photoBeforeUrl || record.photoUrl) {
       order.photoBeforeUrl = record.photoBeforeUrl || record.photoUrl;

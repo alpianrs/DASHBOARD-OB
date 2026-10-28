@@ -342,7 +342,13 @@ export type TreeCondition =
   | 'Dahan Kering / Lapuk'
   | 'Miring / Rawan Tumbang'
   | 'Terserang Hama / Benalu'
-  | 'Normal / Sehat';
+  | 'Normal / Sehat'
+  | 'Dahan Patah / Kering'
+  | 'Dekat Kabel / Atap'
+  | 'Sarang Hama / Ulat'
+  | 'Batang Lapuk / Berongga'
+  | 'Lainnya'
+  | (string & {});
 
 export type TreeTreatmentType =
   | 'Pemangkasan Ringan (Pruning Dahan Bawah)'

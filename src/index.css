@@ -20,3 +20,10 @@
     background-color: #94a3b8;
   }
 }
+
+/* Optimization for lightweight fast DOM rendering */
+.card-content-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 360px;
+}
+

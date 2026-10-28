@@ -2259,7 +2259,7 @@ export const GoogleSheetsService = {
         rec.handledByName || '',
         rec.handledAt || '',
         rec.treatmentReport || '',
-        rec.notes || to.inspectionNotes || to.notes || 'Pemeriksaan rutin: Kondisi terpantau aman.',
+        rec.notes || (rec.checkStatus === 'Perlu Penanganan' ? 'Perlu penanganan lanjutan' : 'Kondisi terpantau aman dan sehat.'),
         rec.drivePhotoBeforeUrl || rec.photoBeforeUrl || '',
         rec.drivePhotoAfterUrl || rec.photoAfterUrl || '',
         rec.drivePhotoBeforeUrl || rec.photoBeforeUrl || '',
