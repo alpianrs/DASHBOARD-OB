@@ -686,20 +686,48 @@ function writeSheet(ss, sheetName, rows) {
         }
       }
     } else if (sheetName === "WorkOrder_Pohon") {
-      // Concurrency protection: Merge with existing trees by Tree ID (col 0) so past days' data is never lost
+      // Concurrency & Persistence Protection:
+      // Merge with existing trees by Tree ID (col 0).
+      // Any tree already in the sheet is NEVER deleted unless deleted directly by user in the database!
+      // Incoming fields update existing row without blanking out existing data or history.
       var existingTreeData = sheet.getDataRange().getValues();
       if (existingTreeData.length > 1) {
         var existingTreeMap = {};
         for (var ext = 1; ext < existingTreeData.length; ext++) {
           var extRow = existingTreeData[ext];
-          var extId = String(extRow[0] || "");
+          var extId = String(extRow[0] || "").trim();
           if (extId && extId !== "ID") existingTreeMap[extId] = extRow;
         }
         for (var inT = 1; inT < rows.length; inT++) {
           var inTreeRow = rows[inT];
-          var inTreeId = String(inTreeRow[0] || "");
+          var inTreeId = String(inTreeRow[0] || "").trim();
           if (inTreeId && inTreeId !== "ID") {
-            existingTreeMap[inTreeId] = inTreeRow;
+            if (existingTreeMap[inTreeId]) {
+              var mergedTreeRow = existingTreeMap[inTreeId].slice(0);
+              for (var tc = 0; tc < inTreeRow.length; tc++) {
+                if (inTreeRow[tc] !== "" && inTreeRow[tc] !== null && inTreeRow[tc] !== undefined) {
+                  mergedTreeRow[tc] = inTreeRow[tc];
+                }
+              }
+              // Smart-merge InspectionHistoryJSON (col 31) so past history is NEVER lost
+              try {
+                var oldH = JSON.parse(existingTreeMap[inTreeId][31] || "[]");
+                var newH = JSON.parse(inTreeRow[31] || "[]");
+                var hMap = {};
+                for (var oIdx = 0; oIdx < oldH.length; oIdx++) {
+                  if (oldH[oIdx] && oldH[oIdx].id) hMap[oldH[oIdx].id] = oldH[oIdx];
+                }
+                for (var nIdx = 0; nIdx < newH.length; nIdx++) {
+                  if (newH[nIdx] && newH[nIdx].id) hMap[newH[nIdx].id] = newH[nIdx];
+                }
+                var combinedH = [];
+                for (var hKey in hMap) combinedH.push(hMap[hKey]);
+                mergedTreeRow[31] = JSON.stringify(combinedH);
+              } catch (eH) {}
+              existingTreeMap[inTreeId] = mergedTreeRow;
+            } else {
+              existingTreeMap[inTreeId] = inTreeRow;
+            }
           }
         }
         var mergedTreeRows = [rows[0]];
@@ -707,6 +735,31 @@ function writeSheet(ss, sheetName, rows) {
           mergedTreeRows.push(existingTreeMap[tKey]);
         }
         rows = mergedTreeRows;
+      }
+    } else if (sheetName === "TaskLogs_Pohon") {
+      // Concurrency & Persistence Protection:
+      // Riwayat log pohon di TaskLogs_Pohon tidak boleh dihapus atau ditimpa kosong!
+      // Selalu gabungkan (merge / append) berdasarkan LogID (col 0).
+      var existingLogData = sheet.getDataRange().getValues();
+      if (existingLogData.length > 1) {
+        var existingLogMap = {};
+        for (var exl = 1; exl < existingLogData.length; exl++) {
+          var exlRow = existingLogData[exl];
+          var exlId = String(exlRow[0] || "").trim();
+          if (exlId && exlId !== "LogID") existingLogMap[exlId] = exlRow;
+        }
+        for (var inL = 1; inL < rows.length; inL++) {
+          var inLogRow = rows[inL];
+          var inLogId = String(inLogRow[0] || "").trim();
+          if (inLogId && inLogId !== "LogID") {
+            existingLogMap[inLogId] = inLogRow;
+          }
+        }
+        var mergedLogRows = [rows[0]];
+        for (var lKey in existingLogMap) {
+          mergedLogRows.push(existingLogMap[lKey]);
+        }
+        rows = mergedLogRows;
       }
     }
 
@@ -1678,7 +1731,7 @@ export const GoogleSheetsService = {
           body: JSON.stringify({
             action: 'saveWorkOrderPohon',
             workOrderPohon: treeRows,
-            taskLogsPohon: treeLogRows,
+            taskLogsPohon: treeLogRows.length > 1 ? treeLogRows : undefined,
           }),
         });
         if (res.ok) {
@@ -1693,7 +1746,7 @@ export const GoogleSheetsService = {
 
     if (token) {
       try {
-        await Promise.all([
+        const restCalls = [
           fetch(
             `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/WorkOrder_Pohon!A1:AI${treeRows.length + 10}?valueInputOption=USER_ENTERED`,
             {
@@ -1702,15 +1755,20 @@ export const GoogleSheetsService = {
               body: JSON.stringify({ values: treeRows }),
             }
           ),
-          fetch(
-            `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/TaskLogs_Pohon!A1:U${treeLogRows.length + 10}?valueInputOption=USER_ENTERED`,
-            {
-              method: 'PUT',
-              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ values: treeLogRows }),
-            }
-          ),
-        ]);
+        ];
+        if (treeLogRows.length > 1) {
+          restCalls.push(
+            fetch(
+              `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/TaskLogs_Pohon!A1:U${treeLogRows.length + 10}?valueInputOption=USER_ENTERED`,
+              {
+                method: 'PUT',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ values: treeLogRows }),
+              }
+            )
+          );
+        }
+        await Promise.all(restCalls);
         return { success: true, message: 'Data pohon & riwayat log tersimpan via REST ke WorkOrder_Pohon & TaskLogs_Pohon!', timestamp: now };
       } catch (err: any) {
         return { success: false, message: err.message, timestamp: now };
@@ -2081,7 +2139,7 @@ export const GoogleSheetsService = {
           weeklyScores: obWeeklyRows,
           weeklyScores_plh: plhWeeklyRows,
           workOrderPohon: workOrderRows,
-          taskLogsPohon: treeLogRows,
+          taskLogsPohon: treeLogRows.length > 1 ? treeLogRows : undefined,
           dinasRequests: dinasRows,
           peerInspections: peerRows,
         };
@@ -2210,6 +2268,7 @@ export const GoogleSheetsService = {
               const rDinas = resJson.data.dinasRequests;
               const rPeer = resJson.data.peerInspections;
               const rWorkOrders = resJson.data.workOrderPohon;
+              const rTreeLogs = resJson.data.taskLogs_pohon;
 
           if (rUsers && rUsers.length > 0) {
             const isRole = (val: string) => ['admin', 'kordinator', 'user', 'staff', 'operator', 'supervisor'].includes(val);
@@ -2665,10 +2724,49 @@ export const GoogleSheetsService = {
             StorageService.mergeWeeklyScores(parsedWeekly);
           }
 
+          // Parse TaskLogs_Pohon if present from Web App response
+          const parsedTreeLogsByTreeId = new Map<string, any[]>();
+          if (rTreeLogs && rTreeLogs.length > 0) {
+            rTreeLogs
+              .filter((row: any[]) => row && row.length > 0 && row[0] && row[0] !== 'LogID')
+              .forEach((row: any[]) => {
+                const treeId = row[1];
+                if (!treeId) return;
+                const logItem = {
+                  id: row[0],
+                  treeId: row[1],
+                  treeName: row[2] || '',
+                  area: row[3] || '',
+                  date: normalizeDateString(row[4]) || getJakartaDateString(),
+                  time: row[5] || '08:00 WIB',
+                  inspectorId: row[6] || '',
+                  inspectorName: row[7] || '',
+                  condition: row[8] || 'Normal / Sehat',
+                  checkStatus: row[9] || 'Sudah Dicek Aman',
+                  treatmentStatus: row[10] || undefined,
+                  treatmentNeeded: row[11] || undefined,
+                  handledByName: row[12] || undefined,
+                  handledAt: row[13] || undefined,
+                  treatmentReport: row[14] || undefined,
+                  notes: row[15] || undefined,
+                  photoBeforeUrl: row[18] || row[16] || undefined,
+                  photoAfterUrl: row[19] || row[17] || undefined,
+                  drivePhotoBeforeUrl: row[18] || (row[16] && row[16].startsWith('http') ? row[16] : undefined),
+                  drivePhotoAfterUrl: row[19] || (row[17] && row[17].startsWith('http') ? row[17] : undefined),
+                  timestamp: row[20] || new Date().toISOString(),
+                };
+                if (!parsedTreeLogsByTreeId.has(treeId)) {
+                  parsedTreeLogsByTreeId.set(treeId, []);
+                }
+                parsedTreeLogsByTreeId.get(treeId)!.push(logItem);
+              });
+          }
+
           if (rWorkOrders && rWorkOrders.length > 0) {
             const parsedWorkOrders: TreeWorkOrder[] = rWorkOrders
               .filter((row: any[]) => row && row.length > 0 && row[0] && row[0] !== 'ID')
               .map((row: any[], i: number) => {
+                const treeId = row[0] || `two-${i}`;
                 let history: any[] = [];
                 try {
                   if (row[31] && typeof row[31] === 'string' && row[31].trim().startsWith('[')) {
@@ -2677,15 +2775,32 @@ export const GoogleSheetsService = {
                 } catch (e) {
                   history = [];
                 }
-                const beforePhoto = row[29] || row[13] || undefined;
-                const afterPhoto = row[30] || row[14] || undefined;
+
+                // If TaskLogs_Pohon has inspection logs for this tree, merge all of them!
+                if (parsedTreeLogsByTreeId.has(treeId)) {
+                  const sheetLogs = parsedTreeLogsByTreeId.get(treeId)!;
+                  const existingIds = new Set(history.map((h) => h.id));
+                  sheetLogs.forEach((sl) => {
+                    if (!existingIds.has(sl.id)) {
+                      history.push(sl);
+                      existingIds.add(sl.id);
+                    }
+                  });
+                }
+
+                // Sort history newest first
+                history.sort((a, b) => new Date(b.timestamp || b.date).getTime() - new Date(a.timestamp || a.date).getTime());
+                const latestLog = history.length > 0 ? history[0] : null;
+
+                const beforePhoto = row[29] || row[13] || (latestLog ? (latestLog.drivePhotoBeforeUrl || latestLog.photoBeforeUrl) : undefined);
+                const afterPhoto = row[30] || row[14] || (latestLog ? (latestLog.drivePhotoAfterUrl || latestLog.photoAfterUrl) : undefined);
 
                 return {
-                  id: row[0] || `two-${i}`,
+                  id: treeId,
                   date: normalizeDateString(row[1]) || getJakartaDateString(),
                   area: row[2] || 'Area Pos 1',
                   treeName: row[3] || 'Pohon Trembesi',
-                  condition: (row[4] || 'Normal / Sehat') as any,
+                  condition: (latestLog ? latestLog.condition : row[4] || 'Normal / Sehat') as any,
                   treatmentNeeded: row[5] || 'Penjarangan Kanopi Rimbun',
                   handlerType: (row[6] || 'Internal PLH') as any,
                   vendorName: row[7] || undefined,
@@ -2698,11 +2813,11 @@ export const GoogleSheetsService = {
                   photoAfterUrl: afterPhoto,
                   reportedBy: row[15] || undefined,
                   reportedByName: row[16] || undefined,
-                  lastCheckedDate: row[17] || undefined,
-                  lastCheckedTime: row[18] || undefined,
-                  lastCheckedByName: row[19] || undefined,
-                  checkStatusToday: (row[20] || 'Belum Dicek') as any,
-                  inspectionNotes: row[21] || undefined,
+                  lastCheckedDate: latestLog ? latestLog.date : row[17] || undefined,
+                  lastCheckedTime: latestLog ? latestLog.time : row[18] || undefined,
+                  lastCheckedByName: latestLog ? latestLog.inspectorName : row[19] || undefined,
+                  checkStatusToday: (latestLog ? latestLog.checkStatus : (row[20] || 'Belum Dicek')) as any,
+                  inspectionNotes: latestLog ? latestLog.notes : row[21] || undefined,
                   completedAt: row[22] || undefined,
                   completedByName: row[23] || undefined,
                   createdAt: row[24] || now,

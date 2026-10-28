@@ -1993,11 +1993,11 @@ export const StorageService = {
         changed = true;
       }
 
-      // Filter out legacy dummy inspection records
+      // Filter out legacy dummy initial seed inspection records only
       if (ord.inspectionHistory && ord.inspectionHistory.length > 0) {
         const initialLen = ord.inspectionHistory.length;
         ord.inspectionHistory = ord.inspectionHistory.filter(
-          (h) => !h.id.startsWith('tir-init-') && !h.id.includes('dummy') && (!h.photoBeforeUrl || !h.photoBeforeUrl.includes('unsplash.com'))
+          (h) => !h.id.startsWith('tir-init-dummy') && !h.id.includes('dummy_record')
         );
         if (ord.inspectionHistory.length !== initialLen) {
           changed = true;
@@ -2119,15 +2119,15 @@ export const StorageService = {
         map.set(l.id, l);
       } else {
         const r = map.get(l.id)!;
-        // Merge inspection histories safely (strip dummy records)
+        // Merge inspection histories safely (keep all real inspection logs)
         const historyMap = new Map<string, any>();
         (r.inspectionHistory || []).forEach((h) => {
-          if (h && h.id && !h.id.startsWith('tir-init-') && !isDummyUrl(h.photoBeforeUrl)) {
+          if (h && h.id && !h.id.startsWith('tir-init-dummy')) {
             historyMap.set(h.id, h);
           }
         });
         (l.inspectionHistory || []).forEach((h) => {
-          if (h && h.id && !h.id.startsWith('tir-init-') && !isDummyUrl(h.photoBeforeUrl) && !historyMap.has(h.id)) {
+          if (h && h.id && !h.id.startsWith('tir-init-dummy') && !historyMap.has(h.id)) {
             historyMap.set(h.id, h);
           }
         });
@@ -2200,7 +2200,7 @@ export const StorageService = {
         map.set(l.id, {
           ...(isLocalNewerOrEqual ? r : l),
           ...(isLocalNewerOrEqual ? l : r),
-          inspectionHistory: mergedHistory.length > 0 ? mergedHistory.slice(0, 15) : undefined,
+          inspectionHistory: mergedHistory.length > 0 ? mergedHistory : undefined,
           checkStatusToday: finalCheckStatus,
           lastCheckedDate: isLocalNewerOrEqual
             ? (l.lastCheckedDate || r.lastCheckedDate)
@@ -2512,10 +2512,9 @@ export const StorageService = {
     setStoredItem(STORAGE_KEYS.MASJID_DUTY_CONFIG, config);
   },
 
-  // Reset Tree Work Orders specifically to initial official 15 trees
+  // Safe getter for Tree Work Orders (non-destructive, never wipes existing trees or history)
   resetTreeWorkOrdersToDefault: (): TreeWorkOrder[] => {
-    setStoredItem(STORAGE_KEYS.TREE_WORK_ORDERS, SEED_TREE_WORK_ORDERS);
-    return SEED_TREE_WORK_ORDERS;
+    return StorageService.getTreeWorkOrders();
   },
 
   // Manual Reset Siklus Ceklis Mingguan (Reset Tiap Senin)

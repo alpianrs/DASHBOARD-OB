@@ -2126,14 +2126,33 @@ export const UserTaskView: React.FC<UserTaskViewProps> = ({
                 <label className="font-bold text-slate-700 block">
                   Foto Bukti Pengerjaan (Opsional)
                 </label>
-                <div className="flex items-center gap-2">
-                  <label className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl border-2 border-dashed border-slate-300 hover:border-amber-500 bg-slate-50 cursor-pointer transition text-slate-600 font-medium text-xs">
-                    <Upload className="w-4 h-4 text-amber-600" />
-                    <span>Upload / Ambil Foto</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-slate-300 hover:border-amber-500 bg-slate-50 cursor-pointer transition text-slate-700 font-semibold text-xs">
+                    <Camera className="w-4 h-4 text-amber-600" />
+                    <span>Kamera Langsung</span>
                     <input
                       type="file"
                       accept="image/*"
                       capture="environment"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            setAdhocPhoto(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                  <label className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-amber-300 hover:border-amber-500 bg-amber-50/60 cursor-pointer transition text-amber-900 font-semibold text-xs shadow-2xs">
+                    <ImageIcon className="w-4 h-4 text-amber-600" />
+                    <span>Pilih dari Galeri</span>
+                    <input
+                      type="file"
+                      accept="image/*"
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];

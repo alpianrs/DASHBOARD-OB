@@ -783,29 +783,31 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
     }
   };
 
-  // Muat ulang 15 pohon default resmi Lazuardi GCS
-  const handleResetTo15OfficialTrees = async () => {
-    StorageService.resetTreeWorkOrdersToDefault();
-    refreshData();
+  const [isPullingData, setIsPullingData] = useState(false);
+
+  // Tarik data resmi & riwayat terbaru dari Google Sheet (WorkOrder_Pohon & TaskLogs_Pohon)
+  const handlePullLatestFromSheets = async () => {
+    setIsPullingData(true);
     try {
-      const defaultTrees = StorageService.getTreeWorkOrders();
-      await googleSheetsService.saveTreeWorkOrdersToSheets(defaultTrees);
+      const res = await googleSheetsService.pullFromSheets();
+      refreshData();
       setShowSampleTreesModal(false);
       setFeedbackNotification({
         show: true,
         type: 'success',
-        title: 'Database 15 Pohon Berhasil Dimuat Ulang!',
-        message: '15 pohon resmi Lazuardi GCS per 5 area telah dimuat dan disinkronkan langsung ke WorkOrder_Pohon.',
-        syncNote: 'Seluruh pohon diatur dengan penanggung jawab resmi masing-masing area.',
+        title: 'Data Berhasil Diperbarui dari Google Sheet!',
+        message: 'Seluruh pohon dan riwayat pemeriksaan terbaru berhasil dimuat langsung dari database Google Sheet tanpa menghapus data.',
+        syncNote: res.message || 'Sinkronisasi 2 arah aktif.',
       });
     } catch (e: any) {
-      setShowSampleTreesModal(false);
       setFeedbackNotification({
         show: true,
-        type: 'info',
-        title: 'Database 15 Pohon Dimuat di Aplikasi!',
-        message: '15 pohon resmi telah dimuat ke aplikasi lokal. Sinkronkan ke sheet saat online.',
+        type: 'error',
+        title: 'Gagal Menarik Data dari Google Sheet',
+        message: e.message || 'Koneksi ke Google Sheet terputus atau URL Web App belum diset.',
       });
+    } finally {
+      setIsPullingData(false);
     }
   };
 
@@ -1335,6 +1337,16 @@ function setupTabWorkOrderPohon() {
           >
             <Download className="w-3.5 h-3.5 text-teal-300" />
             <span>Export CSV</span>
+          </button>
+          <button
+            type="button"
+            disabled={isPullingData}
+            onClick={handlePullLatestFromSheets}
+            className="px-3 py-2 rounded-xl text-xs font-bold bg-white/15 hover:bg-white/25 border border-white/20 text-white transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+            title="Tarik dan perbarui data pohon serta riwayat pemeriksaan terbaru langsung dari Google Sheet"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-teal-300 ${isPullingData ? 'animate-spin' : ''}`} />
+            <span>{isPullingData ? 'Memuat Sheet...' : 'Tarik Data Sheet'}</span>
           </button>
           <button
             type="button"
@@ -2693,14 +2705,34 @@ function setupTabWorkOrderPohon() {
                     Upload Foto Kondisi Pohon (Google Drive):
                   </label>
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <label className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold cursor-pointer flex items-center gap-1.5 transition">
                         <Camera className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>{formPhotoBefore ? 'Ubah Foto' : 'Ambil / Unggah Foto'}</span>
+                        <span>Kamera Langsung</span>
                         <input
                           type="file"
                           accept="image/*"
                           capture="environment"
+                          onChange={(e) =>
+                            handlePhotoUploadGeneric(
+                              e,
+                              `pohon_${formTreeName || 'baru'}`,
+                              setIsUploadingFormPhoto,
+                              (b64, driveUrl) => {
+                                setFormPhotoBefore(b64);
+                                if (driveUrl) setFormDrivePhotoBefore(driveUrl);
+                              }
+                            )
+                          }
+                          className="hidden"
+                        />
+                      </label>
+                      <label className="px-3 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-xs font-semibold cursor-pointer flex items-center gap-1.5 transition shadow-2xs">
+                        <ImageIcon className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>Pilih dari Galeri</span>
+                        <input
+                          type="file"
+                          accept="image/*"
                           onChange={(e) =>
                             handlePhotoUploadGeneric(
                               e,
@@ -2787,14 +2819,37 @@ function setupTabWorkOrderPohon() {
                     />
                   </div>
 
-                  <div className="flex items-center gap-2 pt-1">
-                    <label className="px-3 py-1.5 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-900 text-xs font-bold cursor-pointer flex items-center gap-1.5 transition">
+                  <div className="flex items-center gap-2 pt-1 flex-wrap">
+                    <label className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold cursor-pointer flex items-center gap-1.5 transition">
                       <Camera className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>{formStandardPhotoUrl ? 'Ganti Foto Acuan (Upload)' : 'Unggah Foto Acuan ke Drive'}</span>
+                      <span>Kamera</span>
                       <input
                         type="file"
                         accept="image/*"
                         capture="environment"
+                        onChange={(e) =>
+                          handlePhotoUploadGeneric(
+                            e,
+                            `benchmark_${formTreeName || 'pohon'}`,
+                            setIsUploadingFormStandardPhoto,
+                            (b64, driveUrl) => {
+                              if (driveUrl) {
+                                setFormStandardPhotoUrl(driveUrl);
+                              } else if (b64) {
+                                setFormStandardPhotoUrl(b64);
+                              }
+                            }
+                          )
+                        }
+                        className="hidden"
+                      />
+                    </label>
+                    <label className="px-3 py-1.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-xs font-bold cursor-pointer flex items-center gap-1.5 transition shadow-2xs">
+                      <ImageIcon className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>Pilih dari Galeri</span>
+                      <input
+                        type="file"
+                        accept="image/*"
                         onChange={(e) =>
                           handlePhotoUploadGeneric(
                             e,
@@ -2818,6 +2873,7 @@ function setupTabWorkOrderPohon() {
                         <span>Mengupload ke Drive...</span>
                       </div>
                     )}
+
                     {formStandardPhotoUrl && (
                       <div className="relative rounded-lg overflow-hidden border border-emerald-300 w-20 h-14 bg-slate-900 shrink-0 shadow-2xs">
                         <img
@@ -3092,23 +3148,44 @@ function setupTabWorkOrderPohon() {
                   </button>
                 </div>
 
-                {/* Tombol Ambil / Upload Foto */}
+                {/* Tombol Ambil / Upload Foto: Kamera & Galeri */}
                 <div className="flex items-center gap-2 flex-wrap">
                   <label className="px-3.5 py-2.5 rounded-xl border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer flex items-center gap-2 transition shadow-xs">
                     <Camera className="w-4 h-4" />
                     <span>
                       {inspectPhotoBefore
-                        ? inspectPhotoType === 'full_tree'
-                          ? 'Ganti Foto Utuh Pohon'
-                          : 'Ganti Foto Detail Temuan'
+                        ? 'Ganti (Kamera Langsung)'
                         : inspectPhotoType === 'full_tree'
-                        ? 'Ambil / Upload Foto Utuh Pohon'
-                        : 'Ambil / Upload Foto Detail Temuan'}
+                        ? 'Foto Kamera Langsung'
+                        : 'Foto Detail (Kamera)'}
                     </span>
                     <input
                       type="file"
                       accept="image/*"
                       capture="environment"
+                      onChange={(e) =>
+                        handlePhotoUploadGeneric(
+                          e,
+                          `pohon_${inspectPhotoType}_${inspectingOrder.treeName}`,
+                          setIsUploadingInspectPhoto,
+                          (b64, driveUrl) => {
+                            setInspectPhotoBefore(b64);
+                            if (driveUrl) setInspectDrivePhotoBefore(driveUrl);
+                          }
+                        )
+                      }
+                      className="hidden"
+                    />
+                  </label>
+
+                  <label className="px-3.5 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-xs font-bold cursor-pointer flex items-center gap-2 transition shadow-xs">
+                    <ImageIcon className="w-4 h-4 text-emerald-700" />
+                    <span>
+                      {inspectPhotoBefore ? 'Ganti (Dari Galeri)' : 'Pilih dari Galeri HP'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
                       onChange={(e) =>
                         handlePhotoUploadGeneric(
                           e,
@@ -3616,14 +3693,34 @@ function setupTabWorkOrderPohon() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1.5">
-                      <label className="w-full py-1.5 px-2 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 text-[10.5px] font-bold cursor-pointer flex items-center justify-center gap-1 shadow-xs transition">
-                        <Camera className="w-3 h-3 text-emerald-600" />
-                        <span>{treatmentPhotoAfter ? 'Ganti Foto After' : '+ Upload Foto After'}</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <label className="flex-1 py-1.5 px-2 rounded-xl border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 text-white text-[10.5px] font-bold cursor-pointer flex items-center justify-center gap-1 shadow-xs transition">
+                        <Camera className="w-3 h-3 text-white" />
+                        <span>Kamera</span>
                         <input
                           type="file"
                           accept="image/*"
                           capture="environment"
+                          onChange={(e) =>
+                            handlePhotoUploadGeneric(
+                              e,
+                              `penanganan_after_${treatmentModalOrder.treeName}`,
+                              setIsUploadingTreatmentPhoto,
+                              (b64, driveUrl) => {
+                                setTreatmentPhotoAfter(b64);
+                                if (driveUrl) setTreatmentDrivePhotoAfter(driveUrl);
+                              }
+                            )
+                          }
+                          className="hidden"
+                        />
+                      </label>
+                      <label className="flex-1 py-1.5 px-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-[10.5px] font-bold cursor-pointer flex items-center justify-center gap-1 shadow-xs transition">
+                        <ImageIcon className="w-3 h-3 text-emerald-700" />
+                        <span>Galeri HP</span>
+                        <input
+                          type="file"
+                          accept="image/*"
                           onChange={(e) =>
                             handlePhotoUploadGeneric(
                               e,
@@ -4377,13 +4474,37 @@ function setupTabWorkOrderPohon() {
                   Atau Ambil / Unggah Foto Acuan Baru (Otomatis Masuk Drive):
                 </label>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <label className="px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-xs font-bold cursor-pointer flex items-center gap-1.5 transition shadow-2xs">
-                    <Camera className="w-3.5 h-3.5 text-emerald-700" />
-                    <span>{benchmarkInputUrl ? 'Unggah Ganti Foto' : 'Pilih Foto dari Galeri / Kamera'}</span>
+                  <label className="px-3.5 py-2 rounded-xl border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer flex items-center gap-1.5 transition shadow-2xs">
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>Kamera Langsung</span>
                     <input
                       type="file"
                       accept="image/*"
                       capture="environment"
+                      onChange={(e) =>
+                        handlePhotoUploadGeneric(
+                          e,
+                          `benchmark_${editingBenchmarkTree.treeName || 'pohon'}`,
+                          setIsUploadingBenchmarkPhoto,
+                          (b64, driveUrl) => {
+                            if (driveUrl) {
+                              setBenchmarkInputUrl(driveUrl);
+                            } else if (b64) {
+                              setBenchmarkInputUrl(b64);
+                            }
+                          }
+                        )
+                      }
+                      className="hidden"
+                    />
+                  </label>
+
+                  <label className="px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-xs font-bold cursor-pointer flex items-center gap-1.5 transition shadow-2xs">
+                    <ImageIcon className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Pilih dari Galeri</span>
+                    <input
+                      type="file"
+                      accept="image/*"
                       onChange={(e) =>
                         handlePhotoUploadGeneric(
                           e,
@@ -5207,12 +5328,13 @@ mt-plh-02\tPemangkasan Rumput & Pruning Dahan Bawah\tSemua Unit\tMingguan\tanyti
             <div className="pt-4 mt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
               <button
                 type="button"
-                onClick={handleResetTo15OfficialTrees}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer flex items-center justify-center gap-1.5 border border-slate-200"
-                title="Muat ulang ke data awal 15 pohon resmi jika terjadi perubahan yang keliru"
+                disabled={isPullingData}
+                onClick={handlePullLatestFromSheets}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 cursor-pointer flex items-center justify-center gap-1.5 border border-emerald-200 disabled:opacity-50"
+                title="Tarik data terbaru dan seluruh riwayat dari Google Sheet tanpa mereset data"
               >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>Reset Database ke 15 Pohon Default</span>
+                <RefreshCw className={`w-3.5 h-3.5 ${isPullingData ? 'animate-spin' : ''}`} />
+                <span>{isPullingData ? 'Menarik Data Sheet...' : 'Tarik Data Terbaru dari Sheet'}</span>
               </button>
 
               <div className="flex items-center gap-2 w-full sm:w-auto">
