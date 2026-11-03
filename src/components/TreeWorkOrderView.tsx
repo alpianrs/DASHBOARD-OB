@@ -16,6 +16,7 @@ import {
   Sparkles,
   Search,
   Filter,
+  Users,
   Trash2,
   Edit3,
   Download,
@@ -52,7 +53,7 @@ import {
 } from '../types';
 import { StorageService, DEFAULT_TREE_SOP_INSTRUCTIONS } from '../services/storage';
 import { getJakartaDateString, formatJakartaDisplayDate } from '../utils/dateHelper';
-import { getMondayOfWeek, formatWeekRange } from '../utils/masjidRolling';
+import { getMondayOfWeek, getSundayOfWeek, formatWeekRange } from '../utils/masjidRolling';
 import { googleSheetsService } from '../services/googleSheets';
 import {
   generateTreeWorkOrderPdf,
@@ -285,8 +286,11 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
   const [isSavingInspection, setIsSavingInspection] = useState<boolean>(false);
   const [isSyncingAllTrees, setIsSyncingAllTrees] = useState<boolean>(false);
 
-  // Modal Filter & Unduh Dokumen PDF History Penanganan (Bisa filter dari bulan apa sampai bulan apa)
+  // Modal Filter & Unduh Dokumen PDF History Penanganan (Mingguan / Bulanan / Multi-Staff)
   const [showPdfFilterModal, setShowPdfFilterModal] = useState<boolean>(false);
+  const [pdfPeriodType, setPdfPeriodType] = useState<'weekly' | 'monthly' | 'all'>('weekly');
+  const [pdfStartDate, setPdfStartDate] = useState<string>(() => getMondayOfWeek());
+  const [pdfEndDate, setPdfEndDate] = useState<string>(() => getSundayOfWeek(getMondayOfWeek()));
   const [pdfStartMonth, setPdfStartMonth] = useState<string>(() => {
     const d = new Date();
     return `${d.getFullYear()}-01`;
@@ -298,6 +302,38 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
   });
   const [pdfAreaSelection, setPdfAreaSelection] = useState<string>('Semua');
   const [pdfHandlerSelection, setPdfHandlerSelection] = useState<'Semua' | 'Internal PLH' | 'Vendor Luar'>('Semua');
+  const [pdfSelectedStaff, setPdfSelectedStaff] = useState<string[]>([]);
+
+  // Daftar Staf PLH yang tersedia untuk filter multi-select
+  const allAvailablePlhStaff = useMemo(() => {
+    const defaultList = [
+      { id: 'u-kord-plh', name: 'Rahmat Hidayat (Kord PLH)', area: 'Area Pos 1' },
+      { id: 'u-plh-01', name: 'Ahmad Syahril (PLH)', area: 'Area Pos 2' },
+      { id: 'u-plh-02', name: 'Andi Komala (PLH)', area: 'Area Khaldun' },
+      { id: 'u-plh-03', name: 'Dedi Junaedi (PLH)', area: 'Area Ex Minifarm' },
+      { id: 'u-plh-04', name: 'Radilah (PLH)', area: 'Area Kolam Renang' },
+    ];
+    const seen = new Set(defaultList.map((s) => s.name.toLowerCase()));
+    const extraList: { id: string; name: string; area: string }[] = [];
+
+    orders.forEach((o) => {
+      [o.assignedStaffName, o.reportedByName, o.lastCheckedByName, o.handledByName].forEach((rawName) => {
+        if (rawName && rawName.trim().length > 2) {
+          const cleanName = sanitizePlhStaffName(rawName, o.area);
+          if (cleanName && !seen.has(cleanName.toLowerCase())) {
+            seen.add(cleanName.toLowerCase());
+            extraList.push({
+              id: `custom-${cleanName.toLowerCase().replace(/\s+/g, '-')}`,
+              name: cleanName,
+              area: o.area || 'PLH',
+            });
+          }
+        }
+      });
+    });
+
+    return [...defaultList, ...extraList];
+  }, [orders]);
 
   // In-app Notification Feedback State (Replaces window.alert)
   const [feedbackNotification, setFeedbackNotification] = useState<{
@@ -772,10 +808,12 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
       StorageService.addTaskLog(plhTaskLog);
       googleSheetsService.logTaskToSheets(plhTaskLog).catch(console.warn);
 
-      refreshData();
+      // Segera perbarui state lokal agar status pohon langsung berubah hijau aman & tersimpan instan
+      const refreshedTrees = StorageService.getTreeWorkOrders();
+      setOrders(refreshedTrees);
 
       // 3. Sinkronkan langsung ke Google Sheet (WorkOrder_Pohon, TaskLogs_Pohon, & TaskLogs_PLH)
-      await googleSheetsService.saveTreeWorkOrdersToSheets();
+      googleSheetsService.saveTreeWorkOrdersToSheets(refreshedTrees).catch(console.warn);
 
       setInspectingOrder(null);
       // Pastikan pohon yang baru dicek tetap terlihat dan tidak hilang sendiri karena filter tab atau filter area
@@ -1405,7 +1443,42 @@ function setupTabWorkOrderPohon() {
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
-  // Unduh & Cetak PDF Dokumen Resmi dengan Filter Periode Bulan & Pelaksana
+  // Menghitung jumlah pohon yang sesuai kriteria filter modal PDF
+  const previewTargetCount = useMemo(() => {
+    let list = orders;
+    if (pdfAreaSelection !== 'Semua') {
+      list = list.filter((o) => o.area === pdfAreaSelection);
+    }
+    if (pdfHandlerSelection !== 'Semua') {
+      list = list.filter((o) => o.handlerType === pdfHandlerSelection);
+    }
+    if (pdfSelectedStaff.length > 0) {
+      const staffLowerList = pdfSelectedStaff.map((s) => s.toLowerCase());
+      list = list.filter((o) => {
+        const assigned = (o.assignedStaffName || '').toLowerCase();
+        const reported = (o.reportedByName || '').toLowerCase();
+        const checked = (o.lastCheckedByName || '').toLowerCase();
+        const handled = (o.handledByName || '').toLowerCase();
+        const areaStaff = (DEFAULT_PLH_AREA_STAFF[o.area]?.name || '').toLowerCase();
+        return staffLowerList.some(
+          (staff) =>
+            assigned.includes(staff) ||
+            staff.includes(assigned) ||
+            reported.includes(staff) ||
+            staff.includes(reported) ||
+            checked.includes(staff) ||
+            staff.includes(checked) ||
+            handled.includes(staff) ||
+            staff.includes(handled) ||
+            areaStaff.includes(staff) ||
+            staff.includes(areaStaff)
+        );
+      });
+    }
+    return list.length;
+  }, [orders, pdfAreaSelection, pdfHandlerSelection, pdfSelectedStaff]);
+
+  // Unduh & Cetak PDF Dokumen Resmi dengan Filter Periode (Mingguan / Bulanan / All) & Multi-Staff PLH
   const handleGenerateFilteredPdf = () => {
     let targetOrders = orders;
     if (pdfAreaSelection !== 'Semua') {
@@ -1414,18 +1487,70 @@ function setupTabWorkOrderPohon() {
     if (pdfHandlerSelection !== 'Semua') {
       targetOrders = targetOrders.filter((o) => o.handlerType === pdfHandlerSelection);
     }
-    const areaTitle = pdfAreaSelection === 'Semua' ? 'Seluruh Wilayah Sekolah Lazuardi GCS (5 Wilayah)' : pdfAreaSelection;
-    const staff = pdfAreaSelection !== 'Semua' ? DEFAULT_PLH_AREA_STAFF[pdfAreaSelection]?.name : activeUser.name;
+
+    // Filter Multi-Staff PLH jika admin memilih staf tertentu (> 0)
+    if (pdfSelectedStaff.length > 0) {
+      const staffLowerList = pdfSelectedStaff.map((s) => s.toLowerCase());
+      targetOrders = targetOrders.filter((o) => {
+        const assigned = (o.assignedStaffName || '').toLowerCase();
+        const reported = (o.reportedByName || '').toLowerCase();
+        const checked = (o.lastCheckedByName || '').toLowerCase();
+        const handled = (o.handledByName || '').toLowerCase();
+        const areaStaff = (DEFAULT_PLH_AREA_STAFF[o.area]?.name || '').toLowerCase();
+        return staffLowerList.some(
+          (staff) =>
+            assigned.includes(staff) ||
+            staff.includes(assigned) ||
+            reported.includes(staff) ||
+            staff.includes(reported) ||
+            checked.includes(staff) ||
+            staff.includes(checked) ||
+            handled.includes(staff) ||
+            staff.includes(handled) ||
+            areaStaff.includes(staff) ||
+            staff.includes(areaStaff)
+        );
+      });
+    }
+
+    const areaTitle =
+      pdfAreaSelection === 'Semua'
+        ? 'Seluruh Wilayah Sekolah Lazuardi GCS (5 Wilayah)'
+        : pdfAreaSelection;
+
+    const staff =
+      pdfSelectedStaff.length === 1
+        ? pdfSelectedStaff[0]
+        : pdfSelectedStaff.length > 1
+        ? `${pdfSelectedStaff.length} Petugas Terpilih`
+        : pdfAreaSelection !== 'Semua'
+        ? DEFAULT_PLH_AREA_STAFF[pdfAreaSelection]?.name
+        : activeUser.name;
 
     const html = generateTreeAreaReportPdf(areaTitle, targetOrders, staff, {
-      startMonth: pdfStartMonth || undefined,
-      endMonth: pdfEndMonth || undefined,
+      periodType: pdfPeriodType,
+      startDate: pdfPeriodType === 'weekly' ? pdfStartDate || undefined : undefined,
+      endDate: pdfPeriodType === 'weekly' ? pdfEndDate || undefined : undefined,
+      weekLabel: pdfPeriodType === 'weekly' ? 'Siklus Mingguan' : undefined,
+      startMonth: pdfPeriodType === 'monthly' ? pdfStartMonth || undefined : undefined,
+      endMonth: pdfPeriodType === 'monthly' ? pdfEndMonth || undefined : undefined,
       handlerType: pdfHandlerSelection,
+      selectedStaffNames: pdfSelectedStaff.length > 0 ? pdfSelectedStaff : undefined,
     });
+
+    const periodFileName =
+      pdfPeriodType === 'weekly'
+        ? `Mingguan_${pdfStartDate || 'Awal'}_sd_${pdfEndDate || 'Akhir'}`
+        : pdfPeriodType === 'monthly'
+        ? `Bulanan_${pdfStartMonth || 'Awal'}_sd_${pdfEndMonth || 'Sekarang'}`
+        : 'All_Time';
+
+    const staffFileName =
+      pdfSelectedStaff.length > 0 ? `_${pdfSelectedStaff.length}_Staf` : '';
 
     printHtmlAsPdf(
       html,
-      `Laporan_History_Pohon_${pdfAreaSelection.replace(/\s+/g, '_')}_${pdfStartMonth || 'Awal'}_sd_${pdfEndMonth || 'Sekarang'}`
+      `Laporan_History_Pohon_${pdfAreaSelection.replace(/\s+/g, '_')}_${periodFileName}${staffFileName}`
     );
     setShowPdfFilterModal(false);
   };
@@ -5660,21 +5785,21 @@ mt-plh-02\tPemangkasan Rumput & Pruning Dahan Bawah\tSemua Unit\tMingguan\tanyti
           </div>
         </div>
       )}
-      {/* Modal Filter & Unduh Dokumen PDF History Penanganan (Dari bulan apa sampai bulan apa) */}
+      {/* Modal Filter & Unduh Dokumen PDF History Penanganan (Mingguan / Bulanan / Multi-Staff) */}
       {showPdfFilterModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full p-5 sm:p-6 my-8 animate-in fade-in zoom-in-95 duration-200 border border-emerald-200">
-            <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-5 sm:p-6 my-8 animate-in fade-in zoom-in-95 duration-200 border border-emerald-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 sticky top-0 bg-white z-10">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shadow-xs">
                   <Printer className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
-                    Unduh Dokumen PDF History Penanganan Pohon
+                    Unduh Dokumen PDF Rekap & History Pohon PLH
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Format Resmi Yayasan Lazuardi FM • Lengkap dengan seluruh riwayat pemeriksaan & penanganan
+                    Format Resmi Yayasan Lazuardi FM • Filter Mingguan, Bulanan & Multi-Petugas PLH
                   </p>
                 </div>
               </div>
@@ -5688,14 +5813,23 @@ mt-plh-02\tPemangkasan Rumput & Pruning Dahan Bawah\tSemua Unit\tMingguan\tanyti
             </div>
 
             <div className="mt-4 space-y-4 text-xs text-slate-700">
-              {/* Filter Wilayah / Area */}
+              {/* 1. Filter Wilayah / Area */}
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1.5">
                   1. Pilih Wilayah / Area Tanggung Jawab:
                 </label>
                 <select
                   value={pdfAreaSelection}
-                  onChange={(e) => setPdfAreaSelection(e.target.value)}
+                  onChange={(e) => {
+                    const newArea = e.target.value;
+                    setPdfAreaSelection(newArea);
+                    if (newArea !== 'Semua' && DEFAULT_PLH_AREA_STAFF[newArea]) {
+                      const staffName = DEFAULT_PLH_AREA_STAFF[newArea].name;
+                      setPdfSelectedStaff([staffName]);
+                    } else if (newArea === 'Semua') {
+                      setPdfSelectedStaff([]);
+                    }
+                  }}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 bg-white"
                 >
                   <option value="Semua">🌳 Seluruh 5 Wilayah PLH Lazuardi (Semua Pohon)</option>
@@ -5707,91 +5841,269 @@ mt-plh-02\tPemangkasan Rumput & Pruning Dahan Bawah\tSemua Unit\tMingguan\tanyti
                 </select>
               </div>
 
-              {/* Filter Periode Bulan: Dari Bulan Apa Sampai Bulan Apa */}
-              <div className="p-3.5 bg-sky-50/70 border border-sky-200 rounded-2xl space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-extrabold text-sky-950 flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4 text-sky-700" />
-                    <span>2. Filter Rentang Bulan (Dari Bulan Apa s/d Bulan Apa):</span>
+              {/* 2. Multi-Select Petugas PLH (> 1 nama) */}
+              <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2.5">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <label className="block text-xs font-extrabold text-emerald-950 flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-emerald-700" />
+                    <span>2. Pilih Staf Petugas PLH (Bisa Pilih Lebih dari 1 Staf):</span>
                   </label>
-                  <span className="text-[10px] font-bold text-sky-700 bg-sky-100/80 px-2 py-0.5 rounded-full">
-                    Sesuai Permintaan
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                    {pdfSelectedStaff.length === 0
+                      ? 'Semua Staf PLH'
+                      : `${pdfSelectedStaff.length} Staf Terpilih`}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Dari Bulan:
-                    </label>
-                    <input
-                      type="month"
-                      value={pdfStartMonth}
-                      onChange={(e) => setPdfStartMonth(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-sky-300 bg-white text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-sky-500 shadow-2xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Sampai Bulan:
-                    </label>
-                    <input
-                      type="month"
-                      value={pdfEndMonth}
-                      onChange={(e) => setPdfEndMonth(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-sky-300 bg-white text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-sky-500 shadow-2xs"
-                    />
-                  </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setPdfSelectedStaff(allAvailablePlhStaff.map((s) => s.name))}
+                    className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold bg-emerald-700 text-white hover:bg-emerald-800 transition cursor-pointer"
+                  >
+                    ✓ Pilih Semua Staf
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPdfSelectedStaff([])}
+                    className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 transition cursor-pointer"
+                  >
+                    Reset (Semua Staf)
+                  </button>
                 </div>
 
-                {/* Quick Period Buttons */}
-                <div className="pt-1 flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] text-slate-500 font-bold mr-1">Pilihan Cepat:</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPdfStartMonth('');
-                      setPdfEndMonth('');
-                    }}
-                    className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold border cursor-pointer transition ${
-                      !pdfStartMonth && !pdfEndMonth
-                        ? 'bg-sky-600 text-white border-sky-700'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    Semua Riwayat (All Time)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const d = new Date();
-                      const mm = String(d.getMonth() + 1).padStart(2, '0');
-                      const cur = `${d.getFullYear()}-${mm}`;
-                      setPdfStartMonth(cur);
-                      setPdfEndMonth(cur);
-                    }}
-                    className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
-                  >
-                    Bulan Berjalan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const d = new Date();
-                      setPdfStartMonth(`${d.getFullYear()}-01`);
-                      setPdfEndMonth(`${d.getFullYear()}-12`);
-                    }}
-                    className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
-                  >
-                    Tahun 2026 Penuh
-                  </button>
+                {/* Checkbox Cards Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  {allAvailablePlhStaff.map((staff) => {
+                    const isSelected =
+                      pdfSelectedStaff.length === 0 ||
+                      pdfSelectedStaff.includes(staff.name);
+                    return (
+                      <label
+                        key={staff.id}
+                        className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition cursor-pointer ${
+                          pdfSelectedStaff.includes(staff.name)
+                            ? 'bg-emerald-100/90 border-emerald-500 shadow-2xs ring-1 ring-emerald-500/30'
+                            : pdfSelectedStaff.length === 0
+                            ? 'bg-white border-emerald-200 hover:bg-emerald-50/50'
+                            : 'bg-white/60 border-slate-200 text-slate-400 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={pdfSelectedStaff.includes(staff.name)}
+                          onChange={() => {
+                            if (pdfSelectedStaff.includes(staff.name)) {
+                              setPdfSelectedStaff(pdfSelectedStaff.filter((n) => n !== staff.name));
+                            } else {
+                              setPdfSelectedStaff([...pdfSelectedStaff, staff.name]);
+                            }
+                          }}
+                          className="w-4 h-4 text-emerald-600 rounded-sm focus:ring-emerald-500 border-slate-300 cursor-pointer"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className={`font-bold text-[11px] truncate ${pdfSelectedStaff.includes(staff.name) || pdfSelectedStaff.length === 0 ? 'text-slate-900' : 'text-slate-500'}`}>
+                            {staff.name}
+                          </div>
+                          <div className="text-[10px] text-emerald-700 font-semibold truncate">
+                            {staff.area}
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Filter Pelaksana Penanganan */}
+              {/* 3. Filter Periode Laporan: Mingguan vs Bulanan vs All */}
+              <div className="p-3.5 bg-sky-50/70 border border-sky-200 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <label className="block text-xs font-extrabold text-sky-950 flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-sky-700" />
+                    <span>3. Filter Siklus Periode Laporan:</span>
+                  </label>
+                  <div className="inline-flex rounded-lg border border-sky-300 p-0.5 bg-sky-100/70">
+                    <button
+                      type="button"
+                      onClick={() => setPdfPeriodType('weekly')}
+                      className={`px-2.5 py-1 text-[10.5px] font-bold rounded-md transition cursor-pointer ${
+                        pdfPeriodType === 'weekly'
+                          ? 'bg-sky-600 text-white shadow-2xs'
+                          : 'text-sky-900 hover:bg-sky-200/60'
+                      }`}
+                    >
+                      📅 Mingguan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPdfPeriodType('monthly')}
+                      className={`px-2.5 py-1 text-[10.5px] font-bold rounded-md transition cursor-pointer ${
+                        pdfPeriodType === 'monthly'
+                          ? 'bg-sky-600 text-white shadow-2xs'
+                          : 'text-sky-900 hover:bg-sky-200/60'
+                      }`}
+                    >
+                      🗓️ Bulanan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPdfPeriodType('all')}
+                      className={`px-2.5 py-1 text-[10.5px] font-bold rounded-md transition cursor-pointer ${
+                        pdfPeriodType === 'all'
+                          ? 'bg-sky-600 text-white shadow-2xs'
+                          : 'text-sky-900 hover:bg-sky-200/60'
+                      }`}
+                    >
+                      🌐 Semua
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sub-panel Mingguan */}
+                {pdfPeriodType === 'weekly' && (
+                  <div className="space-y-2.5 bg-white p-3 rounded-xl border border-sky-200">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] text-slate-500 font-bold mr-1">Preset Minggu:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const mon = getMondayOfWeek();
+                          setPdfStartDate(mon);
+                          setPdfEndDate(getSundayOfWeek(mon));
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-900 cursor-pointer"
+                      >
+                        Minggu Ini (Berjalan)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date();
+                          d.setDate(d.getDate() - 7);
+                          const lastMon = getMondayOfWeek(d);
+                          setPdfStartDate(lastMon);
+                          setPdfEndDate(getSundayOfWeek(lastMon));
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 cursor-pointer"
+                      >
+                        Minggu Lalu
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date();
+                          d.setDate(d.getDate() - 14);
+                          const twoWeeksAgoMon = getMondayOfWeek(d);
+                          setPdfStartDate(twoWeeksAgoMon);
+                          setPdfEndDate(getSundayOfWeek(getMondayOfWeek()));
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 cursor-pointer"
+                      >
+                        2 Minggu Terakhir
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Dari Tanggal (Senin):
+                        </label>
+                        <input
+                          type="date"
+                          value={pdfStartDate}
+                          onChange={(e) => setPdfStartDate(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-sky-300 bg-white text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-sky-500 shadow-2xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Sampai Tanggal (Minggu):
+                        </label>
+                        <input
+                          type="date"
+                          value={pdfEndDate}
+                          onChange={(e) => setPdfEndDate(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-sky-300 bg-white text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-sky-500 shadow-2xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="text-[10.5px] text-sky-800 bg-sky-50 border border-sky-200 p-2 rounded-lg font-medium">
+                      📅 Rentang Mingguan: <strong>{formatJakartaDisplayDate(pdfStartDate)}</strong> s/d <strong>{formatJakartaDisplayDate(pdfEndDate)}</strong>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub-panel Bulanan */}
+                {pdfPeriodType === 'monthly' && (
+                  <div className="space-y-2.5 bg-white p-3 rounded-xl border border-sky-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Dari Bulan:
+                        </label>
+                        <input
+                          type="month"
+                          value={pdfStartMonth}
+                          onChange={(e) => setPdfStartMonth(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-sky-300 bg-white text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-sky-500 shadow-2xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Sampai Bulan:
+                        </label>
+                        <input
+                          type="month"
+                          value={pdfEndMonth}
+                          onChange={(e) => setPdfEndMonth(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-sky-300 bg-white text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-sky-500 shadow-2xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-1 flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] text-slate-500 font-bold mr-1">Pilihan Cepat:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date();
+                          const mm = String(d.getMonth() + 1).padStart(2, '0');
+                          const cur = `${d.getFullYear()}-${mm}`;
+                          setPdfStartMonth(cur);
+                          setPdfEndMonth(cur);
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 cursor-pointer"
+                      >
+                        Bulan Berjalan
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date();
+                          setPdfStartMonth(`${d.getFullYear()}-01`);
+                          setPdfEndMonth(`${d.getFullYear()}-12`);
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 cursor-pointer"
+                      >
+                        Tahun 2026 Penuh
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub-panel Semua */}
+                {pdfPeriodType === 'all' && (
+                  <div className="p-3 bg-white rounded-xl border border-sky-200 text-[11px] text-slate-600">
+                    🌐 Dokumen PDF akan menyertakan seluruh riwayat pemeriksaan dan penanganan pohon dari awal pencatatan.
+                  </div>
+                )}
+              </div>
+
+              {/* 4. Filter Pelaksana Penanganan */}
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                  3. Filter Pelaksana Penanganan:
+                  4. Filter Pelaksana Penanganan:
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   {(['Semua', 'Internal PLH', 'Vendor Luar'] as const).map((h) => (
@@ -5815,17 +6127,37 @@ mt-plh-02\tPemangkasan Rumput & Pruning Dahan Bawah\tSemua Unit\tMingguan\tanyti
                 </div>
               </div>
 
-              {/* Preview info ringkasan */}
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1">
+              {/* 5. Catatan Penjelasan Siklus Status di PDF */}
+              <div className="p-3 bg-amber-50/80 rounded-2xl border border-amber-200 text-[11px] text-amber-950 space-y-1">
+                <div className="font-extrabold flex items-center gap-1.5 text-amber-900">
+                  <span>ℹ️ Struktur Status Periodik di Dokumen PDF:</span>
+                </div>
+                <p className="text-[10.5px] text-amber-800 leading-relaxed">
+                  Pada tabel PDF, status pohon disusun bertahap per siklus: <strong>Before Penanganan</strong> (⚠️ Perlu Penanganan) ➔ <strong>After Penanganan</strong> (✅ Selesai Ditangani) ➔ <strong>Periode Selanjutnya</strong> (<span className="text-emerald-700 font-bold">🌿 Aman & Terawat - Warna Hijau</span>) ➔ <strong>Siklus Lanjutan</strong> (jika timbul kendala baru).
+                </p>
+              </div>
+
+              {/* 6. Preview info ringkasan */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1.5">
                 <div className="flex items-center justify-between text-slate-600">
                   <span>Wilayah Terpilih:</span>
                   <strong className="text-slate-900">{pdfAreaSelection === 'Semua' ? 'Seluruh 5 Wilayah' : pdfAreaSelection}</strong>
                 </div>
                 <div className="flex items-center justify-between text-slate-600">
-                  <span>Rentang Periode Bulan:</span>
+                  <span>Petugas PLH:</span>
+                  <strong className="text-emerald-700 truncate max-w-[280px]">
+                    {pdfSelectedStaff.length === 0
+                      ? 'Semua Staf PLH'
+                      : pdfSelectedStaff.join(', ')}
+                  </strong>
+                </div>
+                <div className="flex items-center justify-between text-slate-600">
+                  <span>Periode Laporan:</span>
                   <strong className="text-sky-700">
-                    {pdfStartMonth || pdfEndMonth
-                      ? `${pdfStartMonth ? `Bulan ${pdfStartMonth}` : 'Awal'} s/d ${pdfEndMonth ? `Bulan ${pdfEndMonth}` : 'Sekarang'}`
+                    {pdfPeriodType === 'weekly'
+                      ? `Mingguan (${formatJakartaDisplayDate(pdfStartDate)} s/d ${formatJakartaDisplayDate(pdfEndDate)})`
+                      : pdfPeriodType === 'monthly'
+                      ? `Bulanan (${pdfStartMonth} s/d ${pdfEndMonth})`
                       : 'Semua Riwayat (All Time)'}
                   </strong>
                 </div>
@@ -5833,10 +6165,16 @@ mt-plh-02\tPemangkasan Rumput & Pruning Dahan Bawah\tSemua Unit\tMingguan\tanyti
                   <span>Filter Penanganan:</span>
                   <strong className="text-emerald-700">{pdfHandlerSelection}</strong>
                 </div>
+                <div className="flex items-center justify-between pt-1 border-t border-slate-200/80 text-slate-800 font-bold">
+                  <span>Estimasi Pohon yang Masuk Filter:</span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px]">
+                    {previewTargetCount} Pohon Terdaftar
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+            <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-end gap-2 sticky bottom-0 bg-white z-10">
               <button
                 type="button"
                 onClick={() => setShowPdfFilterModal(false)}
@@ -5850,7 +6188,7 @@ mt-plh-02\tPemangkasan Rumput & Pruning Dahan Bawah\tSemua Unit\tMingguan\tanyti
                 className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white cursor-pointer shadow-sm flex items-center gap-2"
               >
                 <Printer className="w-4 h-4" />
-                <span>🖨️ Unduh & Cetak Dokumen PDF</span>
+                <span>🖨️ Unduh & Cetak PDF ({previewTargetCount} Pohon)</span>
               </button>
             </div>
           </div>

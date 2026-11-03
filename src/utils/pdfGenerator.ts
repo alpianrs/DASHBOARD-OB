@@ -1,4 +1,4 @@
-import { TreeWorkOrder, JobBareng, DivisionType, DEFAULT_PLH_AREA_STAFF, TaskLog, MasterTask, User } from '../types';
+import { TreeWorkOrder, TreeInspectionRecord, JobBareng, DivisionType, DEFAULT_PLH_AREA_STAFF, TaskLog, MasterTask, User } from '../types';
 import { formatJakartaDisplayDate, getJakartaDateString } from './dateHelper';
 import { getMondayOfWeek } from './masjidRolling';
 import { formatGoogleDriveImageUrl, getGoogleDriveViewLink, extractGoogleDriveFileId } from './driveHelper';
@@ -168,26 +168,45 @@ const getPrintStyles = () => `
  * Kotak Penjelasan Resmi Status Penanganan PLH: "Selesai" vs "Perlu Tindakan / Penanganan"
  */
 export const getPlhStatusExplanationBlock = () => `
-  <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; margin: 14px 0 16px 0; page-break-inside: avoid;">
-    <div style="font-size: 10px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 7px; display: flex; align-items: center; gap: 6px;">
-      <span style="background: #047857; color: #ffffff; padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 900;">PANDUAN STATUS</span>
-      <span>PENJELASAN STATUS PENANGANAN POHON & LINGKUNGAN HIDUP (PLH):</span>
+  <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 14px; margin: 16px 0 16px 0; page-break-inside: avoid;">
+    <div style="font-size: 10px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="background: #047857; color: #ffffff; padding: 2px 7px; border-radius: 4px; font-size: 8.5px; font-weight: 900;">PANDUAN STATUS PERIODE</span>
+        <span>KLASIFIKASI SIKLUS STATUS PENANGANAN POHON (DIVISI PLH):</span>
+      </div>
+      <span style="font-size: 8px; color: #64748b; font-weight: 600;">Siklus Multi-Status Berkala</span>
     </div>
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 9.5px; line-height: 1.45;">
-      <div style="background: #ffffff; border: 1px solid #a7f3d0; border-left: 3.5px solid #059669; border-radius: 6px; padding: 7px 10px;">
-        <div style="font-weight: 800; color: #065f46; font-size: 9.5px; margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
-          <span>✅ STATUS "SELESAI" (SUDAH DITANGANI / AMAN):</span>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 9px; line-height: 1.4;">
+      <div style="background: #ffffff; border: 1px solid #fed7aa; border-left: 3.5px solid #f97316; border-radius: 6px; padding: 7px 9px;">
+        <div style="font-weight: 800; color: #c2410c; font-size: 8.5px; margin-bottom: 3px;">
+          ⚠️ 1. BEFORE PENANGANAN
         </div>
-        <div style="color: #334155; font-size: 9px;">
-          Tindakan penanganan pohon (seperti pemangkasan kanopi rimbun, pemotongan dahan rapuh/kering, pembersihan benalu/hama, atau perapihan akar) <strong>telah tuntas dilaksanakan</strong> oleh Tim Internal PLH atau Rekanan Vendor Luar. Kondisi pohon telah diverifikasi kembali aman, sehat, kanopi teratur, dan tidak mengganggu fasilitas maupun keselamatan siswa.
+        <div style="color: #475569; font-size: 8px;">
+          <strong>Status: Perlu Penanganan.</strong> Temuan kendala fisik di lapangan (dahan lapuk, kanopi rimbun, hama, miring) yang memerlukan tindakan treatment segera.
         </div>
       </div>
-      <div style="background: #ffffff; border: 1px solid #fecdd3; border-left: 3.5px solid #e11d48; border-radius: 6px; padding: 7px 10px;">
-        <div style="font-weight: 800; color: #9f1239; font-size: 9.5px; margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
-          <span>⚠️ STATUS "PERLU TINDAKAN" (PERLU PENANGANAN):</span>
+      <div style="background: #ffffff; border: 1px solid #bae6fd; border-left: 3.5px solid #0284c7; border-radius: 6px; padding: 7px 9px;">
+        <div style="font-weight: 800; color: #0369a1; font-size: 8.5px; margin-bottom: 3px;">
+          ✅ 2. AFTER PENANGANAN
         </div>
-        <div style="color: #334155; font-size: 9px;">
-          Hasil inspeksi / pengecekan lapangan menemukan kendala fisik yang <strong>memerlukan tindakan penanganan segera</strong> (contoh: kanopi rimbun menutupi kabel PLN/lampu jalan, dahan kering lapuk rawan patah tertiup angin, kemiringan batang rawan tumbang, atau sarang hama). Pekerjaan telah dijadwalkan dalam Work Order untuk dieksekusi oleh pelaksana terkait.
+        <div style="color: #475569; font-size: 8px;">
+          <strong>Status: Selesai Ditangani.</strong> Tindakan pruning/perapihan/treatment selesai dikerjakan tuntas oleh Internal PLH atau Vendor Luar disertai foto hasil penanganan.
+        </div>
+      </div>
+      <div style="background: #ffffff; border: 1px solid #a7f3d0; border-left: 3.5px solid #059669; border-radius: 6px; padding: 7px 9px;">
+        <div style="font-weight: 800; color: #065f46; font-size: 8.5px; margin-bottom: 3px;">
+          🌿 3. PERIODE BERIKUTNYA
+        </div>
+        <div style="color: #475569; font-size: 8px;">
+          <strong>Status: Aman & Terawat (Hijau).</strong> Pada inspeksi rutin periode berikutnya, pohon terpantau aman, sehat, dan terawat tanpa ada kendala fisik baru.
+        </div>
+      </div>
+      <div style="background: #ffffff; border: 1px solid #fecdd3; border-left: 3.5px solid #ef4444; border-radius: 6px; padding: 7px 9px;">
+        <div style="font-weight: 800; color: #9f1239; font-size: 8.5px; margin-bottom: 3px;">
+          🚨 4. SIKLUS LANJUTAN
+        </div>
+        <div style="color: #475569; font-size: 8px;">
+          <strong>Status: Perlu Penanganan Baru.</strong> Jika di kemudian hari timbul temuan baru, tercatat siklus status baru sehingga histori pohon terekam utuh.
         </div>
       </div>
     </div>
@@ -492,6 +511,28 @@ export const generateTreeHistoryReportPdf = (order: TreeWorkOrder): string => {
         </div>
       </div>
 
+      <!-- Tahapan Siklus Status Periodik Pohon -->
+      <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; page-break-inside: avoid;">
+        <div style="font-size: 9.5px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+          <span>🌿 Tahapan Siklus Status Penanganan & Pengecekan Berkala:</span>
+          <span style="font-size: 8px; color: #64748b; font-weight: 600;">Siklus Multi-Status Riwayat</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px;">
+          ${getTreePeriodicStatusStages(order)
+            .map(
+              (st) => `
+            <div style="background-color: ${st.badgeBg}; border: 1px solid ${st.badgeBorder}; border-radius: 6px; padding: 6px 8px;">
+              <div style="font-size: 8.5px; font-weight: 800; color: ${st.badgeText};">${st.badgeLabel}</div>
+              <div style="font-size: 7.5px; font-weight: 700; color: #334155; margin-top: 2px;">${st.periodLabel}</div>
+              ${st.dateText ? `<div style="font-size: 7px; color: #64748b; margin-top: 1px;">📅 ${st.dateText}</div>` : ''}
+              <div style="font-size: 7px; color: #475569; margin-top: 2px;">${st.detail}</div>
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+      </div>
+
       <!-- Dokumentasi Foto Before & After -->
       ${
         order.photoBeforeUrl || order.photoAfterUrl
@@ -572,8 +613,8 @@ export const generateTreeHistoryReportPdf = (order: TreeWorkOrder): string => {
                   <td><strong>${sanitizePlhStaffName(rec.inspectorName, order.area)}</strong></td>
                   <td><span style="font-weight: 600; color: ${rec.condition === 'Normal / Sehat' ? '#047857' : '#b45309'};">${rec.condition}</span></td>
                   <td>
-                    <span class="badge ${rec.checkStatus === 'Sudah Dicek Aman' || rec.checkStatus === 'Sudah Ditangani' ? 'badge-low' : 'badge-urgent'}">
-                      ${rec.checkStatus}
+                    <span class="badge ${rec.checkStatus === 'Sudah Dicek Aman' ? 'badge-low' : rec.checkStatus === 'Sudah Ditangani' ? 'badge-completed' : 'badge-urgent'}">
+                      ${rec.checkStatus === 'Sudah Dicek Aman' ? '🌿 Aman & Terawat' : rec.checkStatus}
                     </span>
                     ${rec.treatmentStatus ? `<div style="font-size: 8px; color: #64748b; margin-top: 2px;">${rec.treatmentStatus}</div>` : ''}
                   </td>
@@ -647,16 +688,174 @@ export const generateTreeHistoryReportPdf = (order: TreeWorkOrder): string => {
 };
 
 export interface TreePdfFilterOptions {
+  periodType?: 'monthly' | 'weekly' | 'all';
   startMonth?: string; // YYYY-MM
   endMonth?: string;   // YYYY-MM
   startDate?: string;  // YYYY-MM-DD
   endDate?: string;    // YYYY-MM-DD
+  weekLabel?: string;
   handlerType?: 'Semua' | 'Internal PLH' | 'Vendor Luar';
+  selectedStaffNames?: string[];
+}
+
+export interface TreeStatusStage {
+  periodLabel: string;
+  dateText?: string;
+  category: 'before' | 'after_selesai' | 'subsequent_safe' | 'new_action';
+  badgeLabel: string;
+  badgeBg: string;
+  badgeBorder: string;
+  badgeText: string;
+  detail: string;
+}
+
+/**
+ * Menghitung tahapan status periodik per pohon:
+ * 1. Before Penanganan: Saat ditemukan masalah (Status: Perlu Penanganan, badge oranye/merah)
+ * 2. After Penanganan: Tindakan selesai dilaksanakan (Status: Selesai Ditangani, badge biru/hijau tua)
+ * 3. Periode Selanjutnya: Saat pengecekan berikutnya aman & terawat (Status: Aman & Terawat, badge hijau terang)
+ * 4. Siklus Lanjutan: Jika di periode berikutnya timbul kendala baru (Status: Perlu Penanganan Baru)
+ */
+export function getTreePeriodicStatusStages(
+  order: TreeWorkOrder,
+  filteredHistory?: TreeInspectionRecord[]
+): TreeStatusStage[] {
+  const stages: TreeStatusStage[] = [];
+  const history = filteredHistory || order.inspectionHistory || [];
+
+  const sortedHistory = [...history].sort((a, b) => {
+    const da = `${a.date || ''} ${a.time || ''}`;
+    const db = `${b.date || ''} ${b.time || ''}`;
+    return da.localeCompare(db);
+  });
+
+  const hasTreatmentNeed =
+    order.condition !== 'Normal / Sehat' ||
+    Boolean(order.treatmentNeeded) ||
+    order.status === 'Perlu Penanganan' ||
+    order.status === 'Sedang Dikerjakan' ||
+    order.treatmentStatus === 'Belum Ditangani' ||
+    order.treatmentStatus === 'Sedang Ditangani' ||
+    Boolean(order.photoBeforeUrl) ||
+    sortedHistory.some((h) => h.checkStatus === 'Perlu Penanganan');
+
+  const isCompletedTreatment =
+    order.status === 'Selesai' ||
+    order.treatmentStatus === 'Sudah Ditangani' ||
+    Boolean(order.photoAfterUrl) ||
+    sortedHistory.some((h) => h.checkStatus === 'Sudah Ditangani' || Boolean(h.treatmentReport));
+
+  // 1. Tahap Before Penanganan
+  if (hasTreatmentNeed) {
+    const beforeLog = sortedHistory.find(
+      (h) => h.checkStatus === 'Perlu Penanganan' || (h.condition && h.condition !== 'Normal / Sehat')
+    );
+    const beforeDate = beforeLog?.date || order.date;
+    stages.push({
+      periodLabel: '1. Before Penanganan',
+      dateText: formatJakartaDisplayDate(beforeDate),
+      category: 'before',
+      badgeLabel: '⚠️ Perlu Penanganan',
+      badgeBg: '#fff7ed',
+      badgeBorder: '#fb923c',
+      badgeText: '#c2410c',
+      detail: `Temuan: ${beforeLog?.condition || order.condition}`,
+    });
+  }
+
+  // 2. Tahap After Penanganan (Selesai Ditangani)
+  if (isCompletedTreatment) {
+    const afterLog = sortedHistory.find(
+      (h) => h.checkStatus === 'Sudah Ditangani' || Boolean(h.treatmentReport) || Boolean(h.photoAfterUrl)
+    );
+    const afterDate =
+      afterLog?.handledAt ||
+      order.handledAt ||
+      order.completedAt ||
+      afterLog?.date ||
+      order.date;
+    stages.push({
+      periodLabel: '2. After Penanganan',
+      dateText: formatJakartaDisplayDate(afterDate),
+      category: 'after_selesai',
+      badgeLabel: '✅ Selesai Ditangani',
+      badgeBg: '#eff6ff',
+      badgeBorder: '#0284c7',
+      badgeText: '#0369a1',
+      detail: `Hasil: ${afterLog?.treatmentReport || order.treatmentReport || order.treatmentNeeded || 'Tindakan Selesai'}`,
+    });
+  }
+
+  // 3. Periode Pengecekan Selanjutnya: Aman & Terawat (Badge Hijau)
+  const safeLogs = sortedHistory.filter(
+    (h) => h.checkStatus === 'Sudah Dicek Aman' || h.condition === 'Normal / Sehat'
+  );
+
+  if (safeLogs.length > 0) {
+    const latestSafe = safeLogs[safeLogs.length - 1];
+    stages.push({
+      periodLabel: `3. Periode Selanjutnya (${safeLogs.length}x Cek)`,
+      dateText: formatJakartaDisplayDate(latestSafe.date),
+      category: 'subsequent_safe',
+      badgeLabel: '🌿 Aman & Terawat',
+      badgeBg: '#ecfdf5',
+      badgeBorder: '#10b981',
+      badgeText: '#047857',
+      detail: 'Pemeriksaan rutin: Kondisi terpantau aman dan sehat',
+    });
+  } else if (!hasTreatmentNeed && order.condition === 'Normal / Sehat') {
+    stages.push({
+      periodLabel: 'Pemeriksaan Rutin Berkala',
+      dateText: formatJakartaDisplayDate(order.lastCheckedDate || order.date),
+      category: 'subsequent_safe',
+      badgeLabel: '🌿 Aman & Terawat',
+      badgeBg: '#ecfdf5',
+      badgeBorder: '#10b981',
+      badgeText: '#047857',
+      detail: 'Pemeriksaan rutin: Kondisi terpantau aman dan sehat',
+    });
+  }
+
+  // 4. Siklus Penanganan Baru (Jika di periode berikutnya timbul temuan baru)
+  const hasNewIssue =
+    isCompletedTreatment &&
+    (order.status === 'Perlu Penanganan' ||
+      order.checkStatusToday === 'Perlu Penanganan' ||
+      (order.treatmentStatus === 'Belum Ditangani' && order.status !== 'Selesai'));
+
+  if (hasNewIssue) {
+    stages.push({
+      periodLabel: '4. Siklus Lanjutan',
+      dateText: formatJakartaDisplayDate(order.lastCheckedDate || getJakartaDateString()),
+      category: 'new_action',
+      badgeLabel: '🚨 Perlu Penanganan Baru',
+      badgeBg: '#fef2f2',
+      badgeBorder: '#ef4444',
+      badgeText: '#b91c1c',
+      detail: `Temuan baru di periode lanjutan: ${order.condition}`,
+    });
+  }
+
+  if (stages.length === 0) {
+    const isDone = order.status === 'Selesai';
+    stages.push({
+      periodLabel: 'Status Periode Ini',
+      dateText: formatJakartaDisplayDate(order.lastCheckedDate || order.date),
+      category: isDone ? 'after_selesai' : 'before',
+      badgeLabel: isDone ? '✅ Selesai' : '⚠️ Perlu Penanganan',
+      badgeBg: isDone ? '#ecfdf5' : '#fff7ed',
+      badgeBorder: isDone ? '#059669' : '#fb923c',
+      badgeText: isDone ? '#065f46' : '#c2410c',
+      detail: order.condition,
+    });
+  }
+
+  return stages;
 }
 
 /**
  * 2. Unduh / Cetak Laporan Rekapitulasi Pemeliharaan Pohon per Area (Divisi PLH)
- * Mendukung filter periode bulan (dari bulan apa sampai bulan apa) dan menampilkan seluruh history penanganan
+ * Mendukung filter periode mingguan/bulanan, multi-select staf PLH, dan tahapan status periodik
  */
 export const generateTreeAreaReportPdf = (
   areaName: string,
@@ -665,18 +864,47 @@ export const generateTreeAreaReportPdf = (
   filterOptions?: TreePdfFilterOptions
 ): string => {
   const docNumber = `REP-PLH-HIST-${areaName.replace(/\s+/g, '').toUpperCase()}-${getJakartaDateString().replace(/-/g, '')}`;
-  const totalTrees = orders.length;
 
   const startMonth = filterOptions?.startMonth;
   const endMonth = filterOptions?.endMonth;
+  const startDate = filterOptions?.startDate;
+  const endDate = filterOptions?.endDate;
   const handlerFilter = filterOptions?.handlerType && filterOptions.handlerType !== 'Semua' ? filterOptions.handlerType : null;
+  const selectedStaffNames = filterOptions?.selectedStaffNames && filterOptions.selectedStaffNames.length > 0
+    ? filterOptions.selectedStaffNames
+    : null;
+
+  // Filter pohon berdasarkan multi-staff jika ada
+  let baseOrders = orders;
+  if (selectedStaffNames && selectedStaffNames.length > 0) {
+    const staffLowerList = selectedStaffNames.map((s) => s.toLowerCase());
+    baseOrders = baseOrders.filter((o) => {
+      const assigned = (o.assignedStaffName || '').toLowerCase();
+      const reported = (o.reportedByName || '').toLowerCase();
+      const checked = (o.lastCheckedByName || '').toLowerCase();
+      const handled = (o.handledByName || '').toLowerCase();
+      return staffLowerList.some(
+        (staff) =>
+          assigned.includes(staff) ||
+          staff.includes(assigned) ||
+          reported.includes(staff) ||
+          staff.includes(reported) ||
+          checked.includes(staff) ||
+          staff.includes(checked) ||
+          handled.includes(staff) ||
+          staff.includes(handled)
+      );
+    });
+  }
+
+  const totalTrees = baseOrders.length;
 
   // Filter riwayat pemeriksaan & penanganan per pohon
   let totalFilteredHistoryCount = 0;
   let totalInternalCount = 0;
   let totalVendorCount = 0;
 
-  const ordersWithFilteredHistory = orders.map((o) => {
+  const ordersWithFilteredHistory = baseOrders.map((o) => {
     let history = o.inspectionHistory || [];
 
     // Jika order belum punya inspectionHistory tapi ada lastCheckedDate / notes, buat fallback record
@@ -705,6 +933,15 @@ export const generateTreeAreaReportPdf = (
       ];
     }
 
+    // Filter mingguan (startDate & endDate)
+    if (startDate) {
+      history = history.filter((rec) => !rec.date || rec.date >= startDate);
+    }
+    if (endDate) {
+      history = history.filter((rec) => !rec.date || rec.date <= endDate);
+    }
+
+    // Filter bulanan (startMonth & endMonth)
     if (startMonth) {
       history = history.filter((rec) => {
         const ym = (rec.date || '').substring(0, 7);
@@ -739,13 +976,23 @@ export const generateTreeAreaReportPdf = (
     };
   });
 
-  const periodText = startMonth || endMonth
-    ? `${startMonth ? `Bulan ${startMonth}` : 'Awal'} s/d ${endMonth ? `Bulan ${endMonth}` : 'Sekarang'}`
-    : 'Semua Periode Riwayat (All Time)';
+  let periodText = 'Semua Periode Riwayat (All Time)';
+  if (filterOptions?.periodType === 'weekly' || (startDate && endDate)) {
+    const sDate = startDate ? formatJakartaDisplayDate(startDate) : 'Awal';
+    const eDate = endDate ? formatJakartaDisplayDate(endDate) : 'Sekarang';
+    const weekLabel = filterOptions?.weekLabel ? `${filterOptions.weekLabel} • ` : '';
+    periodText = `Mingguan: ${weekLabel}${sDate} s/d ${eDate}`;
+  } else if (startMonth || endMonth) {
+    periodText = `Bulanan: ${startMonth ? `Bulan ${startMonth}` : 'Awal'} s/d ${endMonth ? `Bulan ${endMonth}` : 'Sekarang'}`;
+  }
 
-  const needVendor = orders.filter((o) => o.handlerType === 'Vendor Luar' || o.isLargeTreatment).length;
-  const finished = orders.filter((o) => o.status === 'Selesai').length;
-  const totalVendorCost = orders.reduce((sum, o) => sum + (o.vendorCost || 0), 0);
+  const staffDisplayText = selectedStaffNames && selectedStaffNames.length > 0
+    ? selectedStaffNames.length === 1
+      ? selectedStaffNames[0]
+      : `${selectedStaffNames.length} Petugas Terpilih (${selectedStaffNames.join(', ')})`
+    : assignedStaffName || 'Seluruh Tim Divisi PLH';
+
+  const totalVendorCost = baseOrders.reduce((sum, o) => sum + (o.vendorCost || 0), 0);
 
   return `
     <!DOCTYPE html>
@@ -765,8 +1012,12 @@ export const generateTreeAreaReportPdf = (
             <span class="meta-value" style="color: #047857; font-size: 11.5px; font-weight: 800;">${areaName}</span>
           </div>
           <div class="meta-item">
-            <span class="meta-label">Filter Periode Bulan:</span>
+            <span class="meta-label">Filter Periode Laporan:</span>
             <span class="meta-value" style="color: #0284c7; font-weight: 700;">${periodText}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Petugas PLH Terpilih:</span>
+            <span class="meta-value" style="color: #047857; font-weight: 700;">${staffDisplayText}</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Tanggal Cetak Laporan:</span>
@@ -794,21 +1045,23 @@ export const generateTreeAreaReportPdf = (
       <table>
         <thead>
           <tr>
-            <th style="width: 4%;">No</th>
-            <th style="width: 22%;">Nama / Jenis Pohon & Lokasi</th>
-            <th style="width: 12%;">Kondisi</th>
-            <th style="width: 16%;">Tindakan Treatment</th>
-            <th style="width: 36%;">Riwayat & History Penanganan</th>
-            <th style="width: 10%;">Status</th>
+            <th style="width: 3.5%;">No</th>
+            <th style="width: 20%;">Nama / Jenis Pohon & Lokasi</th>
+            <th style="width: 10%;">Kondisi</th>
+            <th style="width: 14%;">Tindakan Treatment</th>
+            <th style="width: 34.5%;">Riwayat & Bukti Foto Pengecekan</th>
+            <th style="width: 18%;">Status per Kategori / Periode</th>
           </tr>
         </thead>
         <tbody>
           ${
             ordersWithFilteredHistory.length === 0
-              ? `<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 15px;">Belum ada data pohon tercatat di area ini.</td></tr>`
+              ? `<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 15px;">Belum ada data pohon tercatat di area / filter ini.</td></tr>`
               : ordersWithFilteredHistory
                   .map(
-                    (o, idx) => `
+                    (o, idx) => {
+                      const stages = getTreePeriodicStatusStages(o, o.filteredHistory);
+                      return `
             <tr>
               <td style="text-align: center; font-weight: 700; vertical-align: top;">${idx + 1}</td>
               <td style="vertical-align: top;">
@@ -841,8 +1094,8 @@ export const generateTreeAreaReportPdf = (
                           <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 3px solid ${rec.checkStatus === 'Sudah Dicek Aman' || rec.checkStatus === 'Sudah Ditangani' ? '#047857' : '#dc2626'}; border-radius: 4px; padding: 4px 6px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; font-size: 8.5px;">
                               <span style="font-weight: 800; color: #0f172a;">${formatJakartaDisplayDate(rec.date)} ${rec.time ? `• ${rec.time}` : ''}</span>
-                              <span class="badge ${rec.checkStatus === 'Sudah Dicek Aman' || rec.checkStatus === 'Sudah Ditangani' ? 'badge-low' : 'badge-urgent'}" style="font-size: 7.5px; padding: 1px 4px;">
-                                ${rec.checkStatus}
+                              <span class="badge ${rec.checkStatus === 'Sudah Dicek Aman' ? 'badge-low' : rec.checkStatus === 'Sudah Ditangani' ? 'badge-completed' : 'badge-urgent'}" style="font-size: 7.5px; padding: 1px 5px;">
+                                ${rec.checkStatus === 'Sudah Dicek Aman' ? '🌿 Aman & Terawat' : rec.checkStatus}
                               </span>
                             </div>
                             <div style="font-size: 8px; color: #475569; margin-top: 2px;">
@@ -888,13 +1141,28 @@ export const generateTreeAreaReportPdf = (
                       </div>`
                 }
               </td>
-              <td style="vertical-align: top; text-align: center;">
-                <span class="badge ${o.status === 'Selesai' ? 'badge-completed' : o.urgency === 'Tinggi / Bahaya' ? 'badge-urgent' : 'badge-medium'}">
-                  ${o.status}
-                </span>
+              <td style="vertical-align: top;">
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                  ${stages
+                    .map(
+                      (st) => `
+                    <div style="background-color: ${st.badgeBg}; border: 1px solid ${st.badgeBorder}; border-radius: 4px; padding: 3px 5px;">
+                      <div style="font-weight: 800; font-size: 8px; color: ${st.badgeText};">
+                        ${st.badgeLabel}
+                      </div>
+                      <div style="font-size: 7px; color: #475569; font-weight: 700; margin-top: 1px;">
+                        ${st.periodLabel}
+                      </div>
+                      ${st.dateText ? `<div style="font-size: 6.5px; color: #64748b; margin-top: 1px;">📅 ${st.dateText}</div>` : ''}
+                    </div>
+                  `
+                    )
+                    .join('')}
+                </div>
               </td>
             </tr>
-          `
+          `;
+                    }
                   )
                   .join('')
           }
@@ -906,10 +1174,15 @@ export const generateTreeAreaReportPdf = (
       <!-- Tanda Tangan Resmi Yayasan Lazuardi FM -->
       <div class="signature-grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 35px;">
         <div>
-          <div style="font-size: 9px; color: #64748b; font-weight: 700;">PETUGAS PENANGGUNG JAWAB AREA</div>
-          <div class="signature-box">
-            <strong>${sanitizePlhStaffName(assignedStaffName, areaName) || 'Petugas Area'}</strong><br/>
-            <span style="font-size: 8.5px; color: #64748b;">Staff Divisi PLH</span>
+          <div style="font-size: 9px; color: #64748b; font-weight: 700;">
+            ${selectedStaffNames && selectedStaffNames.length > 1 ? `PETUGAS PLH TERKAIT (${selectedStaffNames.length} STAF)` : 'PETUGAS PENANGGUNG JAWAB AREA'}
+          </div>
+          <div class="signature-box" style="font-size: 8.5px; line-height: 1.4;">
+            ${
+              selectedStaffNames && selectedStaffNames.length > 1
+                ? `<strong>${selectedStaffNames.map((n) => sanitizePlhStaffName(n, areaName)).join(' • ')}</strong><br/><span style="font-size: 8px; color: #64748b;">Tim Staff Divisi PLH</span>`
+                : `<strong>${sanitizePlhStaffName(assignedStaffName, areaName) || 'Petugas Area'}</strong><br/><span style="font-size: 8.5px; color: #64748b;">Staff Divisi PLH</span>`
+            }
           </div>
         </div>
         <div>

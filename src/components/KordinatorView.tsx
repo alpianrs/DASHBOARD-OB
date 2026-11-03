@@ -131,8 +131,19 @@ export const KordinatorView: React.FC<KordinatorViewProps> = ({
   // Strict division-scoped staff (Kordinator PLH dapat menilai seluruh 5 staf area PLH)
   const divisionStaff = React.useMemo(() => {
     if (kordDivision === 'PLH') {
+      const isKhoirunisa = (u: User) => {
+        const name = (u.name || '').toLowerCase();
+        const username = (u.username || '').toLowerCase();
+        return name.includes('khoirunisa') || name.includes('khoirunnisa') || username.includes('khoirunisa') || username.includes('khoirunnisa');
+      };
+
       const plhStaff = allUsers.filter(
-        (u) => (u.division === 'PLH' || isPlhUser(u)) && u.role === 'user' && u.status !== 'Nonaktif'
+        (u) =>
+          u.division !== 'OB' &&
+          !isKhoirunisa(u) &&
+          (u.division === 'PLH' || isPlhUser(u)) &&
+          u.role === 'user' &&
+          u.status !== 'Nonaktif'
       );
       if (plhStaff.length > 0) return plhStaff;
       return SEED_PLH_USERS.filter((u) => u.role === 'user');

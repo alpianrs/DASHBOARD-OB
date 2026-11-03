@@ -24,8 +24,29 @@ import { isAreaOnMasjidDutyThisWeek, getMondayOfWeek } from '../utils/masjidRoll
 
 export const isPlhUser = (u?: Partial<User> | null): boolean => {
   if (!u) return false;
+  // If explicitly non-PLH division (like OB), NEVER classify as PLH!
+  if (u.division === 'OB' || (u.division && (u.division as string) !== 'PLH')) {
+    return false;
+  }
+  if (u.role === 'kepala_unit') {
+    return false;
+  }
+
+  const nameStr = (u.name || '').toLowerCase();
+  const usernameStr = (u.username || '').toLowerCase();
+  // Khoirunisa is OB in Khaldun building: NEVER treat as PLH!
+  if (
+    nameStr.includes('khoirunisa') ||
+    nameStr.includes('khoirunnisa') ||
+    usernameStr.includes('khoirunisa') ||
+    usernameStr.includes('khoirunnisa') ||
+    usernameStr.includes('nisa')
+  ) {
+    return false;
+  }
+
   if (u.division === 'PLH') return true;
-  const str = `${u.id || ''} ${u.username || ''} ${u.name || ''} ${u.unit || ''} ${u.assignedArea || ''}`.toLowerCase();
+  const str = `${u.id || ''} ${usernameStr} ${nameStr} ${u.unit || ''} ${u.assignedArea || ''}`.toLowerCase();
   return (
     str.includes('plh') ||
     str.includes('pos 1') ||
@@ -41,7 +62,8 @@ export const isPlhUser = (u?: Partial<User> | null): boolean => {
     str.includes('rahmat') ||
     str.includes('minifarm') ||
     str.includes('kolam renang') ||
-    str.includes('khaldun')
+    str.includes('area khaldun') ||
+    str.includes('taman khaldun')
   );
 };
 
@@ -959,34 +981,85 @@ export const getStoredItem = <T>(key: string, defaultValue: T): T => {
   }
 };
 
-// Clean up heavy base64 data URLs from past days' task logs to prevent localStorage bloat and keep app fast
+// Clean up heavy base64 data URLs to prevent localStorage bloat and keep app fast and lightweight
 const freeLocalStorageSpace = () => {
   try {
-    const rawLogs = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.TASK_LOGS) : null;
-    if (!rawLogs) return;
-    const logs: TaskLog[] = JSON.parse(rawLogs);
-    if (!Array.isArray(logs) || logs.length === 0) return;
-
-    // Prune base64 photos ONLY on logs from past days (never prune today's active work!)
     const today = getJakartaDateString();
-    let modified = false;
-    const pruned = logs.map((log) => {
-      const isPastDay = !isSameDay(log.date, today) && !isSameDay(log.timestamp, today);
-      if (isPastDay && log.photoUrl && log.photoUrl.startsWith('data:')) {
-        modified = true;
-        return {
-          ...log,
-          photoUrl: log.driveFileId ? `https://drive.google.com/file/d/${log.driveFileId}/view` : '',
-        };
-      }
-      return log;
-    });
 
-    if (modified) {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(STORAGE_KEYS.TASK_LOGS, JSON.stringify(pruned));
+    // 1. Prune base64 photos on logs from past days
+    const rawLogs = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.TASK_LOGS) : null;
+    if (rawLogs) {
+      try {
+        const logs: TaskLog[] = JSON.parse(rawLogs);
+        if (Array.isArray(logs) && logs.length > 0) {
+          let modified = false;
+          const pruned = logs.map((log) => {
+            const isPastDay = !isSameDay(log.date, today) && !isSameDay(log.timestamp, today);
+            if (isPastDay && log.photoUrl && log.photoUrl.startsWith('data:')) {
+              modified = true;
+              return {
+                ...log,
+                photoUrl: log.driveFileId ? `https://drive.google.com/file/d/${log.driveFileId}/view` : '',
+              };
+            }
+            return log;
+          });
+
+          if (modified) {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem(STORAGE_KEYS.TASK_LOGS, JSON.stringify(pruned));
+            }
+            memoryFallbackCache.set(STORAGE_KEYS.TASK_LOGS, pruned);
+          }
+        }
+      } catch (logErr) {
+        // ignore
       }
-      memoryFallbackCache.set(STORAGE_KEYS.TASK_LOGS, pruned);
+    }
+
+    // 2. Prune old base64 photos from TreeWorkOrders inspection history (keep only Drive URLs or compact references)
+    const rawTrees = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.TREE_WORK_ORDERS) : null;
+    if (rawTrees) {
+      try {
+        const trees: TreeWorkOrder[] = JSON.parse(rawTrees);
+        if (Array.isArray(trees) && trees.length > 0) {
+          let treeModified = false;
+          const cleanedTrees = trees.map((tr) => {
+            let trChanged = false;
+            let newHist = tr.inspectionHistory;
+            if (newHist && newHist.length > 0) {
+              const sliced = newHist.slice(0, 10);
+              if (sliced.length !== newHist.length) trChanged = true;
+              newHist = sliced.map((h, idx) => {
+                if (idx > 0 && h.photoUrl && h.photoUrl.startsWith('data:')) {
+                  trChanged = true;
+                  return {
+                    ...h,
+                    photoUrl: h.drivePhotoUrl || '',
+                    photoBeforeUrl: h.drivePhotoBeforeUrl || '',
+                    photoAfterUrl: h.drivePhotoAfterUrl || '',
+                  };
+                }
+                return h;
+              });
+            }
+            if (trChanged) {
+              treeModified = true;
+              return { ...tr, inspectionHistory: newHist };
+            }
+            return tr;
+          });
+
+          if (treeModified) {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem(STORAGE_KEYS.TREE_WORK_ORDERS, JSON.stringify(cleanedTrees));
+            }
+            memoryFallbackCache.set(STORAGE_KEYS.TREE_WORK_ORDERS, cleanedTrees);
+          }
+        }
+      } catch (treeErr) {
+        // ignore
+      }
     }
   } catch (err) {
     console.warn('Could not free localStorage space:', err);
@@ -1141,13 +1214,34 @@ export const StorageService = {
     let updatedUsers = cleaned.map((u) => {
       let mod = { ...u };
       let changed = false;
-      const isPlh = isPlhUser(mod);
-      if (isPlh && mod.division !== 'PLH' && mod.role !== 'admin') {
-        mod.division = 'PLH' as const;
-        changed = true;
-      } else if (!mod.division && mod.role !== 'admin') {
-        mod.division = isPlh ? ('PLH' as const) : ('OB' as const);
-        changed = true;
+
+      const uLower = (mod.username || '').toLowerCase();
+      const nLower = (mod.name || '').toLowerCase();
+
+      // Fix: Khoirunisa is strictly an OB (Office Boy/Girl) at Khaldun building, NOT PLH!
+      if (
+        nLower.includes('khoirunisa') ||
+        nLower.includes('khoirunnisa') ||
+        uLower.includes('khoirunisa') ||
+        uLower.includes('khoirunnisa')
+      ) {
+        if (mod.division !== 'OB') {
+          mod.division = 'OB';
+          changed = true;
+        }
+        if (mod.assignedArea) {
+          mod.assignedArea = undefined;
+          changed = true;
+        }
+      } else {
+        const isPlh = isPlhUser(mod);
+        if (isPlh && mod.division !== 'PLH' && mod.role !== 'admin') {
+          mod.division = 'PLH' as const;
+          changed = true;
+        } else if (!mod.division && mod.role !== 'admin') {
+          mod.division = isPlh ? ('PLH' as const) : ('OB' as const);
+          changed = true;
+        }
       }
 
       // Pastikan unit & assignedArea staf PLH tersinkronisasi untuk rolling unit tahunan
@@ -1526,13 +1620,42 @@ export const StorageService = {
   getJobBareng: (): JobBareng[] => {
     const jobs = getStoredItem<JobBareng[]>(STORAGE_KEYS.JOB_BARENG, []);
     const dummyIds = new Set(['jb-001', 'jb-plh-001', 'jb-dummy', 'jb-test']);
-    const cleanJobs = (jobs || []).filter((j) => {
-      if (!j || !j.id) return false;
-      if (dummyIds.has(j.id)) return false;
-      const t = (j.title || '').toLowerCase();
-      if (t.includes('pasca hujan lebat') || t.includes('kerja bakti lapangan & area parkir')) return false;
-      return true;
-    });
+    const isKhoirunisa = (n?: string) => {
+      if (!n) return false;
+      const s = n.toLowerCase();
+      return s.includes('khoirunisa') || s.includes('khoirunnisa');
+    };
+
+    const cleanJobs = (jobs || [])
+      .filter((j) => {
+        if (!j || !j.id) return false;
+        if (dummyIds.has(j.id)) return false;
+        const t = (j.title || '').toLowerCase();
+        if (t.includes('pasca hujan lebat') || t.includes('kerja bakti lapangan & area parkir')) return false;
+        return true;
+      })
+      .map((j) => {
+        // Strict guard: PLH jobs must NEVER assign or include OB staff Khoirunisa
+        if (j.division === 'PLH') {
+          const hasKhoirunisa =
+            j.assignedUserNames?.some(isKhoirunisa) ||
+            j.assignedUserIds?.some(isKhoirunisa) ||
+            j.participantNames?.some(isKhoirunisa) ||
+            j.participantIds?.some(isKhoirunisa);
+
+          if (hasKhoirunisa) {
+            return {
+              ...j,
+              assignedUserNames: j.assignedUserNames?.filter((n) => !isKhoirunisa(n)),
+              assignedUserIds: j.assignedUserIds?.filter((id) => !isKhoirunisa(id)),
+              participantNames: j.participantNames?.filter((n) => !isKhoirunisa(n)),
+              participantIds: j.participantIds?.filter((id) => !isKhoirunisa(id)),
+            };
+          }
+        }
+        return j;
+      });
+
     if (cleanJobs.length !== (jobs || []).length) {
       setStoredItem(STORAGE_KEYS.JOB_BARENG, cleanJobs);
     }
@@ -2335,11 +2458,12 @@ export const StorageService = {
     const history = [...(order.inspectionHistory || [])];
     history.unshift(record);
     // Keep max 15 inspection records to avoid localStorage quota issues
-    order.inspectionHistory = history.slice(0, 15);
+    order.inspectionHistory = history.slice(0, 10);
     order.lastCheckedDate = record.date;
     order.lastCheckedTime = record.time;
     order.lastCheckedByName = record.inspectorName;
     order.condition = record.condition;
+    order.checkStatusToday = record.checkStatus === 'Perlu Penanganan' ? 'Perlu Penanganan' : 'Sudah Dicek Aman';
     const isPerlu = record.checkStatus === 'Perlu Penanganan';
     order.inspectionNotes = record.notes || (isPerlu ? '' : 'Kondisi terpantau aman dan terawat.');
     order.notes = record.notes || order.notes || (isPerlu ? '' : 'Kondisi terpantau aman dan terawat.');
@@ -2382,6 +2506,9 @@ export const StorageService = {
     } else if (record.checkStatus === 'Perlu Penanganan') {
       order.status = 'Perlu Penanganan';
       order.treatmentStatus = 'Belum Ditangani';
+    } else if (record.checkStatus === 'Sudah Dicek Aman') {
+      order.status = 'Selesai';
+      order.treatmentStatus = 'Tidak Perlu Penanganan';
     }
 
     if (record.treatmentNeeded) {

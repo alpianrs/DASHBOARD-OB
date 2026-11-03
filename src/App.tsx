@@ -110,7 +110,8 @@ export default function App() {
       focusDebounceTimer = setTimeout(() => {
         GoogleSheetsService.processPendingQueue().catch(console.warn);
         const now = Date.now();
-        if (now - lastFocusPullTime < 120000) return;
+        // Wait at least 3 minutes between background pulls on focus to eliminate lag when returning from camera
+        if (now - lastFocusPullTime < 180000) return;
         lastFocusPullTime = now;
 
         GoogleSheetsService.pullFromSheets()
@@ -121,22 +122,17 @@ export default function App() {
             }
           })
           .catch(console.warn);
-      }, 1500);
+      }, 2500);
     };
 
     const handleOnline = () => {
       GoogleSheetsService.processPendingQueue().catch(console.warn);
-      GoogleSheetsService.pullFromSheets()
-        .then((res) => {
-          if (res.success) refreshAllStateFromStorage();
-        })
-        .catch(console.warn);
     };
 
     window.addEventListener('focus', handleWindowFocus);
     window.addEventListener('online', handleOnline);
 
-    // Periodic background sync interval & queue processing (every 90 seconds)
+    // Periodic background sync interval & queue processing (every 3 minutes to keep app ultra-light and save battery)
     const syncInterval = setInterval(() => {
       GoogleSheetsService.processPendingQueue().catch(console.warn);
       GoogleSheetsService.pullFromSheets()
@@ -147,7 +143,7 @@ export default function App() {
           }
         })
         .catch(console.warn);
-    }, 90000);
+    }, 180000);
 
     return () => {
       window.removeEventListener('focus', handleWindowFocus);
