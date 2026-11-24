@@ -285,6 +285,7 @@ export const TreeWorkOrderView: React.FC<TreeWorkOrderViewProps> = ({
   const [isUploadingInspectPhoto, setIsUploadingInspectPhoto] = useState<boolean>(false);
   const [isSavingInspection, setIsSavingInspection] = useState<boolean>(false);
   const [isSyncingAllTrees, setIsSyncingAllTrees] = useState<boolean>(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
 
   // Modal Filter & Unduh Dokumen PDF History Penanganan (Mingguan / Bulanan / Multi-Staff)
   const [showPdfFilterModal, setShowPdfFilterModal] = useState<boolean>(false);
@@ -1479,8 +1480,32 @@ function setupTabWorkOrderPohon() {
   }, [orders, pdfAreaSelection, pdfHandlerSelection, pdfSelectedStaff]);
 
   // Unduh & Cetak PDF Dokumen Resmi dengan Filter Periode (Mingguan / Bulanan / All) & Multi-Staff PLH
-  const handleGenerateFilteredPdf = () => {
-    let targetOrders = orders;
+  const handleGenerateFilteredPdf = async () => {
+    if (isGeneratingPdf) return;
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const thresholdStr = getJakartaDateString(sevenDaysAgo);
+    const needsFullHistory =
+      pdfPeriodType === 'all' ||
+      pdfPeriodType === 'monthly' ||
+      (pdfPeriodType === 'weekly' && Boolean(pdfStartDate) && pdfStartDate < thresholdStr);
+
+    let activeOrders = orders;
+    if (needsFullHistory) {
+      setIsGeneratingPdf(true);
+      try {
+        await googleSheetsService.pullAllHistoryFromSheets();
+        refreshData();
+        activeOrders = StorageService.getTreeWorkOrders();
+      } catch (err) {
+        console.warn('Tree full history pull before PDF failed:', err);
+      } finally {
+        setIsGeneratingPdf(false);
+      }
+    }
+
+    let targetOrders = activeOrders;
     if (pdfAreaSelection !== 'Semua') {
       targetOrders = targetOrders.filter((o) => o.area === pdfAreaSelection);
     }
@@ -6184,11 +6209,12 @@ mt-plh-02\tPemangkasan Rumput & Pruning Dahan Bawah\tSemua Unit\tMingguan\tanyti
               </button>
               <button
                 type="button"
+                disabled={isGeneratingPdf}
                 onClick={handleGenerateFilteredPdf}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white cursor-pointer shadow-sm flex items-center gap-2"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white cursor-pointer shadow-sm flex items-center gap-2"
               >
                 <Printer className="w-4 h-4" />
-                <span>🖨️ Unduh & Cetak PDF ({previewTargetCount} Pohon)</span>
+                <span>{isGeneratingPdf ? '⏳ Menarik Riwayat Lengkap...' : `🖨️ Unduh & Cetak PDF (${previewTargetCount} Pohon)`}</span>
               </button>
             </div>
           </div>

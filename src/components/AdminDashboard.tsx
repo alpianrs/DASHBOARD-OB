@@ -125,6 +125,7 @@ interface AdminDashboardProps {
   onUpdateTaskLog?: (taskLog: TaskLog) => void;
   onDeleteTaskLog?: (logId: string) => void;
   onTriggerSync: () => void;
+  onRefreshFromStorage?: () => void;
   onSubmitWeeklyScore?: (score: WeeklyScore) => void;
 }
 
@@ -150,6 +151,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onUpdateTaskLog,
   onDeleteTaskLog,
   onTriggerSync,
+  onRefreshFromStorage,
   onSubmitWeeklyScore,
 }) => {
   const isKepalaUnit = activeUser.role === 'kepala_unit';
@@ -176,6 +178,74 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   );
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('Semua');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isPreparingPdf, setIsPreparingPdf] = useState<boolean>(false);
+
+  const triggerBackgroundFullHistoryPull = (checkDateStr?: string) => {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const thresholdStr = getJakartaDateString(sevenDaysAgo);
+    if (!checkDateStr || checkDateStr < thresholdStr) {
+      GoogleSheetsService.pullAllHistoryFromSheets()
+        .then((res) => {
+          if (res.success && onRefreshFromStorage) {
+            onRefreshFromStorage();
+          }
+        })
+        .catch(console.warn);
+    }
+  };
+
+  const handleDownloadWorkOrderPdf = async () => {
+    if (isPreparingPdf) return;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const thresholdStr = getJakartaDateString(sevenDaysAgo);
+    const needsFullHistory =
+      dateFilterMode === 'all' ||
+      dateFilterMode === 'month' ||
+      (startDate && startDate < thresholdStr);
+
+    if (needsFullHistory) {
+      setIsPreparingPdf(true);
+      try {
+        const res = await GoogleSheetsService.pullAllHistoryFromSheets();
+        if (res.success && onRefreshFromStorage) {
+          onRefreshFromStorage();
+        }
+      } catch (err) {
+        console.warn('Full history pull before PDF failed:', err);
+      } finally {
+        setIsPreparingPdf(false);
+      }
+    }
+
+    const latestLogs = needsFullHistory ? StorageService.getTaskLogs() : taskLogs;
+    const latestMasterTasks = needsFullHistory ? StorageService.getMasterTasks() : masterTasks;
+    const latestJobBareng = needsFullHistory ? StorageService.getJobBareng() : jobBarengList;
+    const latestUsers = needsFullHistory ? StorageService.getUsers() : allUsers;
+
+    const effectiveStart = dateFilterMode === 'all' ? '' : startDate;
+    const effectiveEnd = dateFilterMode === 'all' ? '' : endDate;
+
+    const html = generateWorkOrderSummaryPdf(
+      latestLogs,
+      latestMasterTasks,
+      latestJobBareng,
+      latestUsers,
+      {
+        division: selectedDivisionFilter,
+        startDate: effectiveStart,
+        endDate: effectiveEnd,
+        unitFilter: selectedUnitFilter,
+        statusFilter: selectedStatusFilter,
+        staffName: selectedUserFilter !== 'Semua' ? selectedUserFilter : undefined,
+      }
+    );
+    printHtmlAsPdf(
+      html,
+      `Rekap_WorkOrder_${selectedDivisionFilter === 'OB' ? 'OB_OG' : selectedDivisionFilter}_${effectiveStart || 'Semua_Waktu'}_sd_${effectiveEnd || 'Sekarang'}`
+    );
+  };
 
   // Holiday / Schedule Configuration State
   const [holidayConfig, setHolidayConfig] = useState<HolidayConfig>(() =>
@@ -1581,6 +1651,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
                   setStartDate(getJakartaDateString(firstDay));
                   setEndDate(todayStr);
+                  triggerBackgroundFullHistoryPull(getJakartaDateString(firstDay));
                 }}
                 className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
                   dateFilterMode === 'month'
@@ -1596,6 +1667,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   setDateFilterMode('all');
                   setStartDate('');
                   setEndDate('');
+                  triggerBackgroundFullHistoryPull();
                 }}
                 className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
                   dateFilterMode === 'all'
@@ -1620,6 +1692,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 onChange={(e) => {
                   setDateFilterMode('custom');
                   setStartDate(e.target.value);
+                  triggerBackgroundFullHistoryPull(e.target.value);
                 }}
                 className="px-2 py-1 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 title="Pilih tanggal mulai"
@@ -1645,31 +1718,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {/* Action Download PDF Work Order SPK */}
             <button
               type="button"
-              onClick={() => {
-                const html = generateWorkOrderSummaryPdf(
-                  taskLogs,
-                  masterTasks,
-                  jobBarengList,
-                  allUsers,
-                  {
-                    division: selectedDivisionFilter,
-                    startDate: startDate,
-                    endDate: endDate,
-                    unitFilter: selectedUnitFilter,
-                    statusFilter: selectedStatusFilter,
-                    staffName: selectedUserFilter !== 'Semua' ? selectedUserFilter : undefined,
-                  }
-                );
-                printHtmlAsPdf(
-                  html,
-                  `Rekap_WorkOrder_${selectedDivisionFilter === 'OB' ? 'OB_OG' : selectedDivisionFilter}_${startDate || 'Awal'}_sd_${endDate || 'Sekarang'}`
-                );
-              }}
-              className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs text-xs whitespace-nowrap"
+              disabled={isPreparingPdf}
+              onClick={handleDownloadWorkOrderPdf}
+              className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs text-xs whitespace-nowrap"
               title="Cetak & Unduh Dokumen PDF Rekapitulasi Work Order Tugas Harian / Mingguan"
             >
               <Printer className="w-3.5 h-3.5 text-emerald-400" />
-              <span>📄 Cetak PDF Work Order</span>
+              <span>{isPreparingPdf ? '⏳ Menarik Riwayat...' : '📄 Cetak PDF Work Order'}</span>
             </button>
           </div>
         </div>
@@ -2221,31 +2276,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <button
               type="button"
-              onClick={() => {
-                const html = generateWorkOrderSummaryPdf(
-                  taskLogs,
-                  masterTasks,
-                  jobBarengList,
-                  allUsers,
-                  {
-                    division: selectedDivisionFilter,
-                    startDate: startDate,
-                    endDate: endDate,
-                    unitFilter: selectedUnitFilter,
-                    statusFilter: selectedStatusFilter,
-                    staffName: selectedUserFilter !== 'Semua' ? selectedUserFilter : undefined,
-                  }
-                );
-                printHtmlAsPdf(
-                  html,
-                  `Rekap_WorkOrder_${selectedDivisionFilter === 'OB' ? 'OB_OG' : selectedDivisionFilter}_${startDate || 'Awal'}_sd_${endDate || 'Sekarang'}`
-                );
-              }}
-              className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs whitespace-nowrap text-xs"
+              disabled={isPreparingPdf}
+              onClick={handleDownloadWorkOrderPdf}
+              className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs whitespace-nowrap text-xs"
               title="Unduh Rekap Work Order & SPK Tugas Seluruh OB & PLH dalam Format PDF Resmi"
             >
               <Printer className="w-3.5 h-3.5 text-emerald-200" />
-              <span>📄 Unduh PDF Work Order</span>
+              <span>{isPreparingPdf ? '⏳ Menarik Riwayat...' : '📄 Unduh PDF Work Order'}</span>
             </button>
           </div>
 

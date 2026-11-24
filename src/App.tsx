@@ -695,6 +695,7 @@ export default function App() {
             onUpdateTaskLog={handleUpdateTaskLog}
             onDeleteTaskLog={handleDeleteTaskLog}
             onTriggerSync={() => setIsSyncModalOpen(true)}
+            onRefreshFromStorage={refreshAllStateFromStorage}
             onSubmitWeeklyScore={handleSubmitWeeklyScore}
           />
         ) : activeUser.role === 'kordinator' ? (

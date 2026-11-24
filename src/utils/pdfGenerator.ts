@@ -1,5 +1,5 @@
 import { TreeWorkOrder, TreeInspectionRecord, JobBareng, DivisionType, DEFAULT_PLH_AREA_STAFF, TaskLog, MasterTask, User } from '../types';
-import { formatJakartaDisplayDate, getJakartaDateString } from './dateHelper';
+import { formatJakartaDisplayDate, getJakartaDateString, normalizeDateString } from './dateHelper';
 import { getMondayOfWeek } from './masjidRolling';
 import { formatGoogleDriveImageUrl, getGoogleDriveViewLink, extractGoogleDriveFileId } from './driveHelper';
 import { isTaskAssignedToUser } from '../services/storage';
@@ -724,8 +724,8 @@ export function getTreePeriodicStatusStages(
   const history = filteredHistory || order.inspectionHistory || [];
 
   const sortedHistory = [...history].sort((a, b) => {
-    const da = `${a.date || ''} ${a.time || ''}`;
-    const db = `${b.date || ''} ${b.time || ''}`;
+    const da = `${normalizeDateString(a.date || a.timestamp) || a.date || ''} ${a.time || ''}`;
+    const db = `${normalizeDateString(b.date || b.timestamp) || b.date || ''} ${b.time || ''}`;
     return da.localeCompare(db);
   });
 
@@ -935,24 +935,32 @@ export const generateTreeAreaReportPdf = (
 
     // Filter mingguan (startDate & endDate)
     if (startDate) {
-      history = history.filter((rec) => !rec.date || rec.date >= startDate);
+      history = history.filter((rec) => {
+        const d = normalizeDateString(rec.date) || normalizeDateString(rec.timestamp);
+        return !d || d >= startDate;
+      });
     }
     if (endDate) {
-      history = history.filter((rec) => !rec.date || rec.date <= endDate);
+      history = history.filter((rec) => {
+        const d = normalizeDateString(rec.date) || normalizeDateString(rec.timestamp);
+        return !d || d <= endDate;
+      });
     }
 
     // Filter bulanan (startMonth & endMonth)
     if (startMonth) {
       history = history.filter((rec) => {
-        const ym = (rec.date || '').substring(0, 7);
-        return ym >= startMonth;
+        const d = normalizeDateString(rec.date) || normalizeDateString(rec.timestamp);
+        const ym = d ? d.substring(0, 7) : '';
+        return ym !== '' && ym >= startMonth;
       });
     }
 
     if (endMonth) {
       history = history.filter((rec) => {
-        const ym = (rec.date || '').substring(0, 7);
-        return ym <= endMonth;
+        const d = normalizeDateString(rec.date) || normalizeDateString(rec.timestamp);
+        const ym = d ? d.substring(0, 7) : '';
+        return ym !== '' && ym <= endMonth;
       });
     }
 
@@ -1093,7 +1101,7 @@ export const generateTreeAreaReportPdf = (
                             (rec, recIdx) => `
                           <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 3px solid ${rec.checkStatus === 'Sudah Dicek Aman' || rec.checkStatus === 'Sudah Ditangani' ? '#047857' : '#dc2626'}; border-radius: 4px; padding: 4px 6px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; font-size: 8.5px;">
-                              <span style="font-weight: 800; color: #0f172a;">${formatJakartaDisplayDate(rec.date)} ${rec.time ? `• ${rec.time}` : ''}</span>
+                              <span style="font-weight: 800; color: #0f172a;">${formatJakartaDisplayDate(normalizeDateString(rec.date || rec.timestamp) || rec.date)} ${rec.time ? `• ${rec.time}` : ''}</span>
                               <span class="badge ${rec.checkStatus === 'Sudah Dicek Aman' ? 'badge-low' : rec.checkStatus === 'Sudah Ditangani' ? 'badge-completed' : 'badge-urgent'}" style="font-size: 7.5px; padding: 1px 5px;">
                                 ${rec.checkStatus === 'Sudah Dicek Aman' ? '🌿 Aman & Terawat' : rec.checkStatus}
                               </span>
@@ -1371,23 +1379,72 @@ export const generateWorkOrderSummaryPdf = (
   const statusFilter = options?.statusFilter && options.statusFilter !== 'Semua' ? options.statusFilter : null;
   const staffFilter = options?.staffName && options.staffName !== 'Semua' ? options.staffName : null;
 
-  // 1. Tentukan rentang tanggal
+  // 1. Tentukan rentang tanggal (mendukung "Semua Waktu", bulan sebelumnya, rentang kustom, atau hari ini)
   const today = getJakartaDateString();
-  const startD = startDate || today;
-  const endD = endDate || startD;
+  const isAllTime = !startDate && !endDate;
+  const getLogDate = (l: TaskLog): string =>
+    normalizeDateString(l.date) || normalizeDateString(l.timestamp);
+
+  const matchesScopeFilters = (l: TaskLog): boolean => {
+    if (division !== 'Semua' && (l.division || 'OB') !== division) return false;
+    if (unitFilter && l.unit !== unitFilter && l.unit !== 'Semua Unit') return false;
+    if (staffFilter) {
+      const sf = staffFilter.trim().toLowerCase();
+      const un = (l.userName || '').trim().toLowerCase();
+      const uid = (l.userId || '').trim().toLowerCase();
+      if (!(un === sf || uid === sf || un.includes(sf) || sf.includes(un))) return false;
+    }
+    return true;
+  };
+
+  const allNormalizedLogDates = Array.from(
+    new Set(taskLogs.map((l) => getLogDate(l)).filter(Boolean))
+  ).sort();
+
+  const scopedLogDates = Array.from(
+    new Set(
+      taskLogs
+        .filter(matchesScopeFilters)
+        .map((l) => getLogDate(l))
+        .filter(Boolean)
+    )
+  ).sort();
 
   const dateSet = new Set<string>();
-  if (startD === endD) {
-    dateSet.add(startD);
+  let startD = startDate || today;
+  let endD = endDate || today;
+
+  if (isAllTime) {
+    const sourceDates = scopedLogDates.length > 0 ? scopedLogDates : allNormalizedLogDates;
+    sourceDates.forEach((d) => dateSet.add(d));
+    if (dateSet.size === 0) {
+      dateSet.add(today);
+    }
+    const sortedSource = Array.from(dateSet).sort();
+    startD = sortedSource[0];
+    endD = sortedSource[sortedSource.length - 1];
   } else {
-    taskLogs.forEach((l) => {
-      const d = l.date || (l.timestamp ? l.timestamp.substring(0, 10) : '');
-      if (d && d >= startD && d <= endD) {
-        dateSet.add(d);
-      }
-    });
-    dateSet.add(startD);
-    dateSet.add(endD);
+    if (!startDate && endDate) {
+      const earlierDates = (scopedLogDates.length > 0 ? scopedLogDates : allNormalizedLogDates).filter(
+        (d) => d <= endDate
+      );
+      startD = earlierDates.length > 0 ? earlierDates[0] : endDate;
+    } else if (startDate && !endDate) {
+      startD = startDate;
+      endD = today;
+    }
+
+    if (startD === endD) {
+      dateSet.add(startD);
+    } else {
+      allNormalizedLogDates.forEach((d) => {
+        if (d >= startD && d <= endD) {
+          dateSet.add(d);
+        }
+      });
+      dateSet.add(startD);
+      dateSet.add(endD);
+    }
   }
   const datesInRange = Array.from(dateSet).sort();
 
@@ -1485,7 +1542,7 @@ export const generateWorkOrderSummaryPdf = (
             (l.userName && user.username && (
               l.userName.trim().toLowerCase() === user.username.trim().toLowerCase()
             ));
-          const logDate = l.date || (l.timestamp ? l.timestamp.substring(0, 10) : '');
+          const logDate = getLogDate(l);
           const isDateMatch = logDate === d;
           const isTaskMatch =
             (l.taskId && l.taskId === mTask.id) ||
@@ -1562,7 +1619,7 @@ export const generateWorkOrderSummaryPdf = (
           (l.userName && user.username && (
             l.userName.trim().toLowerCase() === user.username.trim().toLowerCase()
           ));
-        const logDate = l.date || (l.timestamp ? l.timestamp.substring(0, 10) : '');
+        const logDate = getLogDate(l);
         return isUserMatch && logDate === d;
       });
 
@@ -1598,12 +1655,50 @@ export const generateWorkOrderSummaryPdf = (
     });
   });
 
+  // Tangkap log historis yang cocok filter namun belum tercakup di daftar targetUsers (misal petugas lama / perubahan nama)
+  taskLogs.forEach((l) => {
+    if (processedLogIds.has(l.id)) return;
+    if (!matchesScopeFilters(l)) return;
+    const logDate = getLogDate(l);
+    if (!logDate || logDate < startD || logDate > endD) return;
+    processedLogIds.add(l.id);
+    const rawStatus = (l.status || '').trim();
+    const isDone = rawStatus === 'Selesai' || rawStatus === 'Dinas Luar';
+    const finalStatus = isDone
+      ? (l.isLate ? 'Selesai (Terlambat)' : rawStatus)
+      : 'Tidak Dikerjakan';
+    items.push({
+      id: l.id,
+      date: logDate,
+      timestamp: l.timestamp,
+      timingType: l.timingType || 'anytime',
+      division: l.division || 'OB',
+      unit: l.unit,
+      area: l.area,
+      taskTitle: l.taskTitle,
+      category: l.category,
+      userName: l.userName,
+      userRole: l.userRole,
+      status: finalStatus,
+      isLate: l.isLate,
+      lateReason: l.lateReason,
+      photoUrl: l.photoUrl,
+      notes: l.notes,
+      kordinatorScore: l.kordinatorScore,
+      kordinatorNotes: l.kordinatorNotes,
+      isDone,
+    });
+  });
+
   // Fallback jika tidak ada master task cocok (misal filter khusus atau data murni log)
   if (items.length === 0) {
     taskLogs.forEach((l) => {
+      if (!matchesScopeFilters(l)) return;
+      const logDate = getLogDate(l) || today;
+      if (logDate < startD || logDate > endD) return;
       items.push({
         id: l.id,
-        date: l.date || (l.timestamp ? l.timestamp.substring(0, 10) : today),
+        date: logDate,
         timestamp: l.timestamp,
         timingType: l.timingType || 'anytime',
         division: l.division || 'OB',
@@ -1657,10 +1752,11 @@ export const generateWorkOrderSummaryPdf = (
   const withPhotos = items.filter((i) => Boolean(i.photoUrl)).length;
   const uniqueStaff = Array.from(new Set(items.map((i) => i.userName).filter(Boolean)));
 
-  const periodText =
-    startDate || endDate
-      ? `${startDate ? formatJakartaDisplayDate(startDate) : 'Awal'} s/d ${endDate ? formatJakartaDisplayDate(endDate) : 'Sekarang'}`
-      : `Hari Ini (${formatJakartaDisplayDate(getJakartaDateString())})`;
+  const periodText = isAllTime
+    ? datesInRange.length > 1
+      ? `Semua Waktu (${formatJakartaDisplayDate(datesInRange[0])} s/d ${formatJakartaDisplayDate(datesInRange[datesInRange.length - 1])})`
+      : 'Semua Waktu (Keseluruhan Riwayat Tersimpan)'
+    : `${startDate ? formatJakartaDisplayDate(startDate) : formatJakartaDisplayDate(startD)} s/d ${endDate ? formatJakartaDisplayDate(endDate) : formatJakartaDisplayDate(today)}`;
 
   const docHeading = options?.title || 'REKAP REALISASI WORK ORDER TUGAS';
 

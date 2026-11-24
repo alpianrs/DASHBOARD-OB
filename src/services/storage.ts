@@ -1028,16 +1028,20 @@ const freeLocalStorageSpace = () => {
             let trChanged = false;
             let newHist = tr.inspectionHistory;
             if (newHist && newHist.length > 0) {
-              const sliced = newHist.slice(0, 10);
+              const sliced = newHist.slice(0, 200);
               if (sliced.length !== newHist.length) trChanged = true;
               newHist = sliced.map((h, idx) => {
-                if (idx > 0 && h.photoUrl && h.photoUrl.startsWith('data:')) {
+                const hasBase64 =
+                  (h.photoUrl && h.photoUrl.startsWith('data:')) ||
+                  (h.photoBeforeUrl && h.photoBeforeUrl.startsWith('data:')) ||
+                  (h.photoAfterUrl && h.photoAfterUrl.startsWith('data:'));
+                if (idx > 0 && hasBase64) {
                   trChanged = true;
                   return {
                     ...h,
-                    photoUrl: h.drivePhotoUrl || '',
-                    photoBeforeUrl: h.drivePhotoBeforeUrl || '',
-                    photoAfterUrl: h.drivePhotoAfterUrl || '',
+                    photoUrl: h.photoUrl?.startsWith('data:') ? (h.drivePhotoUrl || '') : h.photoUrl,
+                    photoBeforeUrl: h.photoBeforeUrl?.startsWith('data:') ? (h.drivePhotoBeforeUrl || '') : h.photoBeforeUrl,
+                    photoAfterUrl: h.photoAfterUrl?.startsWith('data:') ? (h.drivePhotoAfterUrl || '') : h.photoAfterUrl,
                   };
                 }
                 return h;
@@ -1106,16 +1110,25 @@ export const removeStoredItem = (key: string): void => {
   }
 };
 
-// Safe timestamp parser that handles timezone strings (WIB, WITA, WIT, etc.) without returning NaN
+// Safe timestamp parser that handles timezone strings (WIB, WITA, WIT, etc.) and DD/MM/YYYY without returning NaN
 export function parseSafeTimestamp(dateStr?: string, timeStr?: string): number {
   if (!dateStr) return 0;
-  const cleanDate = dateStr.trim();
+  const cleanDate = String(dateStr).trim();
+  if (!cleanDate) return 0;
+
+  if (cleanDate.includes('T') || cleanDate.endsWith('Z') || cleanDate.includes('GMT')) {
+    const isoParsed = new Date(cleanDate).getTime();
+    if (!isNaN(isoParsed)) return isoParsed;
+  }
+
+  const normalizedDate = normalizeDateString(cleanDate) || cleanDate;
   const cleanTime = (timeStr || '00:00')
     .replace(/(WIB|WITA|WIT|UTC|GMT|\(|\))/gi, '')
-    .trim();
+    .trim()
+    .replace('.', ':');
 
-  const dateParts = cleanDate.split('-');
-  if (dateParts.length === 3) {
+  const dateParts = normalizedDate.split('-');
+  if (dateParts.length === 3 && dateParts[0].length === 4) {
     const y = parseInt(dateParts[0], 10);
     const m = parseInt(dateParts[1], 10) - 1;
     const d = parseInt(dateParts[2], 10);
@@ -1569,17 +1582,32 @@ export const StorageService = {
     });
 
     const sorted = Array.from(mergedMap.values()).sort((a, b) => {
-      const dateA = a.date || a.timestamp || '';
-      const dateB = b.date || b.timestamp || '';
-      return dateB.localeCompare(dateA);
+      const dateA = normalizeDateString(a.date) || normalizeDateString(a.timestamp) || '';
+      const dateB = normalizeDateString(b.date) || normalizeDateString(b.timestamp) || '';
+      if (dateB !== dateA) return dateB.localeCompare(dateA);
+      return (b.timestamp || '').localeCompare(a.timestamp || '');
     });
 
-    // Keep active logs lightweight (maximum 250 rows in local cache) while protecting all of today's work
+    // Keep full multi-month logs lightweight by stripping raw base64 photos from past days while preserving Drive URLs
     const today = getJakartaDateString();
-    let result = sorted;
-    if (sorted.length > 250) {
-      const todayLogs = sorted.filter((l) => isSameDay(l.date, today) || isSameDay(l.timestamp, today));
-      const olderLogs = sorted.filter((l) => !isSameDay(l.date, today) && !isSameDay(l.timestamp, today)).slice(0, 250 - todayLogs.length);
+    const lightweightLogs = sorted.map((l) => {
+      const isTodayLog = isSameDay(l.date, today) || isSameDay(l.timestamp, today);
+      if (!isTodayLog && l.photoUrl && l.photoUrl.startsWith('data:')) {
+        return {
+          ...l,
+          photoUrl: l.driveFileId ? `https://drive.google.com/file/d/${l.driveFileId}/view` : '',
+        };
+      }
+      return l;
+    });
+
+    // Cap at 5000 rows (~1.5 MB max without base64) so previous months remain available for PDF export
+    let result = lightweightLogs;
+    if (lightweightLogs.length > 5000) {
+      const todayLogs = lightweightLogs.filter((l) => isSameDay(l.date, today) || isSameDay(l.timestamp, today));
+      const olderLogs = lightweightLogs
+        .filter((l) => !isSameDay(l.date, today) && !isSameDay(l.timestamp, today))
+        .slice(0, Math.max(0, 5000 - todayLogs.length));
       result = [...todayLogs, ...olderLogs];
     }
 
@@ -2457,8 +2485,24 @@ export const StorageService = {
     const order = { ...list[index] };
     const history = [...(order.inspectionHistory || [])];
     history.unshift(record);
-    // Keep max 15 inspection records to avoid localStorage quota issues
-    order.inspectionHistory = history.slice(0, 10);
+    // Keep up to 200 inspection records and strip raw base64 from older entries to stay lightweight while preserving all months
+    order.inspectionHistory = history.slice(0, 200).map((h, idx) => {
+      if (idx > 2) {
+        const hasBase64 =
+          (h.photoUrl && h.photoUrl.startsWith('data:')) ||
+          (h.photoBeforeUrl && h.photoBeforeUrl.startsWith('data:')) ||
+          (h.photoAfterUrl && h.photoAfterUrl.startsWith('data:'));
+        if (hasBase64) {
+          return {
+            ...h,
+            photoUrl: h.photoUrl?.startsWith('data:') ? (h.drivePhotoUrl || '') : h.photoUrl,
+            photoBeforeUrl: h.photoBeforeUrl?.startsWith('data:') ? (h.drivePhotoBeforeUrl || '') : h.photoBeforeUrl,
+            photoAfterUrl: h.photoAfterUrl?.startsWith('data:') ? (h.drivePhotoAfterUrl || '') : h.photoAfterUrl,
+          };
+        }
+      }
+      return h;
+    });
     order.lastCheckedDate = record.date;
     order.lastCheckedTime = record.time;
     order.lastCheckedByName = record.inspectorName;

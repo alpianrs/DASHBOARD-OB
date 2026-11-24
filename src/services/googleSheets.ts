@@ -1,4 +1,4 @@
-import { StorageService } from './storage';
+import { StorageService, parseSafeTimestamp } from './storage';
 import { getCachedAccessToken } from './auth';
 import {
   User,
@@ -344,7 +344,7 @@ function doGet(e) {
       return jsonOutput({ success: true, message: "Lazuardi FM Apps Script Connected!" });
     }
 
-    var limit = (e && e.parameter && e.parameter.limit) ? parseInt(e.parameter.limit, 10) : 150;
+    var limit = (e && e.parameter && e.parameter.limit) ? parseInt(e.parameter.limit, 10) : 1500;
     var fetchAll = (e && e.parameter && (e.parameter.all === "true" || e.parameter.action === "getAllFull"));
 
     var result = {
@@ -355,12 +355,12 @@ function doGet(e) {
       taskLogs_plh: readSheet(ss, "TaskLogs_PLH", limit, fetchAll),
       jobBareng: readSheet(ss, "JobBareng", 0, true),
       jobBareng_plh: readSheet(ss, "JobBareng_PLH", 0, true),
-      weeklyScores: readSheet(ss, "WeeklyScores", 100, fetchAll),
-      weeklyScores_plh: readSheet(ss, "WeeklyScores_PLH", 100, fetchAll),
+      weeklyScores: readSheet(ss, "WeeklyScores", 500, fetchAll),
+      weeklyScores_plh: readSheet(ss, "WeeklyScores_PLH", 500, fetchAll),
       workOrderPohon: readSheet(ss, "WorkOrder_Pohon", 0, true),
       taskLogs_pohon: readSheet(ss, "TaskLogs_Pohon", 0, true),
       dinasRequests: readSheet(ss, "DinasRequests", 0, true),
-      peerInspections: readSheet(ss, "PeerInspections", 100, fetchAll),
+      peerInspections: readSheet(ss, "PeerInspections", 500, fetchAll),
       timestamp: new Date().toISOString()
     };
 
@@ -606,11 +606,13 @@ function readSheet(ss, sheetName, limit, fetchAll) {
   var startRow = 2;
   var numRows = lastRow - 1;
 
-  // Jika membaca TaskLogs dalam mode reguler, ambil baris-baris terbaru saja
-  if (sheetName === "TaskLogs" && !fetchAll && numRows > 150) {
-    var readLimit = limit || 150;
-    startRow = Math.max(2, lastRow - readLimit + 1);
-    numRows = lastRow - startRow + 1;
+  // Jika membaca TaskLogs dalam mode reguler, ambil baris-baris terbaru dengan batas aman (default 1500)
+  if ((sheetName === "TaskLogs" || sheetName === "TaskLogs_PLH") && !fetchAll) {
+    var readLimit = limit || 1500;
+    if (numRows > readLimit) {
+      startRow = Math.max(2, lastRow - readLimit + 1);
+      numRows = lastRow - startRow + 1;
+    }
   } else if (limit && limit > 0 && numRows > limit && !fetchAll) {
     startRow = Math.max(2, lastRow - limit + 1);
     numRows = lastRow - startRow + 1;
@@ -1020,6 +1022,8 @@ function cleanupEmptyRows() {
 
 // In-flight guard to prevent duplicate concurrent pull requests
 let activePullPromise: Promise<SyncResult> | null = null;
+let activePullIsFull = false;
+let lastFullPullTimestamp = 0;
 
 export const GoogleSheetsService = {
   // Check if active access token or web app is available
@@ -2408,12 +2412,34 @@ export const GoogleSheetsService = {
     }
   },
 
+  // Pull full historical data across all months (?all=true) for PDF & historical reports
+  pullAllHistoryFromSheets: async (force = false): Promise<SyncResult> => {
+    if (!force && Date.now() - lastFullPullTimestamp < 60000) {
+      return {
+        success: true,
+        message: 'Data riwayat lengkap sudah sinkron.',
+        timestamp: new Date().toISOString(),
+      };
+    }
+    return GoogleSheetsService.pullFromSheets({ fetchAll: true });
+  },
+
   // Pull latest data from Google Sheets (2-way sync: Pull)
-  pullFromSheets: async (): Promise<SyncResult> => {
+  pullFromSheets: async (options?: { fetchAll?: boolean; limit?: number }): Promise<SyncResult> => {
+    const wantsFull = Boolean(options?.fetchAll);
     if (activePullPromise) {
-      return activePullPromise;
+      if (!wantsFull || activePullIsFull) {
+        return activePullPromise;
+      }
+      // Wait for current partial pull to finish, then perform full historical pull
+      try {
+        await activePullPromise;
+      } catch {
+        // proceed to full pull
+      }
     }
 
+    activePullIsFull = wantsFull;
     activePullPromise = (async (): Promise<SyncResult> => {
       try {
         const token = getCachedAccessToken();
@@ -2423,9 +2449,13 @@ export const GoogleSheetsService = {
         // 1. Try Apps Script Web App if configured
         if (syncConfig.webAppUrl && syncConfig.webAppUrl.startsWith('http')) {
           try {
-            const pullUrl = `${syncConfig.webAppUrl}${syncConfig.webAppUrl.includes('?') ? '&' : '?'}limit=150`;
+            const sep = syncConfig.webAppUrl.includes('?') ? '&' : '?';
+            const queryParams = wantsFull
+              ? 'all=true&action=getAllFull'
+              : `limit=${options?.limit ?? 1500}`;
+            const pullUrl = `${syncConfig.webAppUrl}${sep}${queryParams}`;
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 25000);
+            const timeoutId = setTimeout(() => controller.abort(), wantsFull ? 45000 : 25000);
             const response = await fetch(pullUrl, { signal: controller.signal });
             clearTimeout(timeoutId);
             const resJson = await response.json();
@@ -2955,7 +2985,13 @@ export const GoogleSheetsService = {
                 let history: any[] = [];
                 try {
                   if (row[31] && typeof row[31] === 'string' && row[31].trim().startsWith('[')) {
-                    history = JSON.parse(row[31]);
+                    const parsedJson = JSON.parse(row[31]);
+                    if (Array.isArray(parsedJson)) {
+                      history = parsedJson.map((h: any) => ({
+                        ...h,
+                        date: normalizeDateString(h?.date || h?.timestamp) || h?.date || '',
+                      }));
+                    }
                   }
                 } catch (e) {
                   history = [];
@@ -2973,8 +3009,12 @@ export const GoogleSheetsService = {
                   });
                 }
 
-                // Sort history newest first
-                history.sort((a, b) => new Date(b.timestamp || b.date).getTime() - new Date(a.timestamp || a.date).getTime());
+                // Sort history newest first using safe parser (supports WIB & DD/MM/YYYY)
+                history.sort(
+                  (a, b) =>
+                    parseSafeTimestamp(b.timestamp || b.date, b.time) -
+                    parseSafeTimestamp(a.timestamp || a.date, a.time)
+                );
                 const latestLog = history.length > 0 ? history[0] : null;
 
                 const beforePhoto = row[29] || row[13] || (latestLog ? (latestLog.drivePhotoBeforeUrl || latestLog.photoBeforeUrl) : undefined);
@@ -3030,6 +3070,9 @@ export const GoogleSheetsService = {
           syncConfig.lastSyncTime = now;
           syncConfig.isGoogleConnected = true;
           StorageService.saveSyncConfig(syncConfig);
+          if (wantsFull) {
+            lastFullPullTimestamp = Date.now();
+          }
 
           return {
             success: true,
@@ -3592,7 +3635,13 @@ export const GoogleSheetsService = {
             let history: any[] = [];
             try {
               if (row[31] && typeof row[31] === 'string' && row[31].trim().startsWith('[')) {
-                history = JSON.parse(row[31]);
+                const parsedJson = JSON.parse(row[31]);
+                if (Array.isArray(parsedJson)) {
+                  history = parsedJson.map((h: any) => ({
+                    ...h,
+                    date: normalizeDateString(h?.date || h?.timestamp) || h?.date || '',
+                  }));
+                }
               }
             } catch (e) {
               history = [];
@@ -3610,8 +3659,12 @@ export const GoogleSheetsService = {
               });
             }
 
-            // Urutkan riwayat dari yang terbaru
-            history.sort((a, b) => new Date(b.timestamp || b.date).getTime() - new Date(a.timestamp || a.date).getTime());
+            // Urutkan riwayat dari yang terbaru menggunakan parser aman
+            history.sort(
+              (a, b) =>
+                parseSafeTimestamp(b.timestamp || b.date, b.time) -
+                parseSafeTimestamp(a.timestamp || a.date, a.time)
+            );
 
             const latestLog = history.length > 0 ? history[0] : null;
             const beforePhoto = row[29] || row[13] || (latestLog ? (latestLog.drivePhotoBeforeUrl || latestLog.photoBeforeUrl) : undefined);
@@ -3667,6 +3720,7 @@ export const GoogleSheetsService = {
       syncConfig.lastSyncTime = now;
       syncConfig.isGoogleConnected = true;
       StorageService.saveSyncConfig(syncConfig);
+      lastFullPullTimestamp = Date.now();
 
         return {
           success: true,
@@ -3682,6 +3736,7 @@ export const GoogleSheetsService = {
       }
     } finally {
       activePullPromise = null;
+      activePullIsFull = false;
     }
   })();
 
